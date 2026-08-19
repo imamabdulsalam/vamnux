@@ -384,6 +384,7 @@ export default function Home() {
                 <div className="product-image-fallback" aria-hidden="true"><Gamepad2 size={34} /><span>{item.name}</span></div>
                 {item.image && <img src={item.image} alt={`${item.name} official supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
                 <span className="product-badge ticket-chip">{item.badge}</span>
+                <span className="product-art-label">{item.name}</span>
                 <span className="play-frame" aria-hidden="true" />
                 <span className="corner-mark">{currency}</span>
               </div>

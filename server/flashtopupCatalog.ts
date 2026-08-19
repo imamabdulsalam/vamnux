@@ -61,7 +61,7 @@ function stableSlug(serviceCode: string) {
 const recognizedFlashTopUpArtwork: Array<{ sourceFragment: string; managedUrl: string }> = [
   { sourceFragment: "21a940a7-c33e-400e-adbb-150322c30b15", managedUrl: "/manus-storage/free-fire-latam_73a62a50.webp" },
   { sourceFragment: "23f79771-285a-4bbc-be28-f897a76d91c0", managedUrl: "/manus-storage/mobile-legends_da301a0e.webp" },
-  { sourceFragment: "8575d7fd-7df1-4835-a9e1-c286f564c4a0", managedUrl: "/manus-storage/mobile-legends-global_526e9a9d.webp" },
+  { sourceFragment: "8575d7fd-7df1-4835-a9e1-c286f564c4a0", managedUrl: "/manus-storage/mobile-legends_da301a0e.webp" },
   { sourceFragment: "c0ad7ab4-5959-45d1-af8b-5d53f2b1b67b", managedUrl: "/manus-storage/pubg-mobile_66e3513a.webp" },
   { sourceFragment: "ce5fbf20-952f-48c2-b74d-0ae65487dcd4", managedUrl: "/manus-storage/free-fire-global_6fd7b283.webp" },
   { sourceFragment: "fd05fdc2-a41d-4585-b2fa-c54deb992e81", managedUrl: "/manus-storage/blood-strike_92f09d09.webp" },
