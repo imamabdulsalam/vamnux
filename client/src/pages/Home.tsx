@@ -1,5 +1,5 @@
 /**
- * NaijaPlay / Arcade Exchange design: dark editorial commerce, Signal Lime action states,
+ * VAMNUX / Arcade Exchange design: dark editorial commerce, Signal Lime action states,
  * asymmetrical exchange-board sections, and sharp Barlow Condensed + DM Sans hierarchy.
  */
 import { useMemo, useState } from "react";
@@ -121,7 +121,7 @@ const products: Product[] = [
 const categories = [
   { label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
   { label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
-  { label: "Vouchers", icon: Ticket, filter: "Voucher" as ProductCategory },
+  { label: "Game keys", icon: Ticket, filter: "Voucher" as ProductCategory },
   { label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
   { label: "AI tools", icon: Sparkles, filter: "Subscription" as ProductCategory },
   { label: "Software", icon: Laptop, filter: "Software" as ProductCategory },
@@ -129,9 +129,9 @@ const categories = [
 
 function Logo() {
   return (
-    <a className="brand" href="#top" aria-label="NaijaPlay home">
+    <a className="brand" href="#top" aria-label="VAMNUX home">
       <img src="/manus-storage/naijaplay-logo_0a937b1e.png" alt="" />
-      <span>Naija<span>Play</span></span>
+      <span>VAM<span>NUX</span></span>
     </a>
   );
 }
@@ -183,7 +183,7 @@ export default function Home() {
     <main id="top" className="site-shell">
       <div className="utility-bar">
         <div className="utility-inner">
-          <span><Zap size={14} fill="currentColor" /> Digital goods, set in NGN</span>
+          <span><Zap size={14} fill="currentColor" /> Digital products. Instantly delivered.</span>
           <span className="utility-right"><ShieldCheck size={14} /> Secure purchase flow <i /> <Globe2 size={14} /> Nigeria</span>
         </div>
       </div>
@@ -192,10 +192,11 @@ export default function Home() {
         <div className="nav-inner">
           <Logo />
           <nav className="desktop-links" aria-label="Main navigation">
-            <a href="#products">Shop</a>
+            <a href="#products">Games</a>
             <a href="#categories">Categories <ChevronDown size={14} /></a>
+            <a href="#products">Deals</a>
             <a href="#how-it-works">How it works</a>
-            <a href="#support">Support</a>
+            <a href="#support">Help</a>
           </nav>
           <div className="nav-actions">
             <label className="compact-search" aria-label="Search product catalog">
@@ -214,10 +215,10 @@ export default function Home() {
         </div>
         {mobileOpen && (
           <nav className="mobile-links" aria-label="Mobile navigation">
-            <a href="#products" onClick={() => setMobileOpen(false)}>Shop</a>
+            <a href="#products" onClick={() => setMobileOpen(false)}>Games & deals</a>
             <a href="#categories" onClick={() => setMobileOpen(false)}>Categories</a>
             <a href="#how-it-works" onClick={() => setMobileOpen(false)}>How it works</a>
-            <a href="#support" onClick={() => setMobileOpen(false)}>Support</a>
+            <a href="#support" onClick={() => setMobileOpen(false)}>Help</a>
           </nav>
         )}
       </header>
@@ -227,14 +228,14 @@ export default function Home() {
         <div className="hero-overlay" />
         <div className="hero-grid" />
         <div className="hero-content">
-          <div className="eyebrow exchange-eyebrow"><span /> Nigeria’s digital goods exchange <b>NGN // 01</b></div>
-          <h1 id="hero-title">YOUR NEXT <em>WIN</em><br />STARTS HERE.</h1>
-          <p>Game credit, vouchers, subscriptions and software—arranged for a fast, clear purchase journey in naira.</p>
+          <div className="eyebrow exchange-eyebrow"><span /> Nigeria’s digital products exchange <b>VAM // 01</b></div>
+          <h1 id="hero-title">POWER YOUR<br /><em>DIGITAL</em> WORLD.</h1>
+          <p>Game credits, gift cards, subscriptions, AI tools and software—fast, secure and arranged in naira.</p>
           <div className="hero-actions">
             <a className="primary-action" href="#products">Explore top picks <ArrowRight size={18} /></a>
             <button className="text-action" onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}>How it works <ChevronRight size={18} /></button>
           </div>
-          <div className="hero-market-line"><span>₦ NGN pricing</span><i /> <span>Region-aware delivery</span><i /> <span>Authorised supply</span></div>
+          <div className="hero-market-line"><span>₦ NGN pricing</span><i /> <span>Instant delivery types</span><i /> <span>Authorised supply</span></div>
         </div>
         <div className="hero-cue">
           <span>SCROLL TO EXPLORE</span>
@@ -312,12 +313,12 @@ export default function Home() {
             </div>
           )}
         </div>
-        <p className="catalog-note"><CircleDollarSign size={16} /> <strong>NAIJAPLAY MARKET NOTE:</strong> Display prices are configured as NGN catalog rates. Confirm current supplier pricing and delivery rules before live fulfilment.</p>
+        <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX MARKET NOTE:</strong> Display prices are configured as NGN catalog rates. Confirm current supplier pricing and delivery rules before live fulfilment.</p>
       </section>
 
-      <section className="promo-band" aria-label="Why buy from NaijaPlay">
+      <section className="promo-band" aria-label="Why buy from VAMNUX">
         <div className="promo-arrow"><ArrowRight /></div>
-        <div className="promo-text"><span>Top up faster. Gift bigger. Work smarter.</span> <b>Top up faster. Gift bigger. Work smarter.</b></div>
+        <div className="promo-text"><span>Game more. Gift better. Work smarter.</span> <b>Game more. Gift better. Work smarter.</b></div>
       </section>
 
       <section id="how-it-works" className="process-section" aria-labelledby="process-title">
@@ -371,14 +372,14 @@ export default function Home() {
         <div className="terminal-stack" aria-hidden="true"><i /><i /><i /></div>
         <div className="section-marker">003 / KEEP THE GOOD STUFF CLOSE</div>
         <h2>YOUR DIGITAL<br /><em>ADVANTAGE,</em><br />ON DEMAND.</h2>
-        <p><b>NAIJA / NGN / READY</b><br />New drops, voucher categories, and gaming essentials belong in one sharp, easy-to-search marketplace.</p>
+        <p><b>VAMNUX / NGN / READY</b><br />New drops, gift-card categories, AI tools, and gaming essentials belong in one sharp, easy-to-search marketplace.</p>
         <button onClick={() => toast.message("Account access is ready to connect", { description: "Add customer authentication when you are ready to launch live orders." })}>Create an account <ArrowRight size={18} /></button>
       </section>
 
       <footer>
         <div className="footer-top">
           <Logo />
-          <p>Digital goods for game time, life admin, and everything in between.</p>
+          <p>Digital products for game time, work flow, and everything in between.</p>
           <div className="footer-links">
             <a href="#products">Shop</a><a href="#categories">Categories</a><a href="#how-it-works">How it works</a><a href="#support">Help center</a>
           </div>

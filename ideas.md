@@ -1,4 +1,4 @@
-# NaijaPlay Storefront — Design Brainstorm
+# VAMNUX Storefront — Design Brainstorm
 
 ## Three stylistic approaches
 
@@ -49,13 +49,13 @@ Use a 180–260ms cubic-bezier(0.23, 1, 0.32, 1) easing for navigation and hover
 Use **Barlow Condensed** for major display headlines, price figures, and labels because it brings compact competitive energy; use **DM Sans** for supporting copy and interface control text. Headlines are capitalised and tightly tracked; product details remain sentence case and spacious for readability.
 
 ### Brand Essence
-**NaijaPlay is the fast, transparent Nigerian exchange for gaming credit, gift cards, subscriptions, and essential software.** Personality: **electric, direct, reliable**.
+**VAMNUX is the fast, transparent Nigerian exchange for gaming credit, gift cards, subscriptions, AI tools, and essential software.** Personality: **electric, direct, reliable**.
 
 ### Brand Voice
 Headlines are energetic and concrete, CTAs name the next action, and microcopy removes doubt rather than adding hype. Examples: “Your next win starts here.” and “Choose a pack. Add your ID. We handle the rest.” Generic welcome language is never used.
 
 ### Wordmark & Logo
-The wordmark uses a customised slanted condensed form, interrupted by a luminous lime play-chevron. The standalone icon is a bold cobalt-and-lime geometric play mark with two opposing exchange arrows embedded in the negative space.
+The VAMNUX wordmark uses a customised slanted condensed form, interrupted by a luminous lime play-chevron. The standalone icon is a bold cobalt-and-lime geometric play mark with two opposing exchange arrows embedded in the negative space.
 
 ### Signature Brand Color
 **Signal Lime — #D6FF39**
