@@ -43,6 +43,20 @@
       "when": 1787166592457,
       "tag": "0005_cool_iron_lad",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787170124438,
+      "tag": "0006_lethal_peter_quill",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787170382577,
+      "tag": "0007_dry_blizzard",
+      "breakpoints": true
     }
   ]
 }

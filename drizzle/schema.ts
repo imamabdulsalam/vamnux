@@ -55,6 +55,7 @@ export const products = mysqlTable("products", {
   supplierOfferId: varchar("supplierOfferId", { length: 120 }),
   supplierUpdatedAt: timestamp("supplierUpdatedAt"),
   supplierEligible: boolean("supplierEligible").default(true).notNull(),
+  catalogSourceId: int("catalogSourceId"),
   regionLabel: varchar("regionLabel", { length: 120 }),
   deliveryType: mysqlEnum("deliveryType", ["instant", "digital_code", "activation_link", "manual_processing", "account_access"]).notNull(),
   requiresPlayerId: boolean("requiresPlayerId").default(false).notNull(),
@@ -70,6 +71,7 @@ export const products = mysqlTable("products", {
   supplierSkuIndex: index("products_supplier_sku_idx").on(table.supplierKey, table.supplierSku),
   supplierSkuUnique: uniqueIndex("products_supplier_sku_unique").on(table.supplierKey, table.supplierSku),
   supplierOfferIndex: index("products_supplier_offer_idx").on(table.supplierKey, table.supplierOfferId),
+  catalogSourceIndex: index("products_catalog_source_idx").on(table.catalogSourceId),
 }));
 
 /** Integration metadata only. Provider credentials must remain in protected environment variables, not in the database. */
@@ -90,6 +92,22 @@ export const commerceIntegrations = mysqlTable("commerce_integrations", {
 }, (table) => ({
   providerUnique: uniqueIndex("commerce_integrations_type_provider_unique").on(table.integrationType, table.providerName),
   typeStatusIndex: index("commerce_integrations_type_status_idx").on(table.integrationType, table.syncStatus),
+}));
+
+/** An auditable commercial source for products entered by a VAMNUX administrator. It stores references, never API credentials. */
+export const authorizedCatalogSources = mysqlTable("authorized_catalog_sources", {
+  id: int("id").autoincrement().primaryKey(),
+  displayName: varchar("displayName", { length: 120 }).notNull(),
+  sourceType: mysqlEnum("sourceType", ["supplier", "direct_agreement"]).notNull(),
+  commerceIntegrationId: int("commerceIntegrationId"),
+  agreementReference: varchar("agreementReference", { length: 120 }).notNull(),
+  status: mysqlEnum("status", ["active", "paused"]).default("active").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  displayNameUnique: uniqueIndex("authorized_catalog_sources_name_unique").on(table.displayName),
+  statusIndex: index("authorized_catalog_sources_status_idx").on(table.status),
+  integrationIndex: index("authorized_catalog_sources_integration_idx").on(table.commerceIntegrationId),
 }));
 
 /** Wallet balance is derived from a ledger; this row provides the current customer wallet configuration. */
@@ -211,5 +229,6 @@ export type Product = typeof products.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;
 export type CommerceIntegration = typeof commerceIntegrations.$inferSelect;
+export type AuthorizedCatalogSource = typeof authorizedCatalogSources.$inferSelect;
 export type WalletFundingAttempt = typeof walletFundingAttempts.$inferSelect;
 export type SupplierWebhookEvent = typeof supplierWebhookEvents.$inferSelect;

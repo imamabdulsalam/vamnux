@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { createFulfillmentFieldKey } from "@shared/marketplace";
 import {
   ArrowRight,
   Check,
@@ -32,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import "./cartFields.css";
 
 type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software";
 type CurrencyCode = "USD" | "EUR" | "GBP" | "NGN";
@@ -49,6 +51,7 @@ type Product = {
   image: string;
   tone: string;
   badge: string;
+  inputRequirements: Array<{ key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string }>;
 };
 
 const currencies: Record<CurrencyCode, { label: string; locale: string; rate: number }> = {
@@ -142,6 +145,17 @@ export default function Home() {
   const [cartOpen, setCartOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [activeSlide, setActiveSlide] = useState(0);
+  const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
+  const createDraftOrder = trpc.marketplace.createOrder.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Draft order ${result.orderCode} created`, { description: "Payment and wallet funding remain inactive. No supplier order has been sent." });
+      setCart([]);
+      setFulfillmentDetails({});
+      setCartOpen(false);
+      setLocation("/account");
+    },
+    onError: (orderError) => toast.error(orderError.message || "We could not create your draft order."),
+  });
 
   useEffect(() => {
     const interval = window.setInterval(() => setActiveSlide((current) => (current + 1) % slides.length), 5200);
@@ -155,23 +169,26 @@ export default function Home() {
 
   const liveProducts = useMemo<Product[]>(() => (supplierCatalog.data ?? []).map((item, index) => {
     const nameParts = item.name.split(" — ");
-    const fields = Array.isArray(item.inputRequirements) ? item.inputRequirements as Array<{ label?: string; required?: boolean }> : [];
+    const fields = Array.isArray(item.inputRequirements) ? item.inputRequirements as Array<{ key?: string; label?: string; type?: "text" | "email" | "select"; required?: boolean; helperText?: string }> : [];
     const category = supplierCategoryLabels[item.category] ?? "Top-up";
     return {
       id: item.id,
       category,
       name: nameParts[0] || item.name,
       product: nameParts.slice(1).join(" — ") || item.name,
-      description: fields.length > 0
+      description: item.description?.trim() || (fields.length > 0
         ? `Enter ${fields.filter((field) => field.required).map((field) => field.label || "supplier-required details").join(" and ") || "the supplier-required account details"} before fulfilment.`
-        : "Verified supplier service. Availability and delivery format are shown before purchase.",
+        : "Verified supplier service. Availability and delivery format are shown before purchase."),
       price: Number(item.basePrice),
-      priceNote: item.supplierEligible ? "Live supplier price" : "Supplier availability paused",
+      priceNote: item.supplierKey === "admin_managed"
+        ? "Authorised catalog price"
+        : item.supplierEligible ? "Live supplier price" : "Supplier availability paused",
       region: item.regionLabel || "Supplier region rules",
       delivery: supplierDeliveryLabel(item),
       image: item.imageUrl || "",
       tone: productTones[index % productTones.length],
       badge: category === "Voucher" ? "Gift card" : category,
+      inputRequirements: fields.filter((field): field is { key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string } => typeof field.key === "string" && typeof field.label === "string" && (field.type === "text" || field.type === "email" || field.type === "select")),
     };
   }), [supplierCatalog.data]);
 
@@ -210,8 +227,15 @@ export default function Home() {
       startLogin();
       return;
     }
-    toast.message("Checkout setup comes next", {
-      description: "Your account is ready. Connect an authorised supplier and payment provider before accepting live orders.",
+    createDraftOrder.mutate({
+      currency: "USD",
+      items: cart.reduce<Array<{ productId: number; quantity: number }>>((items, item) => {
+        const existing = items.find((line) => line.productId === item.id);
+        if (existing) existing.quantity += 1;
+        else items.push({ productId: item.id, quantity: 1 });
+        return items;
+      }, []),
+      fulfillmentDetails,
     });
   };
 
@@ -422,7 +446,10 @@ export default function Home() {
             <div className="cart-item" key={`${item.id}-${index}`}><img src={item.image} alt="" /><div><span>{item.name}</span><strong>{item.product}</strong><small>{formatPrice(item.price)}</small></div><button onClick={() => setCart((current) => current.filter((_, i) => i !== index))} aria-label={`Remove ${item.product}`}><X size={16} /></button></div>
           ))}
         </div>
-        {cart.length > 0 && <div className="cart-checkout"><p>Cart total: <strong>{formatPrice(cartTotal)}</strong>. Final currency and delivery details are confirmed at checkout.</p><button onClick={checkoutPreview}>Continue to checkout <ArrowRight size={18} /></button></div>}
+        {cart.length > 0 && <div className="cart-checkout"><p>Cart total: <strong>{formatPrice(cartTotal)}</strong>. Payment and wallet funding are inactive; save a draft after entering any supplier-required details.</p><div className="cart-fulfillment-fields">{cart.flatMap((item, itemIndex) => item.inputRequirements.map((field) => {
+          const fieldKey = createFulfillmentFieldKey(item.id, field.key);
+          return <label key={`${fieldKey}-${itemIndex}`}><span>{item.name} · {field.label}{field.required ? " *" : ""}</span><input type={field.type === "email" ? "email" : "text"} value={fulfillmentDetails[fieldKey] ?? ""} onChange={(event) => setFulfillmentDetails((current) => ({ ...current, [fieldKey]: event.target.value }))} placeholder={field.helperText || field.label} required={field.required} /></label>;
+        }))}</div><button onClick={checkoutPreview} disabled={createDraftOrder.isPending}>{createDraftOrder.isPending ? "Saving draft…" : "Save draft order"} <ArrowRight size={18} /></button></div>}
       </aside>
     </main>
   );

@@ -28,11 +28,14 @@
 
 - [x] Upgrade VAMNUX for account management, database-backed marketplace data, and protected server logic.
 - [x] Define the product, order, wallet, and supplier-integration data boundaries.
-- [ ] Implement the first customer, catalog, order, and wallet-ready workflows.
+- [ ] Complete the remaining end-to-end supplier order and wallet-settlement workflow only after payment setup and a deliberately selected test order are approved.
+- [x] Provide authenticated customer account summaries with protected order history and zero-balance wallet readiness.
+- [x] Provide a supplier-backed catalog with loading, empty, and error states.
+- [x] Provide authenticated draft-order creation from database-backed products with server-side supplier-field validation.
 - [x] Document supplier and payment-provider requirements before connecting live commerce services.
 - [x] Add a supplier settings/configuration model and protected admin procedures that store connection references and sync status without exposing provider secrets.
 - [x] Replace the hardcoded storefront catalog with `trpc.marketplace.catalog` data plus loading, empty, and error states.
-- [ ] Connect authenticated cart checkout to the protected draft-order procedure using only database-backed product records.
+- [x] Connect authenticated cart checkout to the protected draft-order procedure using only database-backed product records.
 - [x] Keep wallet funding and wallet payment actions disabled until an approved payment provider is connected; expose real zero-balance and activity states only.
 
 # G2A Supplier & Wallet-First Commerce
@@ -57,7 +60,7 @@
 - [x] Confirm the website host returns an HTML 404 while the `api.flashtopup.com` subdomain serves API JSON for the reseller v2 base.
 - [x] Keep the FlashTopUp client on `https://api.flashtopup.com/api/reseller/v2` and verify access after supplier-side allowlisting/signature confirmation.
 - [x] Implement server-side FlashTopUp profile, balance, products, services, order, order-status, and check-ID operations using the documented v2 paths.
-- [ ] Live-validate the safe read operations (profile, balance, products, services); defer check-ID, sandbox order, and order-status until a deliberately selected supplier test case is available.
+- [x] Live-validate the safe read operations (profile, balance, products, and services); defer check-ID, sandbox order, and order-status until a deliberately selected supplier test case is available.
 - [x] Verify and deduplicate FlashTopUp order-update webhooks using their raw-body HMAC signature, five-minute timestamp window, and event ID.
 - [x] Connect the VAMNUX catalog to verified FlashTopUp product records while checkout and wallet funding stay disabled.
 - [x] Allow an authenticated VAMNUX admin to run a read-only FlashTopUp catalog sync; do not sync automatically or create any supplier order.
@@ -71,3 +74,18 @@
 - [x] Remove unsafe or incomplete integration paths and retain only validated server-side supplier operations.
 - [x] Validate the bounded FlashTopUp synchronization with page inputs, per-product error isolation, and resumable next-page state.
 - [x] Remove the obsolete unbounded `scripts/sync-flashtopup.mjs` runner.
+
+# Sandbox Order & Inventory Expansion
+
+- [ ] Implement and live-validate the documented FlashTopUp sandbox order request with `X-FT-Sandbox: true`, a unique reference, and no VAMNUX wallet or payment action.
+- [ ] Add the supplier-reported sandbox egress address `37.238.4.82` to the FlashTopUp allowlist before retrying the isolated test order.
+- [ ] Resolve the temporary FlashTopUp sandbox egress instability: the latest authorised retry was blocked at `37.236.120.151` after the prior address changed.
+- [ ] Defer further sandbox-order retries in the current dynamic-egress environment: the final authorised retry was blocked at `40.67.160.176`.
+- [x] Make all FlashTopUp network-validation tests explicitly opt-in so the default unit suite stays deterministic and never depends on a temporary IP allowlist.
+- [ ] Defer the fixed-IP production supplier adapter; use temporary supplier allowlisting only for the current sandbox validation.
+- [ ] Validate sandbox order creation and safe order-status retrieval without creating a live supplier fulfilment request.
+- [x] Add admin-managed catalog records without fabricating inventory, prices, or delivery claims.
+- [x] Implement structured authorised-source management for manual catalog items and link each item to a configured supplier or direct-agreement record.
+- [x] Link supplier-type authorised sources to an actual configured supplier integration instead of accepting a free-text supplier label.
+- [x] Add an explicit load failure and retry experience for the admin-managed catalog instead of treating errors as an empty catalog.
+- [x] Complete the admin-only catalog-management interface for authorised Gift Card and Subscription products from approved suppliers or direct commercial agreements.

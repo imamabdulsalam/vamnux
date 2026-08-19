@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
-import { configureCommerceIntegration, createMarketplaceOrder, getAccountCommerceSummary, listActiveCatalogProducts, listCommerceIntegrations } from "./db";
+import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
+import { configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCommerceIntegrations, setAdminManagedCatalogProductStatus } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -35,6 +36,16 @@ export const appRouter = router({
   }),
   admin: router({
     listCommerceIntegrations: adminProcedure.query(() => listCommerceIntegrations()),
+    listAdminManagedCatalog: adminProcedure.query(() => listAdminManagedCatalogProducts()),
+    listAuthorizedCatalogSources: adminProcedure.query(() => listAuthorizedCatalogSources()),
+    createAuthorizedCatalogSource: adminProcedure.input(authorizedCatalogSourceInputSchema)
+      .mutation(({ input }) => createAuthorizedCatalogSource(input)),
+    createAdminManagedCatalogProduct: adminProcedure.input(adminManagedCatalogProductInputSchema)
+      .mutation(({ input }) => createAdminManagedCatalogProduct(input)),
+    setAdminManagedCatalogProductStatus: adminProcedure.input(z.object({
+      productId: z.number().int().positive(),
+      status: z.enum(["active", "paused", "archived"]),
+    })).mutation(({ input }) => setAdminManagedCatalogProductStatus(input)),
     syncFlashTopUpCatalog: adminProcedure.input(z.object({
       page: z.number().int().min(1).default(1),
       perPage: z.number().int().min(1).max(10).default(5),

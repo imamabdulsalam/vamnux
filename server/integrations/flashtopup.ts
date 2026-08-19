@@ -218,17 +218,22 @@ export class FlashTopUpClient {
     return this.request<unknown>("POST", "/order", input, sandbox);
   }
 
+  /** Explicitly isolated supplier test operation; it always sends X-FT-Sandbox: true. */
+  createSandboxOrder(input: FlashTopUpOrderInput) {
+    return this.request<unknown>("POST", "/order", input, true);
+  }
+
   checkId(input: FlashTopUpCheckIdInput, sandbox = false) {
     return this.request<unknown>("POST", "/check-id", input, sandbox);
   }
 
-  orderStatus(input: { orderId?: string; referenceId?: string }) {
+  orderStatus(input: { orderId?: string; referenceId?: string }, sandbox = false) {
     if (!input.orderId && !input.referenceId) throw new Error("FlashTopUp orderId or referenceId is required");
     const params = new URLSearchParams({
       ...(input.orderId ? { order_id: input.orderId } : {}),
       ...(input.referenceId ? { reference_id: input.referenceId } : {}),
     });
-    return this.request<unknown>("GET", `/order/status?${params.toString()}`);
+    return this.request<unknown>("GET", `/order/status?${params.toString()}`, undefined, sandbox);
   }
 }
 

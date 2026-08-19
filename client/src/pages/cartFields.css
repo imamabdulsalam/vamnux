@@ -1,0 +1,39 @@
+.cart-fulfillment-fields {
+  display: grid;
+  gap: 9px;
+  margin: 0 0 14px;
+}
+
+.cart-fulfillment-fields label {
+  display: grid;
+  gap: 5px;
+  color: #4b5569;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.cart-fulfillment-fields input {
+  min-height: 37px;
+  width: 100%;
+  border: 1px solid #cbd1dc;
+  background: #fff;
+  color: #10121a;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0;
+  padding: 9px 10px;
+  text-transform: none;
+}
+
+.cart-fulfillment-fields input:focus-visible {
+  outline: 2px solid #286dff;
+  outline-offset: 2px;
+}
+
+.cart-checkout button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}

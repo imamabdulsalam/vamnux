@@ -1,9 +1,140 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
-import { ArrowRight, CreditCard, PackageOpen, ShieldCheck, WalletCards } from "lucide-react";
-import { useState } from "react";
+import { Archive, ArrowRight, CheckCircle2, CreditCard, PackageOpen, PauseCircle, Plus, ShieldCheck, WalletCards } from "lucide-react";
+import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
+
+type ManualCatalogForm = {
+  name: string;
+  category: "gift_card" | "subscription" | "software" | "ai_tool" | "game_key";
+  description: string;
+  catalogSourceId: string;
+  basePrice: string;
+  regionLabel: string;
+  deliveryType: "digital_code" | "activation_link" | "manual_processing" | "account_access";
+  recipientEmailRequired: boolean;
+  status: "draft" | "active" | "paused";
+};
+
+const initialManualCatalogForm: ManualCatalogForm = {
+  name: "",
+  category: "gift_card",
+  description: "",
+  catalogSourceId: "",
+  basePrice: "",
+  regionLabel: "",
+  deliveryType: "digital_code",
+  recipientEmailRequired: false,
+  status: "draft",
+};
+
+type CatalogSourceForm = {
+  displayName: string;
+  sourceType: "supplier" | "direct_agreement";
+  commerceIntegrationId: string;
+  agreementReference: string;
+};
+
+const initialCatalogSourceForm: CatalogSourceForm = {
+  displayName: "",
+  sourceType: "direct_agreement",
+  commerceIntegrationId: "",
+  agreementReference: "",
+};
+
+function ManualCatalogManager() {
+  const utils = trpc.useUtils();
+  const [form, setForm] = useState<ManualCatalogForm>(initialManualCatalogForm);
+  const [sourceForm, setSourceForm] = useState<CatalogSourceForm>(initialCatalogSourceForm);
+  const catalogQuery = trpc.admin.listAdminManagedCatalog.useQuery();
+  const sourceQuery = trpc.admin.listAuthorizedCatalogSources.useQuery();
+  const integrationQuery = trpc.admin.listCommerceIntegrations.useQuery();
+  const activeSources = (sourceQuery.data ?? []).filter((source) => source.status === "active");
+  const readySupplierIntegrations = (integrationQuery.data ?? []).filter((integration) => integration.integrationType === "supplier" && integration.syncStatus === "ready");
+  const createSource = trpc.admin.createAuthorizedCatalogSource.useMutation({
+    onSuccess: async (source) => {
+      toast.success(`${source.displayName} is available as an authorised source.`);
+      setSourceForm(initialCatalogSourceForm);
+      setForm((current) => ({ ...current, catalogSourceId: String(source.id) }));
+      await utils.admin.listAuthorizedCatalogSources.invalidate();
+    },
+    onError: (sourceError) => toast.error(sourceError.message || "Could not save the authorised source."),
+  });
+  const createProduct = trpc.admin.createAdminManagedCatalogProduct.useMutation({
+    onSuccess: async (product) => {
+      toast.success(`${product.name} saved as ${product.status}.`);
+      setForm((current) => ({ ...initialManualCatalogForm, catalogSourceId: current.catalogSourceId }));
+      await Promise.all([utils.admin.listAdminManagedCatalog.invalidate(), utils.marketplace.catalog.invalidate()]);
+    },
+    onError: (catalogError) => toast.error(catalogError.message || "Could not save the authorised catalog item."),
+  });
+  const updateStatus = trpc.admin.setAdminManagedCatalogProductStatus.useMutation({
+    onSuccess: async (product) => {
+      toast.success(`${product.name} is now ${product.status.replaceAll("_", " ")}.`);
+      await Promise.all([utils.admin.listAdminManagedCatalog.invalidate(), utils.marketplace.catalog.invalidate()]);
+    },
+    onError: (catalogError) => toast.error(catalogError.message || "Could not update the catalog item."),
+  });
+
+  const submitProduct = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const basePrice = Number(form.basePrice);
+    if (!Number.isFinite(basePrice) || basePrice <= 0) {
+      toast.error("Enter a valid positive USD catalogue price.");
+      return;
+    }
+    const catalogSourceId = Number(form.catalogSourceId);
+    if (!Number.isInteger(catalogSourceId) || catalogSourceId <= 0) {
+      toast.error("Create or select an active authorised source before saving this item.");
+      return;
+    }
+    createProduct.mutate({
+      ...form,
+      catalogSourceId,
+      basePrice,
+      regionLabel: form.regionLabel || undefined,
+    });
+  };
+
+  const submitSource = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const commerceIntegrationId = Number(sourceForm.commerceIntegrationId);
+    if (sourceForm.sourceType === "supplier" && (!Number.isInteger(commerceIntegrationId) || commerceIntegrationId <= 0)) {
+      toast.error("Select a ready configured supplier integration.");
+      return;
+    }
+    createSource.mutate({
+      displayName: sourceForm.displayName || "Configured supplier",
+      sourceType: sourceForm.sourceType,
+      agreementReference: sourceForm.agreementReference,
+      commerceIntegrationId: sourceForm.sourceType === "supplier" ? commerceIntegrationId : undefined,
+    });
+  };
+
+  const retryCatalogQueries = () => {
+    void Promise.all([catalogQuery.refetch(), sourceQuery.refetch(), integrationQuery.refetch()]);
+  };
+
+  return (
+    <section className="mt-7 overflow-hidden rounded-xl border border-[#286dff]/30 bg-white shadow-sm">
+      <div className="border-b border-slate-200 bg-[#f7f9ff] px-6 py-5"><p className="text-xs font-bold tracking-[.13em] text-[#286dff]">AUTHORISED CATALOG MANAGEMENT</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">Add verified digital inventory</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Create only products covered by an approved supplier or direct commercial agreement. Every item is linked to an active source record and stays in draft unless you deliberately set it live. This tool never creates a supplier order, payment, wallet credit, or delivery record.</p></div>
+      {(catalogQuery.error || sourceQuery.error || integrationQuery.error) && <div role="alert" className="m-6 flex flex-col justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800 sm:flex-row sm:items-center"><span>Admin catalog data could not be loaded. No inventory status has been inferred from this error.</span><button type="button" onClick={retryCatalogQueries} className="shrink-0 rounded-full border border-rose-300 px-3 py-1.5 text-xs font-bold uppercase tracking-[.08em] transition hover:bg-white">Retry</button></div>}
+      <form onSubmit={submitSource} className="m-6 grid gap-3 rounded-xl border border-[#b8ff43]/80 bg-[#10121a] p-4 text-white lg:grid-cols-[1.3fr_.85fr_1fr_auto] lg:items-end"><div className="lg:col-span-4"><p className="text-xs font-bold tracking-[.13em] text-[#b8ff43]">STEP 1 · AUTHORISED SOURCE</p><p className="mt-1 text-sm text-slate-300">Record a direct agreement or attach a ready configured supplier before adding any product. Store a reference only—never credentials.</p></div><label className="text-xs font-bold uppercase tracking-[.08em] text-slate-300">{sourceForm.sourceType === "supplier" ? "Configured supplier" : "Agreement name"}{sourceForm.sourceType === "supplier" ? <select required value={sourceForm.commerceIntegrationId} onChange={(event) => setSourceForm({ ...sourceForm, commerceIntegrationId: event.target.value })} disabled={integrationQuery.isLoading || readySupplierIntegrations.length === 0} className="mt-2 h-10 w-full rounded-lg border border-white/15 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#b8ff43] disabled:bg-slate-200"><option value="">{integrationQuery.isLoading ? "Loading suppliers…" : readySupplierIntegrations.length === 0 ? "No ready supplier integrations" : "Select configured supplier"}</option>{readySupplierIntegrations.map((integration) => <option key={integration.id} value={integration.id}>{integration.providerName}</option>)}</select> : <input required value={sourceForm.displayName} onChange={(event) => setSourceForm({ ...sourceForm, displayName: event.target.value })} placeholder="Approved commercial agreement" className="mt-2 h-10 w-full rounded-lg border border-white/15 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#b8ff43]" />}</label><label className="text-xs font-bold uppercase tracking-[.08em] text-slate-300">Type<select value={sourceForm.sourceType} onChange={(event) => setSourceForm({ ...sourceForm, sourceType: event.target.value as CatalogSourceForm["sourceType"], commerceIntegrationId: "" })} className="mt-2 h-10 w-full rounded-lg border border-white/15 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#b8ff43]"><option value="direct_agreement">Direct agreement</option><option value="supplier">Configured supplier</option></select></label><label className="text-xs font-bold uppercase tracking-[.08em] text-slate-300">Agreement reference<input required value={sourceForm.agreementReference} onChange={(event) => setSourceForm({ ...sourceForm, agreementReference: event.target.value })} placeholder="Agreement, ticket, or ID" className="mt-2 h-10 w-full rounded-lg border border-white/15 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#b8ff43]" /></label><button type="submit" disabled={createSource.isPending || (sourceForm.sourceType === "supplier" && readySupplierIntegrations.length === 0)} className="h-10 rounded-full bg-[#b8ff43] px-4 text-xs font-extrabold uppercase tracking-[.08em] text-[#10121a] transition hover:bg-white disabled:opacity-60">{createSource.isPending ? "Saving…" : "Add source"}</button></form>
+      <div className="grid gap-0 lg:grid-cols-[1.05fr_.95fr]">
+        <form onSubmit={submitProduct} className="space-y-4 p-6">
+          <div className="grid gap-4 sm:grid-cols-2"><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Product name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Steam Wallet 50 USD" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as ManualCatalogForm["category"] })} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]"><option value="gift_card">Gift card</option><option value="subscription">Subscription</option><option value="software">Software</option><option value="ai_tool">AI tool</option><option value="game_key">Game key</option></select></label></div>
+          <label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Customer-facing description<textarea required value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="State the verified product, denomination or plan, region, and delivery terms without unsupported promises." className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label>
+          <label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Authorised source<select required value={form.catalogSourceId} onChange={(event) => setForm({ ...form, catalogSourceId: event.target.value })} disabled={sourceQuery.isLoading || activeSources.length === 0} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none disabled:bg-slate-100"><option value="">{sourceQuery.isLoading ? "Loading sources…" : activeSources.length === 0 ? "Add an active source above" : "Select an active source"}</option>{activeSources.map((source) => <option key={source.id} value={source.id}>{source.displayName} · {source.sourceType.replaceAll("_", " ")}</option>)}</select><span className="mt-1 block normal-case font-normal tracking-normal text-slate-500">Only an active source can be attached to a new listing.</span></label>
+          <div className="grid gap-4 sm:grid-cols-3"><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">USD price<input required inputMode="decimal" value={form.basePrice} onChange={(event) => setForm({ ...form, basePrice: event.target.value })} placeholder="0.00" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Region <span className="normal-case tracking-normal">(optional)</span><input value={form.regionLabel} onChange={(event) => setForm({ ...form, regionLabel: event.target.value })} placeholder="Global / country" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Delivery<select value={form.deliveryType} onChange={(event) => setForm({ ...form, deliveryType: event.target.value as ManualCatalogForm["deliveryType"] })} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]"><option value="digital_code">Digital code</option><option value="activation_link">Activation link</option><option value="manual_processing">Manual processing</option><option value="account_access">Account access</option></select></label></div>
+          <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><label className="flex items-center gap-3 text-sm text-slate-700"><input type="checkbox" checked={form.recipientEmailRequired} onChange={(event) => setForm({ ...form, recipientEmailRequired: event.target.checked })} className="h-4 w-4 accent-[#286dff]" />Require a recipient email at draft order</label><label className="flex items-center gap-2 text-sm text-slate-700">Initial state<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as ManualCatalogForm["status"] })} className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"><option value="draft">Draft</option><option value="active">Live</option><option value="paused">Paused</option></select></label></div>
+          <button type="submit" disabled={createProduct.isPending || activeSources.length === 0} className="inline-flex items-center gap-2 rounded-full bg-[#286dff] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-white transition hover:bg-[#10121a] disabled:cursor-not-allowed disabled:opacity-60"><Plus size={15} />{createProduct.isPending ? "Saving catalog item…" : "Save authorised item"}</button>
+        </form>
+        <div className="border-t border-slate-200 bg-[#10121a] p-6 text-white lg:border-l lg:border-t-0"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold tracking-[.13em] text-[#b8ff43]">MANAGED INVENTORY</p><h3 className="mt-2 font-['Barlow_Condensed'] text-2xl font-bold uppercase">Current entries</h3></div><span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-slate-300">{catalogQuery.data?.length ?? 0} items</span></div><div className="mt-5 space-y-3">{catalogQuery.isLoading ? <p className="py-8 text-sm text-slate-400">Loading authorised catalog…</p> : catalogQuery.error ? <div className="rounded-lg border border-rose-300/40 bg-rose-500/10 p-5 text-sm leading-6 text-rose-100"><p>Catalog entries could not be loaded. No empty-state conclusion has been made.</p><button type="button" onClick={() => void catalogQuery.refetch()} className="mt-3 rounded-full border border-rose-200/40 px-3 py-1.5 text-xs font-bold uppercase tracking-[.08em] transition hover:bg-white hover:text-[#10121a]">Retry catalog</button></div> : !catalogQuery.data?.length ? <p className="rounded-lg border border-dashed border-white/20 p-5 text-sm leading-6 text-slate-300">No admin-managed products yet. Add an approved source above, then create a listing and activate it only after reviewing its price, regional terms, and delivery method.</p> : catalogQuery.data.map((product) => <article key={product.id} className="rounded-lg border border-white/10 bg-white/5 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-white">{product.name}</p><p className="mt-1 text-xs uppercase tracking-[.08em] text-slate-400">{product.category.replaceAll("_", " ")} · {product.baseCurrency} {Number(product.basePrice).toFixed(2)} · {product.regionLabel || "Region not set"}</p><p className="mt-1 text-xs text-slate-400">Source: {product.sourceName}</p></div><span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[.08em] text-[#b8ff43]">{product.status}</span></div><div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={updateStatus.isPending || product.status === "active"} onClick={() => updateStatus.mutate({ productId: product.id, status: "active" })} className="inline-flex items-center gap-1 rounded-full border border-[#b8ff43]/50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.08em] text-[#b8ff43] transition hover:bg-[#b8ff43] hover:text-[#10121a] disabled:opacity-40"><CheckCircle2 size={12} />Live</button><button type="button" disabled={updateStatus.isPending || product.status === "paused"} onClick={() => updateStatus.mutate({ productId: product.id, status: "paused" })} className="inline-flex items-center gap-1 rounded-full border border-white/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.08em] text-slate-200 transition hover:bg-white hover:text-[#10121a] disabled:opacity-40"><PauseCircle size={12} />Pause</button><button type="button" disabled={updateStatus.isPending || product.status === "archived"} onClick={() => updateStatus.mutate({ productId: product.id, status: "archived" })} className="inline-flex items-center gap-1 rounded-full border border-rose-400/40 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.08em] text-rose-200 transition hover:bg-rose-400 hover:text-[#10121a] disabled:opacity-40"><Archive size={12} />Archive</button></div></article>)}</div></div>
+      </div>
+    </section>
+  );
+}
 
 function AccountContent() {
   const { data, isLoading, error } = trpc.marketplace.accountSummary.useQuery();
@@ -36,7 +167,7 @@ function AccountContent() {
         </section>
 
         <section className="mt-7 rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-bold tracking-[.13em] text-[#286dff]">ORDER TRACKING</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">Recent activity</h2></div><CreditCard className="text-slate-400" size={24} /></div><div className="mt-6 divide-y divide-slate-100 border-y border-slate-100">{data.orders.length === 0 ? <div className="py-8 text-sm text-slate-500">No orders yet. When checkout is connected to approved products and payments, your delivery status will appear here.</div> : data.orders.map((order) => <div key={order.orderCode} className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm"><div><strong>{order.orderCode}</strong><p className="mt-1 text-xs text-slate-500">{new Date(order.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase text-slate-600">{order.status.replaceAll("_", " ")}</span><strong>{order.currency} {Number(order.total).toFixed(2)}</strong></div>)}</div></section>
-        {currentUser?.role === "admin" && <section className="mt-7 rounded-xl border border-[#b8ff43] bg-[#10121a] p-6 text-white shadow-lg"><p className="text-xs font-bold tracking-[.13em] text-[#b8ff43]">SUPPLIER ADMIN</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">FlashTopUp catalog sync</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Sync small supplier pages to keep the integration responsive and recoverable. This read-only operation never creates customer orders, funds wallets, or enables payment.</p><p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-slate-400">Next supplier page: {supplierPage} · 5 products maximum</p><button type="button" onClick={() => syncCatalog.mutate({ page: supplierPage, perPage: 5 })} disabled={syncCatalog.isPending} className="mt-5 inline-flex items-center rounded-full bg-[#b8ff43] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-[#10121a] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60">{syncCatalog.isPending ? "Syncing supplier page…" : "Sync next supplier page"}</button></section>}
+        {currentUser?.role === "admin" && <><section className="mt-7 rounded-xl border border-[#b8ff43] bg-[#10121a] p-6 text-white shadow-lg"><p className="text-xs font-bold tracking-[.13em] text-[#b8ff43]">SUPPLIER ADMIN</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">FlashTopUp catalog sync</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Sync small supplier pages to keep the integration responsive and recoverable. This read-only operation never creates customer orders, funds wallets, or enables payment.</p><p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-slate-400">Next supplier page: {supplierPage} · 5 products maximum</p><button type="button" onClick={() => syncCatalog.mutate({ page: supplierPage, perPage: 5 })} disabled={syncCatalog.isPending} className="mt-5 inline-flex items-center rounded-full bg-[#b8ff43] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-[#10121a] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60">{syncCatalog.isPending ? "Syncing supplier page…" : "Sync next supplier page"}</button></section><ManualCatalogManager /></>}
       </div>
     </div>
   );

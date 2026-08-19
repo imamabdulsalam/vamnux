@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getFlashTopUpClient } from "./integrations/flashtopup";
 
-describe("FlashTopUp category availability", () => {
+const describeLive = process.env.RUN_FLASHTOPUP_LIVE_TESTS === "true" ? describe : describe.skip;
+
+describeLive("FlashTopUp category availability", () => {
   it("reports the supplier product-type distribution without disclosing reseller data", async () => {
     const response = await getFlashTopUpClient().products({ page: 1, perPage: 500 });
     const products = response.data ?? [];

@@ -16,3 +16,8 @@ export function createOrderCode(now = Date.now(), randomPart = Math.random()) {
   const random = Math.floor(randomPart * 36 ** 4).toString(36).toUpperCase().padStart(4, "0");
   return `VN-${timePart}-${random}`;
 }
+
+/** Namespace supplier-required fields by catalog product to keep multi-item draft orders unambiguous. */
+export function createFulfillmentFieldKey(productId: number, fieldName: string) {
+  return `${productId}.${fieldName}`;
+}

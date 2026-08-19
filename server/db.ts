@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { commerceIntegrations, customerProfiles, InsertUser, orderItems, orders, products, supplierWebhookEvents, users, wallets } from "../drizzle/schema";
-import { calculateOrderTotal, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
+import { authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, orderItems, orders, products, supplierWebhookEvents, users, wallets } from "../drizzle/schema";
+import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
+import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import type { FlashTopUpCatalogRow } from "./flashtopupCatalog";
 import { ENV } from './_core/env';
 
@@ -100,6 +101,123 @@ export async function listActiveCatalogProducts() {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
+}
+
+/** Administrative catalog rows have a declared authorised source and never contain supplier credentials. */
+export async function listAdminManagedCatalogProducts() {
+  const db = requireDb(await getDb());
+  return db.select({
+    id: products.id,
+    name: products.name,
+    category: products.category,
+    basePrice: products.basePrice,
+    baseCurrency: products.baseCurrency,
+    regionLabel: products.regionLabel,
+    deliveryType: products.deliveryType,
+    status: products.status,
+    updatedAt: products.updatedAt,
+    sourceName: authorizedCatalogSources.displayName,
+    sourceType: authorizedCatalogSources.sourceType,
+  }).from(products).innerJoin(authorizedCatalogSources, eq(products.catalogSourceId, authorizedCatalogSources.id))
+    .where(eq(products.supplierKey, ADMIN_MANAGED_SUPPLIER_KEY))
+    .orderBy(desc(products.updatedAt));
+}
+
+export async function listAuthorizedCatalogSources() {
+  const db = requireDb(await getDb());
+  return db.select({
+    id: authorizedCatalogSources.id,
+    displayName: authorizedCatalogSources.displayName,
+    sourceType: authorizedCatalogSources.sourceType,
+    commerceIntegrationId: authorizedCatalogSources.commerceIntegrationId,
+    agreementReference: authorizedCatalogSources.agreementReference,
+    status: authorizedCatalogSources.status,
+    createdAt: authorizedCatalogSources.createdAt,
+    updatedAt: authorizedCatalogSources.updatedAt,
+    integrationName: commerceIntegrations.providerName,
+  }).from(authorizedCatalogSources)
+    .leftJoin(commerceIntegrations, eq(authorizedCatalogSources.commerceIntegrationId, commerceIntegrations.id))
+    .orderBy(desc(authorizedCatalogSources.updatedAt));
+}
+
+export async function createAuthorizedCatalogSource(input: AuthorizedCatalogSourceInput) {
+  const db = requireDb(await getDb());
+  let displayName = input.displayName;
+  let commerceIntegrationId: number | null = null;
+  if (input.sourceType === "supplier") {
+    const [integration] = await db.select().from(commerceIntegrations).where(and(
+      eq(commerceIntegrations.id, input.commerceIntegrationId!),
+      eq(commerceIntegrations.integrationType, "supplier"),
+      eq(commerceIntegrations.syncStatus, "ready"),
+    )).limit(1);
+    if (!integration) throw new Error("Select a ready configured supplier integration for a supplier source");
+    displayName = integration.providerName;
+    commerceIntegrationId = integration.id;
+  }
+  const [existing] = await db.select({ id: authorizedCatalogSources.id }).from(authorizedCatalogSources)
+    .where(eq(authorizedCatalogSources.displayName, displayName)).limit(1);
+  if (existing) throw new Error("An authorised catalog source already uses this name");
+
+  const [created] = await db.insert(authorizedCatalogSources).values({
+    displayName,
+    sourceType: input.sourceType,
+    commerceIntegrationId,
+    agreementReference: input.agreementReference,
+    status: "active",
+  }).$returningId();
+  return { id: created.id, displayName, status: "active" as const };
+}
+
+export async function createAdminManagedCatalogProduct(input: AdminManagedCatalogProductInput) {
+  const db = requireDb(await getDb());
+  const slug = createAdminManagedCatalogSlug(input.category, input.name);
+  const [existing] = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
+  if (existing) throw new Error("An admin-managed catalog item already uses this name. Update or reactivate the existing item instead.");
+  const [source] = await db.select().from(authorizedCatalogSources)
+    .where(and(eq(authorizedCatalogSources.id, input.catalogSourceId), eq(authorizedCatalogSources.status, "active"))).limit(1);
+  if (!source) throw new Error("Select an active authorised source before saving a catalog item");
+
+  const [created] = await db.insert(products).values({
+    slug,
+    supplierKey: ADMIN_MANAGED_SUPPLIER_KEY,
+    supplierSku: `manual:${slug}`,
+    supplierCategory: "admin_managed",
+    name: input.name,
+    category: input.category,
+    description: input.description,
+    basePrice: input.basePrice.toFixed(2),
+    baseCurrency: "USD",
+    supplierEligible: input.status === "active",
+    catalogSourceId: source.id,
+    regionLabel: input.regionLabel || null,
+    deliveryType: input.deliveryType,
+    requiresPlayerId: false,
+    requiresServerId: false,
+    inputRequirements: createRecipientEmailRequirement(input.recipientEmailRequired),
+    status: input.status,
+    metadata: {
+      catalogOrigin: "admin_managed",
+      authorisedSourceId: source.id,
+      authorisedSource: source.displayName,
+      sourceType: source.sourceType,
+    },
+  }).$returningId();
+
+  return { id: created.id, name: input.name, status: input.status, slug };
+}
+
+export async function setAdminManagedCatalogProductStatus(input: { productId: number; status: "active" | "paused" | "archived" }) {
+  const db = requireDb(await getDb());
+  const [product] = await db.select({ id: products.id, name: products.name }).from(products)
+    .where(and(eq(products.id, input.productId), eq(products.supplierKey, ADMIN_MANAGED_SUPPLIER_KEY))).limit(1);
+  if (!product) throw new Error("Admin-managed catalog item was not found");
+
+  await db.update(products).set({
+    status: input.status,
+    supplierEligible: input.status === "active",
+  }).where(eq(products.id, product.id));
+
+  return { productId: product.id, name: product.name, status: input.status };
 }
 
 export async function listCommerceIntegrations() {
@@ -271,6 +389,18 @@ export async function createMarketplaceOrder(input: {
     if (!product) throw new Error("Selected product is unavailable");
     return { product, quantity: item.quantity, unitPrice: Number(product.basePrice) };
   });
+  for (const line of orderLines) {
+    const requirements = Array.isArray(line.product.inputRequirements)
+      ? line.product.inputRequirements as Array<{ key?: string; label?: string; required?: boolean }>
+      : [];
+    for (const requirement of requirements) {
+      if (!requirement.required || !requirement.key) continue;
+      const fieldKey = createFulfillmentFieldKey(line.product.id, requirement.key);
+      if (!input.fulfillmentDetails?.[fieldKey]?.trim()) {
+        throw new Error(`${requirement.label || requirement.key} is required for ${line.product.name}`);
+      }
+    }
+  }
   const total = calculateOrderTotal(orderLines.map((line) => ({ productId: line.product.id, quantity: line.quantity, unitPrice: line.unitPrice })));
   const orderCode = createOrderCode();
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateOrderTotal, createOrderCode } from "../shared/marketplace";
+import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode } from "../shared/marketplace";
 
 describe("VAMNUX marketplace helpers", () => {
   it("calculates a server-side order total from quantity and unit price", () => {
@@ -11,5 +11,9 @@ describe("VAMNUX marketplace helpers", () => {
 
   it("creates a compact VAMNUX order code", () => {
     expect(createOrderCode(1_700_000_000_000, 0.5)).toMatch(/^VN-[A-Z0-9]{6}-[A-Z0-9]{4}$/);
+  });
+
+  it("namespaces supplier field values by product ID for multi-item draft orders", () => {
+    expect(createFulfillmentFieldKey(42, "player_id")).toBe("42.player_id");
   });
 });

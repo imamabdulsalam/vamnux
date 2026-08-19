@@ -10,6 +10,8 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:flashtopup:live": "RUN_FLASHTOPUP_LIVE_TESTS=true vitest run server/flashtopup.balance.test.ts server/flashtopup.catalog.test.ts server/flashtopup.categories.test.ts server/flashtopup.secret.test.ts",
+    "test:flashtopup:sandbox": "RUN_FLASHTOPUP_SANDBOX_TEST=true vitest run server/flashtopup.sandbox.test.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

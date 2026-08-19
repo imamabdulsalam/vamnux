@@ -1,0 +1,2 @@
+ALTER TABLE `authorized_catalog_sources` ADD `commerceIntegrationId` int;--> statement-breakpoint
+CREATE INDEX `authorized_catalog_sources_integration_idx` ON `authorized_catalog_sources` (`commerceIntegrationId`);

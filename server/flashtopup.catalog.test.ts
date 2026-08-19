@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { getFlashTopUpClient } from "./integrations/flashtopup";
 
-describe("FlashTopUp catalog contract", () => {
+const describeLive = process.env.RUN_FLASHTOPUP_LIVE_TESTS === "true" ? describe : describe.skip;
+
+describeLive("FlashTopUp catalog contract", () => {
   it("retrieves one authenticated product page without creating a transaction", async () => {
     const response = await getFlashTopUpClient().products({ page: 1, perPage: 500 });
     expect(response.status === true || response.success === true).toBe(true);
