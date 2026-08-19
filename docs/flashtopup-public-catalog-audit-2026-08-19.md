@@ -21,3 +21,7 @@ After the reseller temporarily allowlisted `197.63.115.110`, VAMNUX successfully
 The resulting active VAMNUX catalog contains 16 authentic FlashTopUp game families. Search verification confirmed that `Free Fire` now returns live VAMNUX service families with individual supplier prices and required Player ID fields, rather than only public-catalog discovery links. No order, payment, wallet debit, or fulfilment request was submitted during the import.
 
 Search verification also confirmed that `PUBG Mobile` returns a live VAMNUX family with 23 authentic supplier services, including UC, Elite Pass, Prime, and supplier-labelled deal packs. The service cards preserve the required Player ID field and individual supplier prices without submitting an order.
+
+## Compact Game-Family Detail Flow
+
+Live VAMNUX inventory is now compressed into one clickable listing per real game family. Opening a family, such as `PUBG Mobile`, shows only its authentic synchronised denominations, individual supplier prices, delivery requirements, and add-to-cart controls. Selecting a service opens the local cart with the supplier-required `User ID` field; payment, wallet funding, and supplier fulfilment remain inactive until a customer can save a guarded draft order.

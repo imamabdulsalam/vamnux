@@ -7,6 +7,8 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
+import { gameFamilyPath } from "@shared/catalogRoutes";
+import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
 import {
   ArrowRight,
@@ -36,24 +38,8 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 import "./cartFields.css";
 
-type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software" | "AI tools";
 type CurrencyCode = "USD" | "EUR" | "GBP" | "NGN";
-
-type Product = {
-  id: number;
-  category: ProductCategory;
-  name: string;
-  product: string;
-  description: string;
-  price: number;
-  priceNote: string;
-  region: string;
-  delivery: string;
-  image: string;
-  tone: string;
-  badge: string;
-  inputRequirements: Array<{ key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string }>;
-};
+type Product = LiveCatalogProduct;
 
 const currencies: Record<CurrencyCode, { label: string; locale: string; rate: number }> = {
   USD: { label: "USD", locale: "en-US", rate: 1 },
@@ -106,29 +92,12 @@ const categories = [
   { label: "AI tools", icon: Sparkles, filter: "AI tools" as ProductCategory },
 ];
 
-const supplierCategoryLabels: Record<string, ProductCategory> = {
-  top_up: "Top-up",
-  gift_card: "Voucher",
-  subscription: "Subscription",
-  software: "Software",
-  game_key: "Voucher",
-  ai_tool: "AI tools",
-};
-
 const unavailableCategoryDescriptions: Record<Exclude<ProductCategory, "Top-up">, string> = {
   Voucher: "Gift Card products will appear here after VAMNUX connects an authorised supplier with live codes and regional pricing.",
   Subscription: "Subscription services are planned for this category and will appear after an approved supplier is connected.",
   Software: "Software licences will appear here after VAMNUX connects an authorised software supplier.",
   "AI tools": "AI tool subscriptions and licences will appear here after an authorised catalog source is connected.",
 };
-
-const productTones = ["ember", "ice", "lime", "coral", "cobalt"];
-
-function supplierDeliveryLabel(item: { requiresPlayerId: boolean; requiresServerId: boolean; deliveryType: string }) {
-  if (item.requiresPlayerId && item.requiresServerId) return "Player ID + Server required";
-  if (item.requiresPlayerId) return "Player ID required";
-  return item.deliveryType.replaceAll("_", " ");
-}
 
 function Logo() {
   return (
@@ -177,30 +146,7 @@ export default function Home() {
     return new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(basePrice * config.rate);
   };
 
-  const liveProducts = useMemo<Product[]>(() => (supplierCatalog.data ?? []).map((item, index) => {
-    const nameParts = item.name.split(" — ");
-    const fields = Array.isArray(item.inputRequirements) ? item.inputRequirements as Array<{ key?: string; label?: string; type?: "text" | "email" | "select"; required?: boolean; helperText?: string }> : [];
-    const category = supplierCategoryLabels[item.category] ?? "Top-up";
-    return {
-      id: item.id,
-      category,
-      name: nameParts[0] || item.name,
-      product: nameParts.slice(1).join(" — ") || item.name,
-      description: item.description?.trim() || (fields.length > 0
-        ? `Enter ${fields.filter((field) => field.required).map((field) => field.label || "supplier-required details").join(" and ") || "the supplier-required account details"} before fulfilment.`
-        : "Verified supplier service. Availability and delivery format are shown before purchase."),
-      price: Number(item.basePrice),
-      priceNote: item.supplierKey === "admin_managed"
-        ? "Authorised catalog price"
-        : item.supplierEligible ? "FlashTopUp service price" : "Supplier availability paused",
-      region: item.regionLabel || "Supplier region rules",
-      delivery: supplierDeliveryLabel(item),
-      image: item.imageUrl || "",
-      tone: productTones[index % productTones.length],
-      badge: category === "Voucher" ? "Gift card" : category,
-      inputRequirements: fields.filter((field): field is { key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string } => typeof field.key === "string" && typeof field.label === "string" && (field.type === "text" || field.type === "email" || field.type === "select")),
-    };
-  }), [supplierCatalog.data]);
+  const liveProducts = useMemo<Product[]>(() => (supplierCatalog.data ?? []).map(toLiveCatalogProduct), [supplierCatalog.data]);
 
   const filteredProducts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -392,36 +338,16 @@ export default function Home() {
         <div className="product-family-list">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving live availability from FlashTopUp.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
-          {productFamilies.map((family, familyIndex) => (
-            <article className="live-game-family" key={family.name} style={{ animationDelay: `${familyIndex * 45}ms` }}>
-              <div className="live-game-family-art">
-                <div className="live-game-family-fallback" aria-hidden="true"><Gamepad2 size={34} /></div>
-                {family.image && <img src={family.image} alt={`${family.name} official supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
-                <span className="product-badge ticket-chip">{family.category}</span>
-                <span className="live-game-family-currency">{currency}</span>
-              </div>
-              <div className="live-game-family-content">
-                <div className="live-game-family-heading">
-                  <div><p className="product-name">Live VAMNUX game family</p><h3>{family.name}</h3></div>
-                  <p>{family.items.length} active supplier {family.items.length === 1 ? "service" : "services"} · select a denomination below</p>
-                </div>
-                <div className="service-denomination-grid">
-                  {family.items.map((item) => (
-                    <article className={`service-denomination-card tone-${item.tone}`} key={item.id}>
-                      <div>
-                        <h4>{item.product}</h4>
-                        <div className="market-tags"><span>{item.region}</span><span>{item.delivery}</span></div>
-                      </div>
-                      <div className="service-denomination-buy">
-                        <div><strong>{formatPrice(item.price)}</strong><small>{item.priceNote} · USD base</small></div>
-                        <button onClick={() => addToCart(item)} aria-label={`Add ${item.name} ${item.product} to cart`}><ShoppingBag size={17} /><span>Add</span></button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </article>
-          ))}
+          {productFamilies.map((family, familyIndex) => {
+            const fromPrice = Math.min(...family.items.map((item) => item.price));
+            return <article className="compact-game-listing" key={family.name} style={{ animationDelay: `${familyIndex * 35}ms` }}>
+              <button className="compact-game-listing-button" onClick={() => setLocation(gameFamilyPath(family.name))} aria-label={`View ${family.name} services`}>
+                <div className="compact-game-image"><div className="live-game-family-fallback"><Gamepad2 size={28} /></div>{family.image && <img src={family.image} alt={`${family.name} official supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}<span>{family.category}</span></div>
+                <div className="compact-game-copy"><p>Verified supplier family</p><h3>{family.name}</h3><span>{family.items.length} active services · from {formatPrice(fromPrice)}</span></div>
+                <div className="compact-game-action">View services <ArrowRight size={18} /></div>
+              </button>
+            </article>;
+          })}
           {!supplierCatalog.isLoading && !supplierCatalog.error && filteredProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
