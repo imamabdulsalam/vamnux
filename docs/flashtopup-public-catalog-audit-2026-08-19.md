@@ -13,3 +13,11 @@ VAMNUX now restores the marketplace navigation for Gaming Top-Ups, Gift Cards, S
 Searching VAMNUX for `Free Fire` now returns the real public FlashTopUp families **Free Fire LATAM** and **Free Fire Global** as clearly labelled **Awaiting VAMNUX sync** discovery results. Each discovery result opens the corresponding official FlashTopUp catalog page; it does not expose a VAMNUX add-to-cart control until the service is authentically synchronised.
 
 Searching VAMNUX for `PUBG Mobile` likewise returns the real **PUBG Mobile** public FlashTopUp family as an **Awaiting VAMNUX sync** discovery result. The search behavior therefore distinguishes public supplier discovery from live VAMNUX purchasing availability.
+
+## Successful Authenticated Import
+
+After the reseller temporarily allowlisted `197.63.115.110`, VAMNUX successfully read all **191** authorised supplier product families and ran three bounded synchronisation batches (pages 2–4, five products each). The import added real, active services for **PUBG Mobile**, regional **Free Fire** families, **Call of Duty Mobile Garena SGMY**, **Valorant SG**, and **Mobile Legends Russia**, in addition to the previously synchronised **Mobile Legends Global** services.
+
+The resulting active VAMNUX catalog contains 16 authentic FlashTopUp game families. Search verification confirmed that `Free Fire` now returns live VAMNUX service families with individual supplier prices and required Player ID fields, rather than only public-catalog discovery links. No order, payment, wallet debit, or fulfilment request was submitted during the import.
+
+Search verification also confirmed that `PUBG Mobile` returns a live VAMNUX family with 23 authentic supplier services, including UC, Elite Pass, Prime, and supplier-labelled deal packs. The service cards preserve the required Player ID field and individual supplier prices without submitting an order.
