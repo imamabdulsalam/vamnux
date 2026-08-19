@@ -21,3 +21,23 @@ export function createOrderCode(now = Date.now(), randomPart = Math.random()) {
 export function createFulfillmentFieldKey(productId: number, fieldName: string) {
   return `${productId}.${fieldName}`;
 }
+
+export type LiveMarketplaceProductFamilyMember = {
+  name: string;
+  image: string;
+  category: string;
+};
+
+/** Keep individual live supplier services available while presenting repeated denominations beneath one game-family identity. */
+export function groupLiveProductFamilies<T extends LiveMarketplaceProductFamilyMember>(products: readonly T[]) {
+  const groups = new Map<string, { name: string; image: string; category: string; items: T[] }>();
+  for (const product of products) {
+    const existing = groups.get(product.name);
+    if (existing) {
+      existing.items.push(product);
+    } else {
+      groups.set(product.name, { name: product.name, image: product.image, category: product.category, items: [product] });
+    }
+  }
+  return Array.from(groups.values());
+}

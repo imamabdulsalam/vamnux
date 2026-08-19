@@ -6,7 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
-import { createFulfillmentFieldKey } from "@shared/marketplace";
+import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
+import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
 import {
   ArrowRight,
   Check,
@@ -35,7 +36,7 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 import "./cartFields.css";
 
-type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software";
+type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software" | "AI tools";
 type CurrencyCode = "USD" | "EUR" | "GBP" | "NGN";
 
 type Product = {
@@ -75,41 +76,34 @@ const slides = [
   },
   {
     key: "jade",
-    kicker: "02 / VERIFIED TOP-UPS",
-    title: "ONLY SYNCED.\nONLY CLEAR.",
-    emphasis: "ONLY CLEAR.",
-    description: "Every VAMNUX listing is tied to an active, synchronised FlashTopUp service before it appears in the marketplace.",
-    cta: "Browse top-ups",
-    category: "Top-up" as ProductCategory,
-    metric: "Verified",
-    note: "Active reseller services only.",
+    kicker: "02 / GIFT CARDS",
+    title: "EVERYTHING DIGITAL.\nONE PLACE.",
+    emphasis: "ONE PLACE.",
+    description: "Browse gift cards and digital vouchers for gaming, entertainment, shopping, and more as approved sources are connected.",
+    cta: "Explore gift cards",
+    category: "Voucher" as ProductCategory,
+    metric: "Gift cards",
+    note: "Approved sources unlock availability.",
   },
   {
     key: "ember",
-    kicker: "03 / SUPPLIER SCOPE",
-    title: "MORE GAMES.\nVERIFIED FIRST.",
-    emphasis: "VERIFIED FIRST.",
-    description: "New game families and digital categories are added only after an approved supplier connection and service-level validation.",
-    cta: "See active games",
-    category: "Top-up" as ProductCategory,
-    metric: "Gaming",
-    note: "Catalog expansion under review.",
+    kicker: "03 / DIGITAL SERVICES",
+    title: "UPGRADE YOUR\nDIGITAL LIFE.",
+    emphasis: "DIGITAL LIFE.",
+    description: "Discover subscriptions, software, AI tools, and premium digital services as their authorised suppliers are added to VAMNUX.",
+    cta: "Explore services",
+    category: "Subscription" as ProductCategory,
+    metric: "Digital services",
+    note: "Subscriptions, software & AI tools.",
   },
 ];
 
 const categories = [
   { label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
-];
-
-/** Public FlashTopUp game families, presented for supplier recognition only. Purchasable listings remain limited to the synchronised services below. */
-const recognizedFlashTopUpGames = [
-  { name: "Free Fire LATAM", image: "/manus-storage/free-fire-latam_73a62a50.webp" },
-  { name: "Mobile Legends", image: "/manus-storage/mobile-legends_da301a0e.webp" },
-  { name: "Mobile Legends Global", image: "/manus-storage/mobile-legends-global_526e9a9d.webp" },
-  { name: "PUBG Mobile", image: "/manus-storage/pubg-mobile_66e3513a.webp" },
-  { name: "Free Fire Global", image: "/manus-storage/free-fire-global_6fd7b283.webp" },
-  { name: "Blood Strike", image: "/manus-storage/blood-strike_92f09d09.webp" },
-  { name: "8 Ball Pool", image: "/manus-storage/8-ball-pool_0a4fb2eb.webp" },
+  { label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
+  { label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
+  { label: "Software", icon: Laptop, filter: "Software" as ProductCategory },
+  { label: "AI tools", icon: Sparkles, filter: "AI tools" as ProductCategory },
 ];
 
 const supplierCategoryLabels: Record<string, ProductCategory> = {
@@ -118,7 +112,14 @@ const supplierCategoryLabels: Record<string, ProductCategory> = {
   subscription: "Subscription",
   software: "Software",
   game_key: "Voucher",
-  ai_tool: "Subscription",
+  ai_tool: "AI tools",
+};
+
+const unavailableCategoryDescriptions: Record<Exclude<ProductCategory, "Top-up">, string> = {
+  Voucher: "Gift Card products will appear here after VAMNUX connects an authorised supplier with live codes and regional pricing.",
+  Subscription: "Subscription services are planned for this category and will appear after an approved supplier is connected.",
+  Software: "Software licences will appear here after VAMNUX connects an authorised software supplier.",
+  "AI tools": "AI tool subscriptions and licences will appear here after an authorised catalog source is connected.",
 };
 
 const productTones = ["ember", "ice", "lime", "coral", "cobalt"];
@@ -213,7 +214,16 @@ export default function Home() {
     });
   }, [activeCategory, liveProducts, query]);
 
+  const discoveryMatches = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized || (activeCategory !== "All" && activeCategory !== "Top-up")) return [];
+    return findPublicSupplierDiscoveryMatches(normalized);
+  }, [activeCategory, query]);
+
+  const selectedCategory = categories.find((category) => category.filter === activeCategory);
+
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
+  const productFamilies = useMemo(() => groupLiveProductFamilies(filteredProducts), [filteredProducts]);
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
@@ -269,7 +279,7 @@ export default function Home() {
     <main id="top" className="global-marketplace">
       <div className="global-announcement">
         <span><Globe2 size={13} /> GLOBAL DIGITAL MARKETPLACE</span>
-        <strong>Verified gaming top-ups.</strong>
+        <strong>Digital products. Instantly delivered.</strong>
         <span><CircleDollarSign size={13} /> USD base display · Switch currency anytime</span>
       </div>
 
@@ -278,8 +288,8 @@ export default function Home() {
           <Logo />
           <label className="market-search" aria-label="Search VAMNUX product catalog">
             <Search size={21} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search verified game top-ups" />
-            <span className="search-category">Gaming top-ups <ChevronDown size={15} /></span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search games, gift cards, subscriptions, software & AI tools" />
+            <span className="search-category">All products <ChevronDown size={15} /></span>
           </label>
           <div className="header-actions">
             <label className="currency-switcher" title="Change display currency">
@@ -295,8 +305,12 @@ export default function Home() {
         </div>
         <nav className="commerce-categories" aria-label="Marketplace categories">
           <a href="#products" onClick={() => chooseCategory("Top-up")}><Gamepad2 size={19} /> Gaming top-ups</a>
+          <a href="#products" onClick={() => chooseCategory("Voucher")}><Gift size={19} /> Gift cards</a>
+          <a href="#products" onClick={() => chooseCategory("Subscription")}><Tv size={19} /> Subscriptions</a>
+          <a href="#products" onClick={() => chooseCategory("Software")}><Laptop size={19} /> Software</a>
+          <a href="#products" onClick={() => chooseCategory("AI tools")}><Sparkles size={19} /> AI tools</a>
           <a href="#supplier-recognition-title"><ShieldCheck size={19} /> Supplier catalogue</a>
-          <span className="scope-status"><ShieldCheck size={16} /> Gaming Top-Ups live</span>
+          <span className="scope-status"><ShieldCheck size={16} /> Live services update by supplier</span>
         </nav>
       </header>
 
@@ -333,7 +347,7 @@ export default function Home() {
 
       <section id="categories" className="global-category-row" aria-label="Product categories">
         <div className="global-section-label">EXPLORE / WHAT ARE YOU LOOKING FOR?</div>
-        <div className="category-list gaming-only">
+        <div className="category-list">
           {categories.map(({ label, icon: Icon, filter }) => (
             <button key={label} onClick={() => chooseCategory(filter)} className="category-button exchange-ticket">
               <Icon size={22} strokeWidth={1.8} />
@@ -347,27 +361,27 @@ export default function Home() {
       <section className="supplier-recognition" aria-labelledby="supplier-recognition-title">
         <div className="supplier-recognition-head">
           <div><p className="eyebrow"><span /> FlashTopUp public catalogue</p><h2 id="supplier-recognition-title">RECOGNISED<br /><em>GAME FAMILIES.</em></h2></div>
-          <p>Official game identities from FlashTopUp’s public catalogue. A game becomes purchasable on VAMNUX only after a service is synchronised and active for this reseller account.</p>
+          <p>Browse real game identities from FlashTopUp’s public catalogue. A game becomes purchasable on VAMNUX only after a service is synchronised and active for this reseller account.</p>
         </div>
         <div className="supplier-game-grid">
-          {recognizedFlashTopUpGames.map((game) => <article key={game.name} className="supplier-game-card"><img src={game.image} alt={`${game.name} official FlashTopUp category artwork`} loading="lazy" /><div><span>FlashTopUp catalogue</span><strong>{game.name}</strong></div></article>)}
+          {PUBLIC_FLASHTOPUP_DISCOVERY.map((game) => <a key={game.name} className="supplier-game-card" href={game.href} target="_blank" rel="noreferrer" title={`Open ${game.name} in the official FlashTopUp catalogue`}><img src={game.image} alt={`${game.name} official FlashTopUp category artwork`} loading="lazy" /><div><span>Browse official catalogue</span><strong>{game.name}</strong></div></a>)}
         </div>
       </section>
 
       <section id="products" className="product-section global-product-section" aria-labelledby="products-title">
         <div className="section-heading">
           <div>
-            <div className="eyebrow dark-eyebrow"><span /> Synced reseller inventory</div>
-            <h2 id="products-title">AVAILABLE<br /><em>TO TOP UP.</em></h2>
+            <div className="eyebrow dark-eyebrow"><span /> Live supplier inventory</div>
+            <h2 id="products-title">SHOP WHAT’S<br /><em>LIVE NOW.</em></h2>
           </div>
           <div className="section-heading-right">
-            <p>Only services synchronised from the connected FlashTopUp reseller account appear here. Each card keeps the recognised game name, official artwork, denomination, region, and delivery format visible.</p>
+            <p>Only services synchronised from approved suppliers are purchasable. Search can also show public supplier-catalogue matches, clearly marked as awaiting VAMNUX synchronisation.</p>
             <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); }}>View all products <ArrowRight size={17} /></button>
           </div>
         </div>
 
         <div className="filter-row" aria-label="Filter product list">
-          {(["All", "Top-up"] as const).map((filter) => (
+          {(["All", "Top-up", "Voucher", "Subscription", "Software", "AI tools"] as const).map((filter) => (
             <button key={filter} onClick={() => setActiveCategory(filter)} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
               {filter === "All" ? "All picks" : filter}
             </button>
@@ -375,27 +389,35 @@ export default function Home() {
           <span className="price-display-note">Prices shown in <strong>{currency}</strong></span>
         </div>
 
-        <div className="product-grid">
+        <div className="product-family-list">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving live availability from FlashTopUp.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
-          {filteredProducts.map((item, index) => (
-            <article className={`product-card tone-${item.tone}`} key={item.id} style={{ animationDelay: `${index * 45}ms` }}>
-              <div className="product-image-wrap">
-                <div className="product-image-fallback" aria-hidden="true"><Gamepad2 size={34} /><span>{item.name}</span></div>
-                {item.image && <img src={item.image} alt={`${item.name} official supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
-                <span className="product-badge ticket-chip">{item.badge}</span>
-                <span className="product-art-label">{item.name}</span>
-                <span className="play-frame" aria-hidden="true" />
-                <span className="corner-mark">{currency}</span>
+          {productFamilies.map((family, familyIndex) => (
+            <article className="live-game-family" key={family.name} style={{ animationDelay: `${familyIndex * 45}ms` }}>
+              <div className="live-game-family-art">
+                <div className="live-game-family-fallback" aria-hidden="true"><Gamepad2 size={34} /></div>
+                {family.image && <img src={family.image} alt={`${family.name} official supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+                <span className="product-badge ticket-chip">{family.category}</span>
+                <span className="live-game-family-currency">{currency}</span>
               </div>
-              <div className="product-content">
-                <p className="product-name">{item.name}</p>
-                <h3>{item.product}</h3>
-                <div className="market-tags"><span>{item.region}</span><span>{item.delivery}</span></div>
-                <p className="product-description">{item.description}</p>
-                <div className="product-buy-row">
-                  <div><strong>{formatPrice(item.price)}</strong><small>{item.priceNote} · USD base</small></div>
-                  <button onClick={() => addToCart(item)} aria-label={`Add ${item.name} ${item.product} to cart`}><ShoppingBag size={18} /><span>Add</span></button>
+              <div className="live-game-family-content">
+                <div className="live-game-family-heading">
+                  <div><p className="product-name">Live VAMNUX game family</p><h3>{family.name}</h3></div>
+                  <p>{family.items.length} active supplier {family.items.length === 1 ? "service" : "services"} · select a denomination below</p>
+                </div>
+                <div className="service-denomination-grid">
+                  {family.items.map((item) => (
+                    <article className={`service-denomination-card tone-${item.tone}`} key={item.id}>
+                      <div>
+                        <h4>{item.product}</h4>
+                        <div className="market-tags"><span>{item.region}</span><span>{item.delivery}</span></div>
+                      </div>
+                      <div className="service-denomination-buy">
+                        <div><strong>{formatPrice(item.price)}</strong><small>{item.priceNote} · USD base</small></div>
+                        <button onClick={() => addToCart(item)} aria-label={`Add ${item.name} ${item.product} to cart`}><ShoppingBag size={17} /><span>Add</span></button>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </div>
             </article>
@@ -403,9 +425,21 @@ export default function Home() {
           {!supplierCatalog.isLoading && !supplierCatalog.error && filteredProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
-              <h3>No quick match yet.</h3>
-              <p>Try a verified game family or top-up denomination.</p>
-              <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Reset catalog</button>
+              {discoveryMatches.length > 0 ? <>
+                <h3>Found in the supplier catalogue.</h3>
+                <p>These real FlashTopUp game families are not yet synchronised as purchasable VAMNUX services. Open the official listing or wait for the supplier sync.</p>
+                <div className="discovery-match-grid">
+                  {discoveryMatches.map((game) => <a key={game.name} className="discovery-match" href={game.href} target="_blank" rel="noreferrer"><img src={game.image} alt="" /><span><strong>{game.name}</strong><small>Awaiting VAMNUX sync <ArrowRight size={14} /></small></span></a>)}
+                </div>
+              </> : activeCategory !== "All" && activeCategory !== "Top-up" ? <>
+                <h3>{selectedCategory?.label ?? activeCategory} are planned.</h3>
+                <p>{unavailableCategoryDescriptions[activeCategory]}</p>
+                <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Browse live inventory</button>
+              </> : <>
+                <h3>No live match yet.</h3>
+                <p>Try a game family or denomination. Public supplier-catalogue matches are shown when available, while purchasable items stay limited to synchronised services.</p>
+                <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Reset catalog</button>
+              </>}
             </div>
           )}
         </div>
