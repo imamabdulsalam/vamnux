@@ -92,4 +92,5 @@
 - [x] Add an explicit load failure and retry experience for the admin-managed catalog instead of treating errors as an empty catalog.
 - [x] Complete the admin-only catalog-management interface for authorised Gift Card and Subscription products from approved suppliers or direct commercial agreements.
 - [x] Defer Gift Card and Subscription source registration; keep the marketplace limited to currently synchronised Gaming Top-Up services.
+- [x] Align public VAMNUX navigation, category shortcuts, and catalog filters with the active Gaming Top-Up-only inventory scope.
 - [ ] Connect and approve an additional supplier before adding new Gift Card or Subscription sources or products.

@@ -75,32 +75,30 @@ const slides = [
   },
   {
     key: "jade",
-    kicker: "02 / GIFT CARDS",
-    title: "EVERYTHING DIGITAL.\nONE PLACE.",
-    emphasis: "ONE PLACE.",
-    description: "Shop gift cards and digital vouchers for gaming, entertainment, shopping and more.",
-    cta: "Explore gift cards",
-    category: "Voucher" as ProductCategory,
-    metric: "Gift cards",
-    note: "Digital vouchers for more ways to play.",
+    kicker: "02 / VERIFIED TOP-UPS",
+    title: "ONLY SYNCED.\nONLY CLEAR.",
+    emphasis: "ONLY CLEAR.",
+    description: "Every VAMNUX listing is tied to an active, synchronised FlashTopUp service before it appears in the marketplace.",
+    cta: "Browse top-ups",
+    category: "Top-up" as ProductCategory,
+    metric: "Verified",
+    note: "Active reseller services only.",
   },
   {
     key: "ember",
-    kicker: "03 / DIGITAL SERVICES",
-    title: "UPGRADE YOUR\nDIGITAL LIFE.",
-    emphasis: "DIGITAL LIFE.",
-    description: "Discover AI, software, subscriptions and premium digital services built for the way you live and work.",
-    cta: "Explore digital products",
-    category: "Subscription" as ProductCategory,
-    metric: "Digital services",
-    note: "AI, software & subscriptions together.",
+    kicker: "03 / SUPPLIER SCOPE",
+    title: "MORE GAMES.\nVERIFIED FIRST.",
+    emphasis: "VERIFIED FIRST.",
+    description: "New game families and digital categories are added only after an approved supplier connection and service-level validation.",
+    cta: "See active games",
+    category: "Top-up" as ProductCategory,
+    metric: "Gaming",
+    note: "Catalog expansion under review.",
   },
 ];
 
 const categories = [
   { label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
-  { label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
-  { label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
 ];
 
 /** Public FlashTopUp game families, presented for supplier recognition only. Purchasable listings remain limited to the synchronised services below. */
@@ -271,7 +269,7 @@ export default function Home() {
     <main id="top" className="global-marketplace">
       <div className="global-announcement">
         <span><Globe2 size={13} /> GLOBAL DIGITAL MARKETPLACE</span>
-        <strong>Digital products. Instantly delivered.</strong>
+        <strong>Verified gaming top-ups.</strong>
         <span><CircleDollarSign size={13} /> USD base display · Switch currency anytime</span>
       </div>
 
@@ -280,8 +278,8 @@ export default function Home() {
           <Logo />
           <label className="market-search" aria-label="Search VAMNUX product catalog">
             <Search size={21} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search games, gift cards, subscriptions & software" />
-            <span className="search-category">All products <ChevronDown size={15} /></span>
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search verified game top-ups" />
+            <span className="search-category">Gaming top-ups <ChevronDown size={15} /></span>
           </label>
           <div className="header-actions">
             <label className="currency-switcher" title="Change display currency">
@@ -297,10 +295,8 @@ export default function Home() {
         </div>
         <nav className="commerce-categories" aria-label="Marketplace categories">
           <a href="#products" onClick={() => chooseCategory("Top-up")}><Gamepad2 size={19} /> Gaming top-ups</a>
-          <a href="#products" onClick={() => chooseCategory("Subscription")}><Tv size={19} /> Subscriptions</a>
-          <a href="#products" onClick={() => chooseCategory("Voucher")}><Gift size={19} /> Gift cards</a>
-          <button onClick={() => toast.message("Deals are ready to configure", { description: "Use supplier-approved products and live pricing before publishing discounts." })}><Zap size={18} fill="currentColor" /> Deals</button>
-          <button onClick={() => toast.message("Reseller access comes next", { description: "A reseller area needs account roles and an authorised pricing system." })}>Resellers</button>
+          <a href="#supplier-recognition-title"><ShieldCheck size={19} /> Supplier catalogue</a>
+          <span className="scope-status"><ShieldCheck size={16} /> Gaming Top-Ups live</span>
         </nav>
       </header>
 
@@ -337,7 +333,7 @@ export default function Home() {
 
       <section id="categories" className="global-category-row" aria-label="Product categories">
         <div className="global-section-label">EXPLORE / WHAT ARE YOU LOOKING FOR?</div>
-        <div className="category-list">
+        <div className="category-list gaming-only">
           {categories.map(({ label, icon: Icon, filter }) => (
             <button key={label} onClick={() => chooseCategory(filter)} className="category-button exchange-ticket">
               <Icon size={22} strokeWidth={1.8} />
@@ -371,7 +367,7 @@ export default function Home() {
         </div>
 
         <div className="filter-row" aria-label="Filter product list">
-          {(["All", "Top-up", "Voucher", "Subscription"] as const).map((filter) => (
+          {(["All", "Top-up"] as const).map((filter) => (
             <button key={filter} onClick={() => setActiveCategory(filter)} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
               {filter === "All" ? "All picks" : filter}
             </button>
@@ -407,7 +403,7 @@ export default function Home() {
             <div className="empty-results">
               <Search size={28} />
               <h3>No quick match yet.</h3>
-              <p>Try a product family like “top-up”, “gift card”, or “subscription”.</p>
+              <p>Try a verified game family or top-up denomination.</p>
               <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Reset catalog</button>
             </div>
           )}
