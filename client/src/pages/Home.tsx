@@ -8,6 +8,7 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { gameFamilyPath } from "@shared/catalogRoutes";
+import { filterGameFamiliesForScope, type CatalogVisibilityScope } from "@shared/catalogVisibility";
 import { productMatchesKeyword, toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
 import {
@@ -119,6 +120,7 @@ export default function Home() {
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
 
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
+  const [catalogScope, setCatalogScope] = useState<CatalogVisibilityScope>("nigeria");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -166,7 +168,8 @@ export default function Home() {
   const selectedCategory = categories.find((category) => category.filter === activeCategory);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
-  const productFamilies = useMemo(() => groupLiveProductFamilies(filteredProducts), [filteredProducts]);
+  const allProductFamilies = useMemo(() => groupLiveProductFamilies(filteredProducts), [filteredProducts]);
+  const productFamilies = useMemo(() => filterGameFamiliesForScope(allProductFamilies, catalogScope), [allProductFamilies, catalogScope]);
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
@@ -314,11 +317,11 @@ export default function Home() {
       <section id="products" className="product-section global-product-section" aria-labelledby="products-title">
         <div className="section-heading">
           <div>
-            <div className="eyebrow dark-eyebrow"><span /> Live supplier inventory</div>
-            <h2 id="products-title">SHOP WHAT’S<br /><em>LIVE NOW.</em></h2>
+            <div className="eyebrow dark-eyebrow"><span /> {catalogScope === "nigeria" ? "Nigeria-priority supplier inventory" : "International supplier inventory"}</div>
+            <h2 id="products-title">{catalogScope === "nigeria" ? <>SHOP NIGERIA’S<br /><em>PRIORITY PICKS.</em></> : <>SHOP WHAT’S<br /><em>LIVE NOW.</em></>}</h2>
           </div>
           <div className="section-heading-right">
-            <p>Only services synchronised from approved suppliers are purchasable. Search can also show public supplier-catalogue matches, clearly marked as awaiting VAMNUX synchronisation.</p>
+            <p>{catalogScope === "nigeria" ? "This focused view prioritises real game families with Nigeria-market relevance or a global label. It does not guarantee supplier eligibility; review requirements before saving a draft." : "All currently synchronised supplier services are shown for future international expansion. Regional suitability must be confirmed before a draft order."}</p>
             <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); }}>View all products <ArrowRight size={17} /></button>
           </div>
         </div>
@@ -330,6 +333,11 @@ export default function Home() {
             </button>
           ))}
           <span className="price-display-note">Prices shown in <strong>{currency}</strong></span>
+        </div>
+
+        <div className="catalog-scope-switch" aria-label="Catalog market scope">
+          <div><strong>Nigeria focus</strong><span>Recommended real game families for the current Nigerian storefront.</span></div>
+          <div className="catalog-scope-controls"><button className={catalogScope === "nigeria" ? "active" : ""} onClick={() => setCatalogScope("nigeria")}>Nigeria focus</button><button className={catalogScope === "all" ? "active" : ""} onClick={() => setCatalogScope("all")}>All supplier catalog</button></div>
         </div>
 
         <div className="catalog-keyword-search" aria-label="Search live game listings">
@@ -351,10 +359,14 @@ export default function Home() {
               </button>
             </article>;
           })}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && filteredProducts.length === 0 && (
+          {!supplierCatalog.isLoading && !supplierCatalog.error && productFamilies.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
-              {discoveryMatches.length > 0 ? <>
+              {catalogScope === "nigeria" && allProductFamilies.length > 0 ? <>
+                <h3>Found outside the Nigeria focus.</h3>
+                <p>These are real synchronised supplier services, but they are not part of the current Nigeria-priority view. Switch to the full catalog only if you want to review international options.</p>
+                <button onClick={() => setCatalogScope("all")}>View all supplier catalog</button>
+              </> : discoveryMatches.length > 0 ? <>
                 <h3>Found in the supplier catalogue.</h3>
                 <p>These real FlashTopUp game families are not yet synchronised as purchasable VAMNUX services. Open the official listing or wait for the supplier sync.</p>
                 <div className="discovery-match-grid">

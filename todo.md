@@ -107,6 +107,10 @@
 - [x] Add deterministic route coverage for encoded game-family detail paths and unsupported family handling.
 - [x] Add a prominent keyword search control that filters compact live game-family listings by real family and service names.
 - [x] Add a clear no-match state and deterministic coverage for compact catalog keyword search behavior.
+- [x] Audit the synchronised FlashTopUp game families and their regional metadata for Nigeria-priority storefront visibility.
+- [x] Curate the primary VAMNUX catalog toward Nigerian/global-usable supplier services without deleting authentic records or rebuilding the marketplace.
+- [x] Preserve an explicit international catalog view for later expansion beyond Nigeria-priority products.
+- [x] Add deterministic coverage for Nigeria-priority family selection and international-view fallback without asserting supplier eligibility.
 - [x] Attempt the user-authorised read-only FlashTopUp catalog synchronisation after temporarily allowlisting `197.42.21.111`; no data was imported because egress shifted before the request.
 - [x] Recover temporary catalog access after `197.63.115.110` was allowlisted and verify the authenticated read can return real supplier products.
 - [x] Run the user-authorised final read-only bounded catalog synchronisation after allowlisting `197.63.115.110`, importing pages 2–4 successfully.
