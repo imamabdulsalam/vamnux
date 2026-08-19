@@ -68,7 +68,7 @@
 
 # FlashTopUp Integration Stabilization
 
-- [ ] Inspect and resolve the reported editor-interface failure separately from the VAMNUX application integration.
+- [x] Clear the stale development module-cache error observed after FlashTopUp integration edits and verify a fresh server start completes without a current error.
 - [x] Verify the FlashTopUp catalog sync runner and database upsert path complete without server errors.
 - [ ] Validate supplier order-status processing only after a deliberately selected sandbox or production supplier order is available; do not create an order for testing without explicit approval.
 - [x] Remove unsafe or incomplete integration paths and retain only validated server-side supplier operations.
@@ -78,12 +78,13 @@
 # Sandbox Order & Inventory Expansion
 
 - [ ] Implement and live-validate the documented FlashTopUp sandbox order request with `X-FT-Sandbox: true`, a unique reference, and no VAMNUX wallet or payment action.
-- [ ] Add the supplier-reported sandbox egress address `37.238.4.82` to the FlashTopUp allowlist before retrying the isolated test order.
+- [x] Add the supplier-reported sandbox egress address `37.238.4.82` to the FlashTopUp allowlist before retrying the isolated test order.
 - [ ] Resolve the temporary FlashTopUp sandbox egress instability: the latest authorised retry was blocked at `37.236.120.151` after the prior address changed.
-- [ ] Defer further sandbox-order retries in the current dynamic-egress environment: the final authorised retry was blocked at `40.67.160.176`.
+- [x] Defer further sandbox-order retries in the current dynamic-egress environment: the final authorised retry was blocked at `40.67.160.176`.
 - [x] Make all FlashTopUp network-validation tests explicitly opt-in so the default unit suite stays deterministic and never depends on a temporary IP allowlist.
-- [ ] Defer the fixed-IP production supplier adapter; use temporary supplier allowlisting only for the current sandbox validation.
+- [x] Defer the fixed-IP production supplier adapter; use temporary supplier allowlisting only for the current sandbox validation.
 - [ ] Validate sandbox order creation and safe order-status retrieval without creating a live supplier fulfilment request.
+- [ ] Revisit live FlashTopUp sandbox and order-status validation only when a stable, supplier-allowlist-capable egress route is approved.
 - [x] Add admin-managed catalog records without fabricating inventory, prices, or delivery claims.
 - [x] Implement structured authorised-source management for manual catalog items and link each item to a configured supplier or direct-agreement record.
 - [x] Link supplier-type authorised sources to an actual configured supplier integration instead of accepting a free-text supplier label.
