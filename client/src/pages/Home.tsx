@@ -57,30 +57,36 @@ const currencies: Record<CurrencyCode, { label: string; locale: string; rate: nu
 const slides = [
   {
     key: "violet",
-    kicker: "VAMNUX / GLOBAL MARKETPLACE",
-    title: "DIGITAL ACCESS,\nON YOUR TERMS.",
-    emphasis: "ON YOUR TERMS.",
-    description: "Find game credit, gift cards, subscriptions, AI tools, and software through one clear global marketplace.",
-    metric: "USD base",
-    note: "Switch currency whenever you need to.",
+    kicker: "01 / GAMING",
+    title: "LEVEL UP.\nPLAY MORE.",
+    emphasis: "PLAY MORE.",
+    description: "Instant access to game credits, passes and gaming vouchers for the games you love.",
+    cta: "Explore games",
+    category: "Top-up" as ProductCategory,
+    metric: "Gaming",
+    note: "Game credits, passes & vouchers.",
   },
   {
     key: "jade",
-    kicker: "VAMNUX / DELIVERY TYPES",
-    title: "THE RIGHT FORMAT,\nCLEARLY MARKED.",
-    emphasis: "CLEARLY MARKED.",
-    description: "Digital code, game top-up, activation link, or account access—the product page tells you what to expect before checkout.",
-    metric: "4 formats",
-    note: "Delivery guidance built into every product.",
+    kicker: "02 / GIFT CARDS",
+    title: "EVERYTHING DIGITAL.\nONE PLACE.",
+    emphasis: "ONE PLACE.",
+    description: "Shop gift cards and digital vouchers for gaming, entertainment, shopping and more.",
+    cta: "Explore gift cards",
+    category: "Voucher" as ProductCategory,
+    metric: "Gift cards",
+    note: "Digital vouchers for more ways to play.",
   },
   {
     key: "ember",
-    kicker: "VAMNUX / DISCOVER MORE",
-    title: "PLAY MORE.\nDO MORE.",
-    emphasis: "DO MORE.",
-    description: "Move from a match-night top-up to a workday subscription without changing marketplaces or losing clarity.",
-    metric: "One cart",
-    note: "Gaming, gifting, AI, and software together.",
+    kicker: "03 / DIGITAL SERVICES",
+    title: "UPGRADE YOUR\nDIGITAL LIFE.",
+    emphasis: "DIGITAL LIFE.",
+    description: "Discover AI, software, subscriptions and premium digital services built for the way you live and work.",
+    cta: "Explore digital products",
+    category: "Subscription" as ProductCategory,
+    metric: "Digital services",
+    note: "AI, software & subscriptions together.",
   },
 ];
 
@@ -283,7 +289,7 @@ export default function Home() {
             <h1>{slide.title.split("\n")[0]}<br /><em>{slide.emphasis}</em></h1>
             <p className="carousel-copy">{slide.description}</p>
             <div className="carousel-actions">
-              <a href="#products" className="carousel-primary">Explore products <ArrowRight size={18} /></a>
+              <button onClick={() => chooseCategory(slide.category)} className="carousel-primary">{slide.cta} <ArrowRight size={18} /></button>
               <button onClick={() => chooseCategory("Top-up")} className="carousel-secondary">Top up a game <ChevronRight size={18} /></button>
             </div>
           </div>

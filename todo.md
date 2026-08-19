@@ -13,3 +13,8 @@
 - [x] Add a USD-first currency selector with manually selectable USD, EUR, GBP, and NGN display formats.
 - [x] Update catalog price labels and trust messaging for an international customer base.
 - [x] Rebuild, validate desktop and mobile layouts, and checkpoint the global marketplace revision.
+
+# Hero Copy Revision
+
+- [x] Replace only the three rotating hero slide messages with the approved Gaming, Gift Cards, and Digital Services copy.
+- [x] Verify the revised slide copy and checkpoint the update.
