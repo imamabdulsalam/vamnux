@@ -8,7 +8,7 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { gameFamilyPath } from "@shared/catalogRoutes";
-import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
+import { productMatchesKeyword, toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
 import {
   ArrowRight,
@@ -152,10 +152,7 @@ export default function Home() {
     const normalized = query.trim().toLowerCase();
     return liveProducts.filter((item) => {
       const matchesCategory = activeCategory === "All" || item.category === activeCategory;
-      const matchesSearch = !normalized || [item.name, item.product, item.category, item.region]
-        .join(" ")
-        .toLowerCase()
-        .includes(normalized);
+      const matchesSearch = productMatchesKeyword(item, normalized);
       return matchesCategory && matchesSearch;
     });
   }, [activeCategory, liveProducts, query]);
@@ -335,6 +332,12 @@ export default function Home() {
           <span className="price-display-note">Prices shown in <strong>{currency}</strong></span>
         </div>
 
+        <div className="catalog-keyword-search" aria-label="Search live game listings">
+          <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
+          <div className="catalog-keyword-input"><input id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
+          <p>{query.trim() ? `${productFamilies.length} live ${productFamilies.length === 1 ? "game family" : "game families"} match “${query.trim()}”` : "Search by game, denomination, region, or Player ID requirement."}</p>
+        </div>
+
         <div className="product-family-list">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving live availability from FlashTopUp.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
@@ -363,7 +366,7 @@ export default function Home() {
                 <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Browse live inventory</button>
               </> : <>
                 <h3>No live match yet.</h3>
-                <p>Try a game family or denomination. Public supplier-catalogue matches are shown when available, while purchasable items stay limited to synchronised services.</p>
+                <p>{query.trim() ? `No active VAMNUX service matches “${query.trim()}”. Try a game name, denomination, region, or requirement.` : "Try a game family or denomination. Public supplier-catalogue matches are shown when available, while purchasable items stay limited to synchronised services."}</p>
                 <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Reset catalog</button>
               </>}
             </div>

@@ -105,6 +105,8 @@
 - [x] Replace expanded family denomination grids with compact, clickable supplier-backed game-family listings.
 - [x] Add a dedicated VAMNUX game-family detail route showing only the selected family’s real services, prices, requirements, and add-to-cart controls.
 - [x] Add deterministic route coverage for encoded game-family detail paths and unsupported family handling.
+- [x] Add a prominent keyword search control that filters compact live game-family listings by real family and service names.
+- [x] Add a clear no-match state and deterministic coverage for compact catalog keyword search behavior.
 - [x] Attempt the user-authorised read-only FlashTopUp catalog synchronisation after temporarily allowlisting `197.42.21.111`; no data was imported because egress shifted before the request.
 - [x] Recover temporary catalog access after `197.63.115.110` was allowlisted and verify the authenticated read can return real supplier products.
 - [x] Run the user-authorised final read-only bounded catalog synchronisation after allowlisting `197.63.115.110`, importing pages 2–4 successfully.

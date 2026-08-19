@@ -25,3 +25,7 @@ Search verification also confirmed that `PUBG Mobile` returns a live VAMNUX fami
 ## Compact Game-Family Detail Flow
 
 Live VAMNUX inventory is now compressed into one clickable listing per real game family. Opening a family, such as `PUBG Mobile`, shows only its authentic synchronised denominations, individual supplier prices, delivery requirements, and add-to-cart controls. Selecting a service opens the local cart with the supplier-required `User ID` field; payment, wallet funding, and supplier fulfilment remain inactive until a customer can save a guarded draft order.
+
+## Compact Catalog Keyword Search
+
+The compact live catalog now includes a dedicated **Find your game or service** keyword control immediately above the clickable family listings. It searches authentic synchronised family names, denomination names, regions, delivery labels, and Player ID requirements, then keeps results as compact links to the correct VAMNUX detail page. The control provides a live match count and an explicit no-match state without adding any unsynchronised or invented product records.

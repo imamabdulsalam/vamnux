@@ -73,3 +73,12 @@ export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): Liv
     inputRequirements: fields.filter((field): field is { key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string } => typeof field.key === "string" && typeof field.label === "string" && (field.type === "text" || field.type === "email" || field.type === "select")),
   };
 }
+
+export function productMatchesKeyword(product: Pick<LiveCatalogProduct, "name" | "product" | "category" | "region" | "delivery">, keyword: string) {
+  const normalized = keyword.trim().toLowerCase();
+  if (!normalized) return true;
+  return [product.name, product.product, product.category, product.region, product.delivery]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalized);
+}
