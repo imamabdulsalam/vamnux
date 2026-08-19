@@ -91,3 +91,5 @@
 - [x] Link supplier-type authorised sources to an actual configured supplier integration instead of accepting a free-text supplier label.
 - [x] Add an explicit load failure and retry experience for the admin-managed catalog instead of treating errors as an empty catalog.
 - [x] Complete the admin-only catalog-management interface for authorised Gift Card and Subscription products from approved suppliers or direct commercial agreements.
+- [x] Defer Gift Card and Subscription source registration; keep the marketplace limited to currently synchronised Gaming Top-Up services.
+- [ ] Connect and approve an additional supplier before adding new Gift Card or Subscription sources or products.
