@@ -11,7 +11,7 @@ describe("Nigeria-priority catalog visibility", () => {
 
   it("hides explicitly other-market families from the Nigeria default while retaining them in the all-supplier view", () => {
     const families = [{ name: "PUBG Mobile" }, { name: "Free Fire Indonesia" }, { name: "Valorant Philippines" }];
-    expect(filterGameFamiliesForScope(families, "nigeria")).toEqual([{ name: "PUBG Mobile" }]);
+    expect(filterGameFamiliesForScope(families, "curated")).toEqual([{ name: "PUBG Mobile" }]);
     expect(filterGameFamiliesForScope(families, "all")).toEqual(families);
   });
 });

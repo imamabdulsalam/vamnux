@@ -7,7 +7,7 @@ const NIGERIA_PRIORITY_FAMILIES = new Set([
   "ragnarok origin",
 ]);
 
-export type CatalogVisibilityScope = "nigeria" | "all";
+export type CatalogVisibilityScope = "curated" | "all";
 
 export function isNigeriaPriorityFamily(name: string) {
   return NIGERIA_PRIORITY_FAMILIES.has(name.trim().toLowerCase());

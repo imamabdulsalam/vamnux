@@ -111,6 +111,8 @@
 - [x] Curate the primary VAMNUX catalog toward Nigerian/global-usable supplier services without deleting authentic records or rebuilding the marketplace.
 - [x] Preserve an explicit international catalog view for later expansion beyond Nigeria-priority products.
 - [x] Add deterministic coverage for Nigeria-priority family selection and international-view fallback without asserting supplier eligibility.
+- [x] Remove all customer-facing Nigeria-labelled catalog headings, helper text, and controls while retaining the curated default service selection.
+- [x] Rename the broader supplier-catalog control with neutral premium marketplace language.
 - [x] Attempt the user-authorised read-only FlashTopUp catalog synchronisation after temporarily allowlisting `197.42.21.111`; no data was imported because egress shifted before the request.
 - [x] Recover temporary catalog access after `197.63.115.110` was allowlisted and verify the authenticated read can return real supplier products.
 - [x] Run the user-authorised final read-only bounded catalog synchronisation after allowlisting `197.63.115.110`, importing pages 2–4 successfully.

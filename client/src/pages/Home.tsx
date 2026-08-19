@@ -120,7 +120,7 @@ export default function Home() {
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
 
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
-  const [catalogScope, setCatalogScope] = useState<CatalogVisibilityScope>("nigeria");
+  const [catalogScope, setCatalogScope] = useState<CatalogVisibilityScope>("curated");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -317,11 +317,11 @@ export default function Home() {
       <section id="products" className="product-section global-product-section" aria-labelledby="products-title">
         <div className="section-heading">
           <div>
-            <div className="eyebrow dark-eyebrow"><span /> {catalogScope === "nigeria" ? "Nigeria-priority supplier inventory" : "International supplier inventory"}</div>
-            <h2 id="products-title">{catalogScope === "nigeria" ? <>SHOP NIGERIA’S<br /><em>PRIORITY PICKS.</em></> : <>SHOP WHAT’S<br /><em>LIVE NOW.</em></>}</h2>
+            <div className="eyebrow dark-eyebrow"><span /> {catalogScope === "curated" ? "Curated supplier inventory" : "Full supplier inventory"}</div>
+            <h2 id="products-title">{catalogScope === "curated" ? <>SHOP THE<br /><em>BEST PICKS.</em></> : <>SHOP WHAT’S<br /><em>LIVE NOW.</em></>}</h2>
           </div>
           <div className="section-heading-right">
-            <p>{catalogScope === "nigeria" ? "This focused view prioritises real game families with Nigeria-market relevance or a global label. It does not guarantee supplier eligibility; review requirements before saving a draft." : "All currently synchronised supplier services are shown for future international expansion. Regional suitability must be confirmed before a draft order."}</p>
+            <p>{catalogScope === "curated" ? "A refined selection of real supplier game services, presented for quick discovery. Review the listed requirements before saving a draft." : "Browse every currently synchronised supplier service. Regional suitability must be confirmed before a draft order."}</p>
             <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); }}>View all products <ArrowRight size={17} /></button>
           </div>
         </div>
@@ -336,8 +336,8 @@ export default function Home() {
         </div>
 
         <div className="catalog-scope-switch" aria-label="Catalog market scope">
-          <div><strong>Nigeria focus</strong><span>Recommended real game families for the current Nigerian storefront.</span></div>
-          <div className="catalog-scope-controls"><button className={catalogScope === "nigeria" ? "active" : ""} onClick={() => setCatalogScope("nigeria")}>Nigeria focus</button><button className={catalogScope === "all" ? "active" : ""} onClick={() => setCatalogScope("all")}>All supplier catalog</button></div>
+          <div><strong>Curated picks</strong><span>A streamlined selection of real, widely recognised game services.</span></div>
+          <div className="catalog-scope-controls"><button className={catalogScope === "curated" ? "active" : ""} onClick={() => setCatalogScope("curated")}>Curated picks</button><button className={catalogScope === "all" ? "active" : ""} onClick={() => setCatalogScope("all")}>Browse all services</button></div>
         </div>
 
         <div className="catalog-keyword-search" aria-label="Search live game listings">
@@ -362,10 +362,10 @@ export default function Home() {
           {!supplierCatalog.isLoading && !supplierCatalog.error && productFamilies.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
-              {catalogScope === "nigeria" && allProductFamilies.length > 0 ? <>
-                <h3>Found outside the Nigeria focus.</h3>
-                <p>These are real synchronised supplier services, but they are not part of the current Nigeria-priority view. Switch to the full catalog only if you want to review international options.</p>
-                <button onClick={() => setCatalogScope("all")}>View all supplier catalog</button>
+              {catalogScope === "curated" && allProductFamilies.length > 0 ? <>
+                <h3>Found outside curated picks.</h3>
+                <p>These are real synchronised supplier services, but they are not in the current streamlined view. Open the complete catalog to review every available service.</p>
+                <button onClick={() => setCatalogScope("all")}>Browse all services</button>
               </> : discoveryMatches.length > 0 ? <>
                 <h3>Found in the supplier catalogue.</h3>
                 <p>These real FlashTopUp game families are not yet synchronised as purchasable VAMNUX services. Open the official listing or wait for the supplier sync.</p>
