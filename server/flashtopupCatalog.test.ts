@@ -41,6 +41,10 @@ describe("FlashTopUp catalog mapper", () => {
   it("keeps recognised supplier artwork on managed VAMNUX storage and normalises other public image URLs", () => {
     expect(resolveFlashTopUpProductImageUrl("https://api.flashtopup.com/assets/uploads/category/8575d7fd-7df1-4835-a9e1-c286f564c4a0.webp"))
       .toBe("/manus-storage/mobile-legends_da301a0e.webp");
+    expect(resolveFlashTopUpProductImageUrl("https://api.flashtopup.com/assets/uploads/category/21a940a7-c33e-400e-adbb-150322c30b15.webp"))
+      .toBe("/manus-storage/free-fire-latam_73a62a50.webp");
+    expect(resolveFlashTopUpProductImageUrl("https://api.flashtopup.com/assets/uploads/category/c0ad7ab4-5959-45d1-af8b-5d53f2b1b67b.webp"))
+      .toBe("/manus-storage/pubg-mobile_66e3513a.webp");
     expect(resolveFlashTopUpProductImageUrl("https://api.flashtopup.com/assets/uploads/category/other-game.webp"))
       .toBe("https://flashtopup.com/api/media/assets/uploads/category/other-game.webp");
   });
