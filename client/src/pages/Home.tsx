@@ -103,6 +103,17 @@ const categories = [
   { label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
 ];
 
+/** Public FlashTopUp game families, presented for supplier recognition only. Purchasable listings remain limited to the synchronised services below. */
+const recognizedFlashTopUpGames = [
+  { name: "Free Fire LATAM", image: "/manus-storage/free-fire-latam_73a62a50.webp" },
+  { name: "Mobile Legends", image: "/manus-storage/mobile-legends_da301a0e.webp" },
+  { name: "Mobile Legends Global", image: "/manus-storage/mobile-legends-global_526e9a9d.webp" },
+  { name: "PUBG Mobile", image: "/manus-storage/pubg-mobile_66e3513a.webp" },
+  { name: "Free Fire Global", image: "/manus-storage/free-fire-global_6fd7b283.webp" },
+  { name: "Blood Strike", image: "/manus-storage/blood-strike_92f09d09.webp" },
+  { name: "8 Ball Pool", image: "/manus-storage/8-ball-pool_0a4fb2eb.webp" },
+];
+
 const supplierCategoryLabels: Record<string, ProductCategory> = {
   top_up: "Top-up",
   gift_card: "Voucher",
@@ -182,7 +193,7 @@ export default function Home() {
       price: Number(item.basePrice),
       priceNote: item.supplierKey === "admin_managed"
         ? "Authorised catalog price"
-        : item.supplierEligible ? "Live supplier price" : "Supplier availability paused",
+        : item.supplierEligible ? "FlashTopUp service price" : "Supplier availability paused",
       region: item.regionLabel || "Supplier region rules",
       delivery: supplierDeliveryLabel(item),
       image: item.imageUrl || "",
@@ -337,14 +348,24 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="supplier-recognition" aria-labelledby="supplier-recognition-title">
+        <div className="supplier-recognition-head">
+          <div><p className="eyebrow"><span /> FlashTopUp public catalogue</p><h2 id="supplier-recognition-title">RECOGNISED<br /><em>GAME FAMILIES.</em></h2></div>
+          <p>Official game identities from FlashTopUp’s public catalogue. A game becomes purchasable on VAMNUX only after a service is synchronised and active for this reseller account.</p>
+        </div>
+        <div className="supplier-game-grid">
+          {recognizedFlashTopUpGames.map((game) => <article key={game.name} className="supplier-game-card"><img src={game.image} alt={`${game.name} official FlashTopUp category artwork`} loading="lazy" /><div><span>FlashTopUp catalogue</span><strong>{game.name}</strong></div></article>)}
+        </div>
+      </section>
+
       <section id="products" className="product-section global-product-section" aria-labelledby="products-title">
         <div className="section-heading">
           <div>
-            <div className="eyebrow dark-eyebrow"><span /> Global picks, clearly priced</div>
-            <h2 id="products-title">POPULAR<br /><em>RIGHT NOW.</em></h2>
+            <div className="eyebrow dark-eyebrow"><span /> Synced reseller inventory</div>
+            <h2 id="products-title">AVAILABLE<br /><em>TO TOP UP.</em></h2>
           </div>
           <div className="section-heading-right">
-            <p>Browse game credit, global vouchers, AI subscriptions, and useful software. Product cards highlight the region and delivery format first.</p>
+            <p>Only services synchronised from the connected FlashTopUp reseller account appear here. Each card keeps the recognised game name, official artwork, denomination, region, and delivery format visible.</p>
             <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); }}>View all products <ArrowRight size={17} /></button>
           </div>
         </div>
@@ -364,7 +385,8 @@ export default function Home() {
           {filteredProducts.map((item, index) => (
             <article className={`product-card tone-${item.tone}`} key={item.id} style={{ animationDelay: `${index * 45}ms` }}>
               <div className="product-image-wrap">
-                {item.image ? <img src={item.image} alt="" /> : <div className="product-image-fallback" style={{ display: "grid", height: "100%", placeItems: "center", background: "linear-gradient(135deg, #172153, #6937c8)", color: "#b8ff43" }}><Ticket size={38} /></div>}
+                <div className="product-image-fallback" aria-hidden="true"><Gamepad2 size={34} /><span>{item.name}</span></div>
+                {item.image && <img src={item.image} alt={`${item.name} official supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
                 <span className="product-badge ticket-chip">{item.badge}</span>
                 <span className="play-frame" aria-hidden="true" />
                 <span className="corner-mark">{currency}</span>

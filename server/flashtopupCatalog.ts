@@ -57,6 +57,24 @@ function stableSlug(serviceCode: string) {
   return `ft-${serviceCode.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 170)}`;
 }
 
+/** Official public FlashTopUp category artwork uploaded to VAMNUX managed storage for resilient storefront display. */
+const recognizedFlashTopUpArtwork: Array<{ sourceFragment: string; managedUrl: string }> = [
+  { sourceFragment: "21a940a7-c33e-400e-adbb-150322c30b15", managedUrl: "/manus-storage/free-fire-latam_73a62a50.webp" },
+  { sourceFragment: "23f79771-285a-4bbc-be28-f897a76d91c0", managedUrl: "/manus-storage/mobile-legends_da301a0e.webp" },
+  { sourceFragment: "8575d7fd-7df1-4835-a9e1-c286f564c4a0", managedUrl: "/manus-storage/mobile-legends-global_526e9a9d.webp" },
+  { sourceFragment: "c0ad7ab4-5959-45d1-af8b-5d53f2b1b67b", managedUrl: "/manus-storage/pubg-mobile_66e3513a.webp" },
+  { sourceFragment: "ce5fbf20-952f-48c2-b74d-0ae65487dcd4", managedUrl: "/manus-storage/free-fire-global_6fd7b283.webp" },
+  { sourceFragment: "fd05fdc2-a41d-4585-b2fa-c54deb992e81", managedUrl: "/manus-storage/blood-strike_92f09d09.webp" },
+  { sourceFragment: "8b86a829-6109-4686-b912-9fb3f0d1bb05", managedUrl: "/manus-storage/8-ball-pool_0a4fb2eb.webp" },
+];
+
+export function resolveFlashTopUpProductImageUrl(imageUrl: string | undefined) {
+  if (!imageUrl) return undefined;
+  const recognised = recognizedFlashTopUpArtwork.find((artwork) => imageUrl.includes(artwork.sourceFragment));
+  if (recognised) return recognised.managedUrl;
+  return imageUrl.replace("https://api.flashtopup.com/assets/", "https://flashtopup.com/api/media/assets/");
+}
+
 function isServiceAvailable(service: FlashTopUpService) {
   const stock = service.in_stock;
   const hasStock = stock === true || stock === 1 || stock === "1" || String(stock).toLowerCase() === "true";
@@ -100,7 +118,7 @@ export function mapFlashTopUpService(product: FlashTopUpProduct, service: FlashT
     supplierCategory: product.product_type,
     name: `${product.name} — ${service.service_name}`.slice(0, 255),
     category,
-    imageUrl: product.image_url,
+    imageUrl: resolveFlashTopUpProductImageUrl(product.image_url),
     basePrice: price.toFixed(2),
     baseCurrency: currency,
     supplierPrice: price.toFixed(2),

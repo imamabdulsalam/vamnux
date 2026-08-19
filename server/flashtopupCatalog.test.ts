@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapFlashTopUpService, normalizeFlashTopUpInputRequirements } from "./flashtopupCatalog";
+import { mapFlashTopUpService, normalizeFlashTopUpInputRequirements, resolveFlashTopUpProductImageUrl } from "./flashtopupCatalog";
 
 describe("FlashTopUp catalog mapper", () => {
   it("maps supplier-defined player and server fields to an active gaming top-up service", () => {
@@ -36,5 +36,12 @@ describe("FlashTopUp catalog mapper", () => {
       service_id: 501, service_code: "GIFT_STEAM_US_10", service_name: "10 USD", product_id: 12, product_code: "GIFT_STEAM", product_name: "Steam Gift Card", product_type: "gift_card", price: "10.00", currency: "USD", in_stock: false, status: "active",
     });
     expect(row).toMatchObject({ category: "gift_card", deliveryType: "digital_code", status: "paused", supplierEligible: false });
+  });
+
+  it("keeps recognised supplier artwork on managed VAMNUX storage and normalises other public image URLs", () => {
+    expect(resolveFlashTopUpProductImageUrl("https://api.flashtopup.com/assets/uploads/category/8575d7fd-7df1-4835-a9e1-c286f564c4a0.webp"))
+      .toBe("/manus-storage/mobile-legends-global_526e9a9d.webp");
+    expect(resolveFlashTopUpProductImageUrl("https://api.flashtopup.com/assets/uploads/category/other-game.webp"))
+      .toBe("https://flashtopup.com/api/media/assets/uploads/category/other-game.webp");
   });
 });
