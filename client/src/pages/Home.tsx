@@ -3,6 +3,9 @@
  * technology-led colour rotation, and compact transactional product information.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { startLogin } from "@/const";
+import { trpc } from "@/lib/trpc";
 import {
   ArrowRight,
   Check,
@@ -28,6 +31,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software";
 type CurrencyCode = "USD" | "EUR" | "GBP" | "NGN";
@@ -90,87 +94,28 @@ const slides = [
   },
 ];
 
-const products: Product[] = [
-  {
-    id: 1,
-    category: "Top-up",
-    name: "Free Fire",
-    product: "530 Diamonds",
-    description: "Recharge using your player ID and regional details.",
-    price: 3.5,
-    priceNote: "Base price",
-    region: "Global top-up",
-    delivery: "Player ID required",
-    image: "/manus-storage/naijaplay-freefire_145b08b0.png",
-    tone: "ember",
-    badge: "Top-up",
-  },
-  {
-    id: 2,
-    category: "Top-up",
-    name: "PUBG Mobile",
-    product: "660 UC",
-    description: "Competitive currency credit for your mobile account.",
-    price: 6.2,
-    priceNote: "Base price",
-    region: "Global top-up",
-    delivery: "Player ID required",
-    image: "/manus-storage/naijaplay-pubg_fc62cfdf.png",
-    tone: "ice",
-    badge: "Top-up",
-  },
-  {
-    id: 3,
-    category: "Voucher",
-    name: "Steam Wallet",
-    product: "US $20 Gift Card",
-    description: "Digital voucher for your next PC game library pick.",
-    price: 20,
-    priceNote: "Base price",
-    region: "United States",
-    delivery: "Digital code",
-    image: "/manus-storage/naijaplay-vouchers_77a26ca2.png",
-    tone: "lime",
-    badge: "Voucher",
-  },
-  {
-    id: 4,
-    category: "Subscription",
-    name: "ChatGPT Plus",
-    product: "1 Month Access",
-    description: "A premium AI subscription option for focused work.",
-    price: 24,
-    priceNote: "Base price",
-    region: "Region listed",
-    delivery: "Access format",
-    image: "/manus-storage/naijaplay-vouchers_77a26ca2.png",
-    tone: "coral",
-    badge: "AI tool",
-  },
-  {
-    id: 5,
-    category: "Software",
-    name: "Microsoft 365",
-    product: "Personal · 12 Months",
-    description: "Everyday productivity software for work and study.",
-    price: 52,
-    priceNote: "Base price",
-    region: "Global / listed",
-    delivery: "Digital licence",
-    image: "/manus-storage/naijaplay-hero_63707a55.png",
-    tone: "cobalt",
-    badge: "Software",
-  },
-];
-
 const categories = [
   { label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
   { label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
-  { label: "Game keys", icon: Ticket, filter: "Voucher" as ProductCategory },
   { label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
-  { label: "AI tools", icon: Sparkles, filter: "Subscription" as ProductCategory },
-  { label: "Software", icon: Laptop, filter: "Software" as ProductCategory },
 ];
+
+const supplierCategoryLabels: Record<string, ProductCategory> = {
+  top_up: "Top-up",
+  gift_card: "Voucher",
+  subscription: "Subscription",
+  software: "Software",
+  game_key: "Voucher",
+  ai_tool: "Subscription",
+};
+
+const productTones = ["ember", "ice", "lime", "coral", "cobalt"];
+
+function supplierDeliveryLabel(item: { requiresPlayerId: boolean; requiresServerId: boolean; deliveryType: string }) {
+  if (item.requiresPlayerId && item.requiresServerId) return "Player ID + Server required";
+  if (item.requiresPlayerId) return "Player ID required";
+  return item.deliveryType.replaceAll("_", " ");
+}
 
 function Logo() {
   return (
@@ -182,6 +127,15 @@ function Logo() {
 }
 
 export default function Home() {
+  // The useAuth hook provides authentication state.
+  // To implement login/logout, call logout(), or start login from an event
+  // handler: onClick={() => startLogin()} (imported from "@/const"). Never call
+  // startLogin() during render (no href={startLogin()}) — it mints a one-time
+  // nonce cookie and must run only at the moment of navigation.
+  const { user, loading, isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
+  const supplierCatalog = trpc.marketplace.catalog.useQuery();
+
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
@@ -199,9 +153,31 @@ export default function Home() {
     return new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(basePrice * config.rate);
   };
 
+  const liveProducts = useMemo<Product[]>(() => (supplierCatalog.data ?? []).map((item, index) => {
+    const nameParts = item.name.split(" — ");
+    const fields = Array.isArray(item.inputRequirements) ? item.inputRequirements as Array<{ label?: string; required?: boolean }> : [];
+    const category = supplierCategoryLabels[item.category] ?? "Top-up";
+    return {
+      id: item.id,
+      category,
+      name: nameParts[0] || item.name,
+      product: nameParts.slice(1).join(" — ") || item.name,
+      description: fields.length > 0
+        ? `Enter ${fields.filter((field) => field.required).map((field) => field.label || "supplier-required details").join(" and ") || "the supplier-required account details"} before fulfilment.`
+        : "Verified supplier service. Availability and delivery format are shown before purchase.",
+      price: Number(item.basePrice),
+      priceNote: item.supplierEligible ? "Live supplier price" : "Supplier availability paused",
+      region: item.regionLabel || "Supplier region rules",
+      delivery: supplierDeliveryLabel(item),
+      image: item.imageUrl || "",
+      tone: productTones[index % productTones.length],
+      badge: category === "Voucher" ? "Gift card" : category,
+    };
+  }), [supplierCatalog.data]);
+
   const filteredProducts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return products.filter((item) => {
+    return liveProducts.filter((item) => {
       const matchesCategory = activeCategory === "All" || item.category === activeCategory;
       const matchesSearch = !normalized || [item.name, item.product, item.category, item.region]
         .join(" ")
@@ -209,14 +185,14 @@ export default function Home() {
         .includes(normalized);
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, query]);
+  }, [activeCategory, liveProducts, query]);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
     toast.success(`${item.product} added to your cart`, {
-      description: `${formatPrice(item.price)} shown in ${currency}. Delivery details are confirmed at checkout.`,
+      description: `${formatPrice(item.price)} shown in ${currency}. Payments are not active, so this remains a saved selection only.`,
     });
   };
 
@@ -229,9 +205,24 @@ export default function Home() {
   const openCart = () => setCartOpen(true);
 
   const checkoutPreview = () => {
+    if (!isAuthenticated) {
+      toast.message("Sign in to continue to checkout", { description: "Your account keeps orders, digital delivery details, and wallet activity together." });
+      startLogin();
+      return;
+    }
     toast.message("Checkout setup comes next", {
-      description: "Connect your authorised supplier and payment provider before accepting live orders.",
+      description: "Your account is ready. Connect an authorised supplier and payment provider before accepting live orders.",
     });
+  };
+
+  const openAccount = () => {
+    if (loading) return;
+    if (!isAuthenticated) {
+      toast.message("Sign in to access VAMNUX", { description: "Use an account to view orders, wallet activity, saved products, and support." });
+      startLogin();
+      return;
+    }
+    setLocation("/account");
   };
 
   const handleCurrencyChange = (next: CurrencyCode) => {
@@ -264,18 +255,15 @@ export default function Home() {
                 {Object.entries(currencies).map(([code, details]) => <option key={code} value={code}>{details.label}</option>)}
               </select>
             </label>
-            <button className="header-icon" onClick={() => toast.message("Account access is ready to connect", { description: "Add customer authentication when you are ready to launch live orders." })} aria-label="Account"><UserRound size={20} /><span>Account</span></button>
+            <button className="header-icon" onClick={openAccount} aria-label="Account"><UserRound size={20} /><span>{user?.name ? "Account" : "Login"}</span></button>
             <button className="header-icon favourite-button" onClick={() => toast.message("Favourites are ready to connect", { description: "Add customer accounts to save products between visits." })} aria-label="Favourites"><Heart size={20} /></button>
             <button className="header-cart" onClick={openCart} aria-label="Open cart"><ShoppingBag size={21} /><span>Cart</span>{cart.length > 0 && <b>{cart.length}</b>}</button>
           </div>
         </div>
         <nav className="commerce-categories" aria-label="Marketplace categories">
-          <a href="#products"><Gamepad2 size={19} /> Gaming</a>
-          <a href="#products"><Laptop size={19} /> Software</a>
-          <a href="#products"><Tv size={19} /> Subscriptions</a>
-          <a href="#products"><Gift size={19} /> Gift cards</a>
-          <a href="#products"><Ticket size={19} /> Game keys</a>
-          <a href="#products"><Sparkles size={19} /> AI tools</a>
+          <a href="#products" onClick={() => chooseCategory("Top-up")}><Gamepad2 size={19} /> Gaming top-ups</a>
+          <a href="#products" onClick={() => chooseCategory("Subscription")}><Tv size={19} /> Subscriptions</a>
+          <a href="#products" onClick={() => chooseCategory("Voucher")}><Gift size={19} /> Gift cards</a>
           <button onClick={() => toast.message("Deals are ready to configure", { description: "Use supplier-approved products and live pricing before publishing discounts." })}><Zap size={18} fill="currentColor" /> Deals</button>
           <button onClick={() => toast.message("Reseller access comes next", { description: "A reseller area needs account roles and an authorised pricing system." })}>Resellers</button>
         </nav>
@@ -338,7 +326,7 @@ export default function Home() {
         </div>
 
         <div className="filter-row" aria-label="Filter product list">
-          {(["All", "Top-up", "Voucher", "Subscription", "Software"] as const).map((filter) => (
+          {(["All", "Top-up", "Voucher", "Subscription"] as const).map((filter) => (
             <button key={filter} onClick={() => setActiveCategory(filter)} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
               {filter === "All" ? "All picks" : filter}
             </button>
@@ -347,10 +335,12 @@ export default function Home() {
         </div>
 
         <div className="product-grid">
+          {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving live availability from FlashTopUp.</p></div>}
+          {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
           {filteredProducts.map((item, index) => (
             <article className={`product-card tone-${item.tone}`} key={item.id} style={{ animationDelay: `${index * 45}ms` }}>
               <div className="product-image-wrap">
-                <img src={item.image} alt="" />
+                {item.image ? <img src={item.image} alt="" /> : <div className="product-image-fallback" style={{ display: "grid", height: "100%", placeItems: "center", background: "linear-gradient(135deg, #172153, #6937c8)", color: "#b8ff43" }}><Ticket size={38} /></div>}
                 <span className="product-badge ticket-chip">{item.badge}</span>
                 <span className="play-frame" aria-hidden="true" />
                 <span className="corner-mark">{currency}</span>
@@ -367,16 +357,16 @@ export default function Home() {
               </div>
             </article>
           ))}
-          {filteredProducts.length === 0 && (
+          {!supplierCatalog.isLoading && !supplierCatalog.error && filteredProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
               <h3>No quick match yet.</h3>
-              <p>Try a product family like “top-up”, “gift card”, “AI”, or “software”.</p>
+              <p>Try a product family like “top-up”, “gift card”, or “subscription”.</p>
               <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Reset catalog</button>
             </div>
           )}
         </div>
-        <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX PRICE NOTE:</strong> USD is the base display currency. Other values are a preview conversion; live checkout should confirm the final currency and total.</p>
+        <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX SUPPLIER NOTE:</strong> These products are synchronized from FlashTopUp. Display conversion is informational only; customer payment and wallet funding remain inactive.</p>
       </section>
 
       <section id="how-it-works" className="process-section" aria-labelledby="process-title">
@@ -416,7 +406,7 @@ export default function Home() {
         <div className="section-marker">VAMNUX / DIGITAL MARKETPLACE</div>
         <h2>ONE MARKET.<br /><em>MANY WAYS</em><br />TO GO DIGITAL.</h2>
         <p><b>USD / GLOBAL / READY</b><br />One destination for game time, gift giving, AI tools, subscriptions, and everyday software.</p>
-        <button onClick={() => toast.message("Account access is ready to connect", { description: "Add customer authentication when you are ready to launch live orders." })}>Create an account <ArrowRight size={18} /></button>
+        <button onClick={openAccount}>{isAuthenticated ? "Open my account" : "Create an account"} <ArrowRight size={18} /></button>
       </section>
 
       <footer>

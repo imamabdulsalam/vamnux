@@ -1,0 +1,18 @@
+export const supportedCurrencies = ["USD", "EUR", "GBP", "NGN"] as const;
+export type SupportedCurrency = (typeof supportedCurrencies)[number];
+
+export type CheckoutLine = {
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+};
+
+export function calculateOrderTotal(lines: CheckoutLine[]) {
+  return lines.reduce((total, line) => total + line.quantity * line.unitPrice, 0);
+}
+
+export function createOrderCode(now = Date.now(), randomPart = Math.random()) {
+  const timePart = now.toString(36).toUpperCase().slice(-6);
+  const random = Math.floor(randomPart * 36 ** 4).toString(36).toUpperCase().padStart(4, "0");
+  return `VN-${timePart}-${random}`;
+}

@@ -69,3 +69,10 @@ The VAMNUX wordmark uses a customised slanted condensed form, interrupted by a l
 - The upper experience is a clean global-marketplace header with a wide search field, product navigation, and manual currency control; it avoids person-led or game-led hero imagery.
 - The top banner rotates between three technology-led colour systems to communicate breadth without relying on stock photography or a generic carousel image.
 - USD is the default price display. Alternate currencies are deliberately user-selected display modes; a live product will require real-time exchange, payment, and region availability rules at checkout.
+
+## Live Marketplace Foundation Notes
+
+- Customer authentication is provided through the project’s OAuth session and must be initiated only from explicit user actions.
+- Marketplace operations should use protected server procedures, with the database acting as the source of truth for customer profiles, products, orders, wallet balances, and immutable wallet entries.
+- Supplier credentials and payment-provider secrets are not stored in catalog tables or browser code; those connections must be configured securely before any live order fulfilment.
+- The dashboard component is reserved for the authenticated customer account area, while the public VAMNUX storefront keeps its bespoke commerce navigation.

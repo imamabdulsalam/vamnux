@@ -1,0 +1,1 @@
+ALTER TABLE `products` ADD CONSTRAINT `products_supplier_sku_unique` UNIQUE(`supplierKey`,`supplierSku`);
