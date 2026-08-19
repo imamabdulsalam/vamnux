@@ -66,3 +66,6 @@ The VAMNUX wordmark uses a customised slanted condensed form, interrupted by a l
 - Product art is treated as NaijaPlay exchange-board media: cinematic game crops and voucher/software assets receive the same branded framing, status markings, and transaction information layer.
 - Nigerian marketplace reliability is a primary interface signal. NGN pricing, region, required delivery details, and authorised-supplier language are deliberately visible in product and trust modules.
 - The closing call-to-action uses a terminal/broadcast end-card treatment rather than a soft software-style abstraction, preserving the Arcade Exchange direction through the final scroll position.
+- The upper experience is a clean global-marketplace header with a wide search field, product navigation, and manual currency control; it avoids person-led or game-led hero imagery.
+- The top banner rotates between three technology-led colour systems to communicate breadth without relying on stock photography or a generic carousel image.
+- USD is the default price display. Alternate currencies are deliberately user-selected display modes; a live product will require real-time exchange, payment, and region availability rules at checkout.
