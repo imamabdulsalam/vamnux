@@ -26,6 +26,7 @@ export default function GameFamilyDetail() {
   const familyName = decodeGameFamilySegment(params?.family);
   const { isAuthenticated } = useAuth();
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
+  const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [cart, setCart] = useState<LiveCatalogProduct[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -33,7 +34,7 @@ export default function GameFamilyDetail() {
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const createDraftOrder = trpc.marketplace.createOrder.useMutation({
     onSuccess: (result) => {
-      toast.success(`Draft order ${result.orderCode} created`, { description: "Payment and wallet funding remain inactive. No supplier order has been sent." });
+      toast.success(`Draft order ${result.orderCode} created`, { description: "Wallet balance eligibility was confirmed. No wallet debit or supplier order has been sent." });
       setCart([]);
       setFulfillmentDetails({});
       setCartOpen(false);
@@ -55,12 +56,12 @@ export default function GameFamilyDetail() {
   const addToCart = (item: LiveCatalogProduct) => {
     setCart((current) => [...current, item]);
     setCartOpen(true);
-    toast.success(`${item.product} added to your cart`, { description: "This is a saved selection only; payment and supplier fulfilment are inactive." });
+    toast.success(`${item.product} added to your cart`, { description: "VAMNUX products are prepared for wallet-only purchase. No direct payment or supplier fulfilment is available." });
   };
 
   const saveDraft = () => {
     if (!isAuthenticated) {
-      toast.message("Sign in to continue to checkout", { description: "Your account keeps saved draft orders and supplier-required delivery details together." });
+      toast.message("Sign in to use your VAMNUX wallet", { description: "Product orders require sufficient settled wallet balance; direct product payment is not offered." });
       startLogin();
       return;
     }
@@ -109,7 +110,7 @@ export default function GameFamilyDetail() {
       <aside className={cartOpen ? "cart-drawer open" : "cart-drawer"} aria-label="Shopping cart" aria-hidden={!cartOpen}>
         <div className="cart-drawer-head"><div><span className="section-marker">YOUR SELECTION</span><h2>Cart <em>({cart.length})</em></h2></div><button onClick={() => setCartOpen(false)} aria-label="Close cart"><X size={22} /></button></div>
         <div className="cart-items">{cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={35} /><h3>Your cart is clear.</h3><p>Choose a supplier service to add it here.</p></div> : cart.map((item, index) => <div className="cart-item" key={`${item.id}-${index}`}><img src={item.image} alt="" /><div><span>{item.name}</span><strong>{item.product}</strong><small>{formatPrice(item.price)}</small></div><button onClick={() => setCart((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remove ${item.product}`}><X size={16} /></button></div>)}</div>
-        {cart.length > 0 && <div className="cart-checkout"><p>Cart total: <strong>{formatPrice(cartTotal)}</strong>. Payment and wallet funding are inactive; save a draft only after entering required supplier details.</p><div className="cart-fulfillment-fields">{cart.flatMap((item, itemIndex) => item.inputRequirements.map((field) => { const key = createFulfillmentFieldKey(item.id, field.key); return <label key={`${key}-${itemIndex}`}><span>{item.name} · {field.label}{field.required ? " *" : ""}</span><input type={field.type === "email" ? "email" : "text"} value={fulfillmentDetails[key] ?? ""} onChange={(event) => setFulfillmentDetails((current) => ({ ...current, [key]: event.target.value }))} placeholder={field.helperText || field.label} required={field.required} /></label>; }))}</div><button onClick={saveDraft} disabled={createDraftOrder.isPending}>{createDraftOrder.isPending ? "Saving draft…" : "Save draft order"} <ArrowRight size={18} /></button></div>}
+        {cart.length > 0 && <div className="cart-checkout"><p>Cart total: <strong>{formatPrice(cartTotal)}</strong>. VAMNUX products are wallet-only: this USD order requires sufficient settled USD wallet balance. {isAuthenticated ? <><br />Your current wallet: <strong>{customerDashboard.data ? `${customerDashboard.data.wallet.currency} ${Number(customerDashboard.data.wallet.availableBalance).toFixed(2)}` : "Loading wallet…"}</strong>.</> : " Sign in to check your wallet balance."} No direct product payment is offered.</p><div className="cart-fulfillment-fields">{cart.flatMap((item, itemIndex) => item.inputRequirements.map((field) => { const key = createFulfillmentFieldKey(item.id, field.key); return <label key={`${key}-${itemIndex}`}><span>{item.name} · {field.label}{field.required ? " *" : ""}</span><input type={field.type === "email" ? "email" : "text"} value={fulfillmentDetails[key] ?? ""} onChange={(event) => setFulfillmentDetails((current) => ({ ...current, [key]: event.target.value }))} placeholder={field.helperText || field.label} required={field.required} /></label>; }))}</div><button onClick={saveDraft} disabled={createDraftOrder.isPending}>{createDraftOrder.isPending ? "Checking wallet…" : "Check wallet eligibility"} <ArrowRight size={18} /></button></div>}
       </aside>
     </main>
   );

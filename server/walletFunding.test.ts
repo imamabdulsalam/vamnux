@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { walletCanCoverOrder } from "./db";
 
 describe("wallet funding authorization", () => {
   it("rejects an unauthenticated top-up request before any funding record can be created", async () => {
@@ -11,5 +12,14 @@ describe("wallet funding authorization", () => {
   it("rejects a customer attempting to settle a wallet funding request", async () => {
     const caller = appRouter.createCaller({ user: { id: 92, openId: "funding-customer", name: "Customer", email: "customer@example.test", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
     await expect(caller.admin.reviewWalletFundingRequest({ fundingCode: "WFTEST123", action: "settle", verificationReference: "verified-ref" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("wallet-only product order eligibility", () => {
+  it("permits only a settled active wallet with matching currency and enough balance", () => {
+    expect(walletCanCoverOrder({ walletStatus: "active", walletCurrency: "USD", orderCurrency: "USD", availableBalance: "25.00", total: 25 })).toBe(true);
+    expect(walletCanCoverOrder({ walletStatus: "active", walletCurrency: "USD", orderCurrency: "USD", availableBalance: "24.99", total: 25 })).toBe(false);
+    expect(walletCanCoverOrder({ walletStatus: "locked", walletCurrency: "USD", orderCurrency: "USD", availableBalance: "100.00", total: 25 })).toBe(false);
+    expect(walletCanCoverOrder({ walletStatus: "active", walletCurrency: "NGN", orderCurrency: "USD", availableBalance: "100.00", total: 25 })).toBe(false);
   });
 });

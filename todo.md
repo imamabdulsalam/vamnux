@@ -196,3 +196,8 @@
 - [x] Add a User Dashboard wallet top-up request form that creates a real pending request only and clearly states that no payment has been collected or balance credited.
 - [x] Add a Super Admin wallet-funding review workspace that can review, reject, or manually settle an approved verified request, without enabling payment gateways or supplier orders.
 - [x] Validate wallet-request privacy, authorization, settlement safeguards, audit wiring, and inactive supplier fulfilment before publishing without creating a synthetic payment or wallet credit.
+- [x] Define and document the VAMNUX wallet-only purchase policy: product checkout must never offer direct payment methods.
+- [x] Prepare provider-confirmed funding boundaries for future Paystack, Korapay, and crypto wallet integrations, crediting balances only after verified provider confirmation.
+- [x] Change product purchase eligibility so an authenticated customer needs sufficient settled VAMNUX wallet balance before an order can be created, while supplier ordering remains deferred.
+- [x] Update customer and Admin interfaces to show the wallet-only purchase state and truthful zero-balance/top-up guidance without enabling provider checkout.
+- [x] Validate wallet-only order gating, account isolation, insufficient-balance behavior, and inactive supplier fulfilment before publishing.

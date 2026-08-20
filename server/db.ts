@@ -471,7 +471,7 @@ export async function getSuperAdminSystemHealth() {
   return {
     database: { status: "operational" as const, detail: "Managed marketplace database is reachable." },
     payments: { status: "paused" as const, detail: "No payment gateway is active." },
-    walletFunding: { status: "paused" as const, detail: "Wallet funding remains inactive by operating policy." },
+    walletFunding: { status: "manual_review" as const, detail: "Customer top-up requests use Super Admin verification only; no payment-provider checkout is active." },
     supplierOrdering: { status: "paused" as const, detail: "Supplier ordering and fulfilment remain disabled." },
     suppliers: supplierRows.map((supplier) => ({
       ...supplier,
@@ -738,8 +738,9 @@ export async function createCustomerWalletFundingRequest(input: { userId: number
   if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a wallet top-up amount between 0.01 and 1,000,000");
   const db = requireDb(await getDb());
   await db.insert(wallets).values({ userId: input.userId, currency: input.currency }).onDuplicateKeyUpdate({ set: { userId: input.userId } });
-  const [wallet] = await db.select({ id: wallets.id, status: wallets.status }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
+  const [wallet] = await db.select({ id: wallets.id, status: wallets.status, currency: wallets.currency }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
   if (!wallet || wallet.status !== "active") throw new Error("This wallet is not available for a top-up request");
+  if (wallet.currency !== input.currency) throw new Error(`Use your active ${wallet.currency} wallet currency for this top-up request`);
   const fundingCode = createWalletFundingCode();
   await db.insert(walletFundingAttempts).values({
     fundingCode,
@@ -786,6 +787,10 @@ export async function reviewCustomerWalletFundingRequest(input: { adminUserId: n
   });
 }
 
+export function walletCanCoverOrder(input: { walletStatus?: "active" | "locked" | "closed"; walletCurrency?: string; orderCurrency: string; availableBalance?: string | number; total: number }) {
+  return input.walletStatus === "active" && input.walletCurrency === input.orderCurrency && Number(input.availableBalance ?? 0) >= input.total;
+}
+
 export async function createMarketplaceOrder(input: {
   userId: number;
   currency: SupportedCurrency;
@@ -816,6 +821,10 @@ export async function createMarketplaceOrder(input: {
     }
   }
   const total = calculateOrderTotal(orderLines.map((line) => ({ productId: line.product.id, quantity: line.quantity, unitPrice: line.unitPrice })));
+  const [wallet] = await db.select({ availableBalance: wallets.availableBalance, currency: wallets.currency, status: wallets.status }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
+  if (!wallet || wallet.status !== "active") throw new Error("An active VAMNUX wallet is required before a product order can be created");
+  if (wallet.currency !== input.currency) throw new Error(`This order is in ${input.currency}; your active wallet uses ${wallet.currency}`);
+  if (!walletCanCoverOrder({ walletStatus: wallet.status, walletCurrency: wallet.currency, orderCurrency: input.currency, availableBalance: wallet.availableBalance, total })) throw new Error(`Insufficient settled VAMNUX wallet balance. Your ${wallet.currency} wallet must cover ${total.toFixed(2)} before you can create this product order.`);
   const orderCode = createOrderCode();
 
   const [created] = await db.insert(orders).values({
