@@ -46,6 +46,22 @@ export const customerProfiles = mysqlTable("customer_profiles", {
   accountStatusIndex: index("customer_profiles_status_idx").on(table.accountStatus),
 }));
 
+/** Parallel external identity links. Existing Manus OAuth ownership remains the source of truth until a tested Supabase cutover is approved. */
+export const customerIdentityLinks = mysqlTable("customer_identity_links", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  provider: mysqlEnum("provider", ["manus_oauth", "supabase"]).notNull(),
+  providerSubject: varchar("providerSubject", { length: 255 }).notNull(),
+  providerEmail: varchar("providerEmail", { length: 320 }),
+  emailVerifiedAt: timestamp("emailVerifiedAt"),
+  linkedAt: timestamp("linkedAt").defaultNow().notNull(),
+  lastAuthenticatedAt: timestamp("lastAuthenticatedAt").defaultNow().notNull(),
+}, (table) => ({
+  providerSubjectUnique: uniqueIndex("customer_identity_links_provider_subject_unique").on(table.provider, table.providerSubject),
+  userProviderUnique: uniqueIndex("customer_identity_links_user_provider_unique").on(table.userId, table.provider),
+  userIndex: index("customer_identity_links_user_idx").on(table.userId),
+}));
+
 /** Independently recorded customer legal and marketing consent decisions. */
 export const customerConsents = mysqlTable("customer_consents", {
   id: int("id").autoincrement().primaryKey(),

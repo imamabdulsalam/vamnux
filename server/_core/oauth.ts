@@ -51,6 +51,11 @@ export function registerOAuthRoutes(app: Express) {
       const signedInUser = await db.getUserByOpenId(userInfo.openId);
       if (signedInUser) {
         try {
+          await db.linkManusOAuthIdentity({
+            userId: signedInUser.id,
+            openId: userInfo.openId,
+            email: userInfo.email ?? null,
+          });
           await db.recordCustomerSecurityEvent({
             userId: signedInUser.id,
             eventType: "manus_oauth_sign_in",

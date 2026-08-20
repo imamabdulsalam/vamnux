@@ -20,6 +20,8 @@ Supabase Auth, Supabase API, and Resend remain disabled at the owner’s directi
 
 VAMNUX now also has a dedicated `/login` account-entry page. It presents the active secure sign-in handoff and describes the wallet/account benefits without claiming that deferred email/password, Google, reset, or MFA flows are active. Existing header account access routes unauthenticated customers to this entry point rather than directly starting a hidden handoff.
 
+The marketplace now stores a separate, additive provider identity link. The existing production user was backfilled as a `manus_oauth` link, and each future successful Manus OAuth sign-in refreshes that real link. The future `supabase` link is reserved but has no records and does not influence current access, roles, wallets, orders, or sessions.
+
 ## Verification
 
 The full deterministic suite passed: **58 tests passed** with **5 opt-in FlashTopUp tests skipped**. The production build passed. The pre-existing external FoxReload live-network test remains excluded after its earlier timeout. Desktop visual checks confirmed the marketplace home, the authenticated user dashboard with truthful zero-state account metrics, and the editable-draft policy page. The customer-facing catalog and cart now use text fallbacks rather than emitting an empty image source when a supplier artwork URL is absent.

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerConsents, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, siteContentPages, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, siteContentPages, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -71,6 +71,21 @@ export async function recordCustomerSecurityEvent(input: { userId: number; event
     eventType: input.eventType.slice(0, 80),
     summary: input.summary.slice(0, 255),
     metadata: input.metadata,
+  });
+}
+
+export async function linkManusOAuthIdentity(input: { userId: number; openId: string; email?: string | null }) {
+  const db = requireDb(await getDb());
+  await db.insert(customerIdentityLinks).values({
+    userId: input.userId,
+    provider: "manus_oauth",
+    providerSubject: input.openId.slice(0, 255),
+    providerEmail: input.email?.slice(0, 320) || null,
+  }).onDuplicateKeyUpdate({
+    set: {
+      providerEmail: input.email?.slice(0, 320) || null,
+      lastAuthenticatedAt: new Date(),
+    },
   });
 }
 
