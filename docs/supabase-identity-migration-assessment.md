@@ -41,7 +41,12 @@ VAMNUX needs a real Supabase project. Required secure variables are `SUPABASE_UR
 
 For Google OAuth, VAMNUX additionally needs a real `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` configured in the Supabase provider dashboard, along with exact callback URLs. Google login must remain disabled until those settings are confirmed. No payment provider, wallet auto-credit, supplier order, supplier retry, automatic fulfilment, or live payment processing is included in this migration.
 
+## Owner decision and current delivery status
+
+The owner subsequently confirmed that **Supabase will not be configured at this time**. No Supabase credential was provided or stored, and no Supabase client, service-role process, email/password flow, password reset, Google OAuth, MFA/TOTP, or session-revocation flow was added. VAMNUX therefore continues to use only its existing Manus OAuth account session, with the account-entry experience, protected profile completion, account-scoped dashboard, real sign-in activity, and customer isolation retained and improved.
+
+The remaining action required for a future real email/password identity migration is a user-approved identity provider project and its secure credentials. Until then, the current system must not imply that it supports email registration, email verification, password recovery, Google sign-in, or MFA.
+
 ## Risks and controls
 
 The principal risks are accidental account merging, replacing the owner account, accepting an unverified email, exposing a service-role credential, and leaving a customer with no recovery path. The proposed controls are internal-ID preservation, explicit verified linking, unique provider-subject constraints, server-side session resolution, generic authentication errors, append-only security events, retained Manus OAuth fallback, and a cutover only after end-to-end acceptance tests pass.
-
