@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
@@ -1451,38 +1451,16 @@ export async function createMarketplaceOrder(input: {
 function numeric(value: unknown) { return Number(value ?? 0); }
 
 /** Financial and operating metrics derive only from persisted orders, wallets, and customer records. No pending or draft record is represented as revenue. */
-export async function getSuperAdminFinanceAnalytics() {
+export async function getSuperAdminFinanceAnalytics(range?: { start?: Date; end?: Date }) {
   const db = requireDb(await getDb());
-  const [orderSummary] = await db.select({
-    totalOrders: sql<number>`count(*)`,
-    settledOrders: sql<number>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then 1 else 0 end), 0)`,
-    refundedOrders: sql<number>`coalesce(sum(case when ${orders.paymentStatus} = 'refunded' then 1 else 0 end), 0)`,
-    failedOrders: sql<number>`coalesce(sum(case when ${orders.status} = 'failed' then 1 else 0 end), 0)`,
-    settledRevenue: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`,
-    recordedSupplierCost: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then coalesce(${orders.supplierTotal}, 0) else 0 end), 0)`,
-  }).from(orders);
-  const [walletSummary] = await db.select({
-    totalBalance: sql<string>`coalesce(sum(${wallets.availableBalance}), 0)`,
-    activeWallets: sql<number>`coalesce(sum(case when ${wallets.status} = 'active' then 1 else 0 end), 0)`,
-  }).from(wallets);
-  const [fundingSummary] = await db.select({
-    pendingFunding: sql<number>`coalesce(sum(case when ${walletFundingAttempts.status} = 'pending' then 1 else 0 end), 0)`,
-    settledFunding: sql<string>`coalesce(sum(case when ${walletFundingAttempts.status} = 'settled' then ${walletFundingAttempts.amount} else 0 end), 0)`,
-  }).from(walletFundingAttempts);
-  const [customerSummary] = await db.select({
-    totalCustomers: sql<number>`count(*)`,
-    activeCustomers: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} = 'active' then 1 else 0 end), 0)`,
-    restrictedOrSuspended: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} in ('suspended', 'banned', 'restricted') then 1 else 0 end), 0)`,
-  }).from(customerProfiles);
-  const revenue = numeric(orderSummary?.settledRevenue);
-  const supplierCost = numeric(orderSummary?.recordedSupplierCost);
-  const grossProfit = revenue - supplierCost;
-  return {
-    finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." },
-    orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) },
-    customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended) },
-    wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) },
-  };
+  const between = <T extends { createdAt: unknown }>(column: T["createdAt"]) => range?.start && range.end ? and(gte(column as never, range.start), lte(column as never, range.end)) : range?.start ? gte(column as never, range.start) : range?.end ? lte(column as never, range.end) : undefined;
+  const [orderSummary] = await db.select({ totalOrders: sql<number>`count(*)`, settledOrders: sql<number>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then 1 else 0 end), 0)`, refundedOrders: sql<number>`coalesce(sum(case when ${orders.paymentStatus} = 'refunded' then 1 else 0 end), 0)`, failedOrders: sql<number>`coalesce(sum(case when ${orders.status} = 'failed' then 1 else 0 end), 0)`, settledRevenue: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`, recordedSupplierCost: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then coalesce(${orders.supplierTotal}, 0) else 0 end), 0)` }).from(orders).where(between(orders.createdAt));
+  const [walletSummary] = await db.select({ totalBalance: sql<string>`coalesce(sum(${wallets.availableBalance}), 0)`, activeWallets: sql<number>`coalesce(sum(case when ${wallets.status} = 'active' then 1 else 0 end), 0)` }).from(wallets);
+  const [fundingSummary] = await db.select({ pendingFunding: sql<number>`coalesce(sum(case when ${walletFundingAttempts.status} = 'pending' then 1 else 0 end), 0)`, settledFunding: sql<string>`coalesce(sum(case when ${walletFundingAttempts.status} = 'settled' then ${walletFundingAttempts.amount} else 0 end), 0)` }).from(walletFundingAttempts).where(between(walletFundingAttempts.createdAt));
+  const [customerSummary] = await db.select({ totalCustomers: sql<number>`count(*)`, activeCustomers: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} = 'active' then 1 else 0 end), 0)`, restrictedOrSuspended: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} in ('suspended', 'banned', 'restricted') then 1 else 0 end), 0)` }).from(customerProfiles);
+  const [newCustomerSummary] = await db.select({ newCustomers: sql<number>`count(*)` }).from(customerProfiles).where(between(customerProfiles.createdAt));
+  const revenue = numeric(orderSummary?.settledRevenue); const supplierCost = numeric(orderSummary?.recordedSupplierCost); const grossProfit = revenue - supplierCost;
+  return { finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid within the selected period. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." }, orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) }, customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended), newInPeriod: numeric(newCustomerSummary?.newCustomers) }, wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) }, period: { start: range?.start ?? null, end: range?.end ?? null } };
 }
 
 export async function listPromotions() {

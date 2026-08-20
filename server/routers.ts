@@ -98,7 +98,7 @@ export const appRouter = router({
     })).mutation(({ ctx, input }) => reviewCustomerWalletFundingRequest({ adminUserId: ctx.user.id, ...input })),
     listAuditEvents: adminProcedure.query(() => listSuperAdminAuditEvents()),
     search: adminProcedure.input(z.object({ query: z.string().trim().min(2).max(120) })).query(({ input }) => globalAdminSearch(input.query)),
-    getFinanceAnalytics: adminProcedure.query(() => getSuperAdminFinanceAnalytics()),
+    getFinanceAnalytics: adminProcedure.input(z.object({ start: z.coerce.date().optional(), end: z.coerce.date().optional() }).refine((input) => !input.start || !input.end || input.start <= input.end, { message: "Analytics start time must be before end time" }).optional()).query(({ input }) => getSuperAdminFinanceAnalytics(input)),
     getMarketplacePricingSettings: adminProcedure.query(() => getMarketplacePricingSettings()),
     listCatalogPricing: adminProcedure.query(() => listCatalogPricing()),
     listPriceChangeHistory: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPriceChangeHistory(input?.limit)),
