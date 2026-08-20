@@ -6,9 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import CompactCatalog from "@/components/CompactCatalog";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope, type CatalogVisibilityScope } from "@shared/catalogVisibility";
+import { categoryQuickLinks } from "@shared/compactCatalog";
 import { productMatchesKeyword, toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
 import {
@@ -133,6 +135,7 @@ export default function Home() {
   const [cartOpen, setCartOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [activeSlide, setActiveSlide] = useState(0);
+  const [openMegaCategory, setOpenMegaCategory] = useState<ProductCategory | null>(null);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const createDraftOrder = trpc.marketplace.createOrder.useMutation({
     onSuccess: (result) => {
@@ -176,9 +179,14 @@ export default function Home() {
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
   const gameProducts = useMemo(() => filteredProducts.filter((product) => product.category === "Top-up"), [filteredProducts]);
-  const digitalProducts = useMemo(() => filteredProducts.filter((product) => product.category !== "Top-up"), [filteredProducts]);
   const allProductFamilies = useMemo(() => groupLiveProductFamilies(gameProducts), [gameProducts]);
   const productFamilies = useMemo(() => filterGameFamiliesForScope(allProductFamilies, catalogScope), [allProductFamilies, catalogScope]);
+  const compactProducts = useMemo(() => {
+    if (catalogScope === "all") return filteredProducts;
+    const curatedTopUpNames = new Set(productFamilies.map((family) => family.name.toLowerCase()));
+    return filteredProducts.filter((product) => product.category !== "Top-up" || curatedTopUpNames.has(product.name.toLowerCase()));
+  }, [catalogScope, filteredProducts, productFamilies]);
+  const catalogQuickLinks = useMemo(() => new Map(categories.map(({ filter }) => [filter, categoryQuickLinks(liveProducts, filter, 6)])), [liveProducts]);
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
@@ -190,7 +198,19 @@ export default function Home() {
   const chooseCategory = (category: ProductCategory) => {
     setActiveCategory(category);
     setQuery("");
+    setOpenMegaCategory(null);
     document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const chooseQuickLink = (category: ProductCategory, label: string) => {
+    setActiveCategory(category);
+    setQuery(label);
+    setOpenMegaCategory(null);
+    document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const openCompactProduct = (product: Product) => {
+    setLocation(product.category === "Top-up" ? gameFamilyPath(product.name) : digitalProductPath(product.slug));
   };
 
   const openCart = () => setCartOpen(true);
@@ -258,14 +278,20 @@ export default function Home() {
             <button className="header-cart" onClick={openCart} aria-label="Open cart"><ShoppingBag size={21} /><span>Cart</span>{cart.length > 0 && <b>{cart.length}</b>}</button>
           </div>
         </div>
-        <nav className="commerce-categories" aria-label="Marketplace categories">
-          <a href="#products" onClick={() => chooseCategory("Top-up")}><Gamepad2 size={19} /> Gaming top-ups</a>
-          <a href="#products" onClick={() => chooseCategory("Voucher")}><Gift size={19} /> Gift cards</a>
-          <a href="#products" onClick={() => chooseCategory("Subscription")}><Tv size={19} /> Subscriptions</a>
-          <a href="#products" onClick={() => chooseCategory("Software")}><Laptop size={19} /> Software</a>
-          <a href="#products" onClick={() => chooseCategory("AI tools")}><Sparkles size={19} /> AI tools</a>
-          <a href="#supplier-recognition-title"><ShieldCheck size={19} /> Supplier catalogue</a>
-          <span className="scope-status"><ShieldCheck size={16} /> Live services update by supplier</span>
+        <nav className="commerce-categories compact-category-nav" aria-label="Marketplace categories">
+          {categories.map(({ label, icon: Icon, filter }) => {
+            const links = catalogQuickLinks.get(filter) ?? [];
+            const isOpen = openMegaCategory === filter;
+            return <div className="compact-category-menu" key={filter} onMouseEnter={() => setOpenMegaCategory(filter)}>
+              <button type="button" aria-expanded={isOpen} aria-controls={`category-panel-${filter}`} onClick={() => setOpenMegaCategory((current) => current === filter ? null : filter)}><Icon size={18} /> {label} <ChevronDown className={isOpen ? "menu-chevron open" : "menu-chevron"} size={14} /></button>
+              <div className="category-mega-panel" id={`category-panel-${filter}`} data-open={isOpen}>
+                <div className="category-mega-heading"><span><Icon size={17} /> {label}</span><button type="button" onClick={() => chooseCategory(filter)}>Browse category <ArrowRight size={14} /></button></div>
+                {links.length > 0 ? <div className="category-mega-links">{links.map((link) => <button type="button" key={link} onClick={() => chooseQuickLink(filter, link)}>{link}</button>)}</div> : <p>Nothing verified for this category yet. VAMNUX shows supplier inventory only after it is synchronised and active.</p>}
+              </div>
+            </div>;
+          })}
+          <button className="compact-all-categories" type="button" onClick={() => { setActiveCategory("All"); setQuery(""); setOpenMegaCategory(null); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><Search size={17} /> All catalog</button>
+          <span className="scope-status"><ShieldCheck size={16} /> Verified supplier inventory</span>
         </nav>
       </header>
 
@@ -324,14 +350,14 @@ export default function Home() {
       </section>
 
       <section id="products" className="product-section global-product-section" aria-labelledby="products-title">
-        <div className="section-heading">
+        <div className="section-heading compact-catalog-heading">
           <div>
-            <div className="eyebrow dark-eyebrow"><span /> {catalogScope === "curated" ? "Curated supplier inventory" : "Full supplier inventory"}</div>
-            <h2 id="products-title">{catalogScope === "curated" ? <>SHOP THE<br /><em>BEST PICKS.</em></> : <>SHOP WHAT’S<br /><em>LIVE NOW.</em></>}</h2>
+            <div className="eyebrow dark-eyebrow"><span /> {catalogScope === "curated" ? "Curated marketplace inventory" : "Full supplier inventory"}</div>
+            <h2 id="products-title">FIND YOUR<br /><em>DIGITAL PICK.</em></h2>
           </div>
           <div className="section-heading-right">
-            <p>{catalogScope === "curated" ? "A refined selection of real supplier game services, presented for quick discovery. Review the listed requirements before saving a draft." : "Browse every currently synchronised supplier service. Regional suitability must be confirmed before a draft order."}</p>
-            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); }}>View all products <ArrowRight size={17} /></button>
+            <p>Search or use a category menu to go straight to real supplier products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
+            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); setCatalogScope("all"); }}>Browse all products <ArrowRight size={17} /></button>
           </div>
         </div>
 
@@ -352,27 +378,17 @@ export default function Home() {
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
           <div className="catalog-keyword-input"><input id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
-          <p>{query.trim() ? `${productFamilies.length + digitalProducts.length} live ${productFamilies.length + digitalProducts.length === 1 ? "listing" : "listings"} match “${query.trim()}”` : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
+          <p>{query.trim() ? `${compactProducts.length} live ${compactProducts.length === 1 ? "product" : "products"} match “${query.trim()}”` : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
         </div>
 
-        <div className="product-family-list">
+        <div className="product-family-list compact-catalog-results">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving active availability from configured suppliers.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
-          {productFamilies.map((family, familyIndex) => {
-            const fromPrice = Math.min(...family.items.map((item) => item.price));
-            return <article className="compact-game-listing" key={family.name} style={{ animationDelay: `${familyIndex * 35}ms` }}>
-              <button className="compact-game-listing-button" onClick={() => setLocation(gameFamilyPath(family.name))} aria-label={`View ${family.name} services`}>
-                <div className="compact-game-image"><div className="live-game-family-fallback"><Gamepad2 size={28} /></div>{family.image && <img src={family.image} alt={`${family.name} official supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}<span>{family.category}</span></div>
-                <div className="compact-game-copy"><p>Verified supplier family</p><h3>{family.name}</h3><span>{family.items.length} active services · from {formatPrice(fromPrice)}</span></div>
-                <div className="compact-game-action">View services <ArrowRight size={18} /></div>
-              </button>
-            </article>;
-          })}
-          {digitalProducts.map((product, productIndex) => <article className="compact-game-listing compact-digital-listing" key={product.id} style={{ animationDelay: `${(productFamilies.length + productIndex) * 35}ms` }}><button className="compact-game-listing-button" onClick={() => setLocation(digitalProductPath(product.slug))} aria-label={`View ${product.product} details`}><div className="compact-game-image compact-digital-image"><DigitalProductIcon category={product.category} /><span>{product.category}</span></div><div className="compact-game-copy"><p>Verified supplier listing</p><h3>{product.product}</h3><span>{product.region} · from {formatPrice(product.price)}</span></div><div className="compact-game-action">View details <ArrowRight size={18} /></div></button></article>)}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && productFamilies.length === 0 && digitalProducts.length === 0 && (
+          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <CompactCatalog products={compactProducts} activeCategory={activeCategory} keyword={query} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} />}
+          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
-              {catalogScope === "curated" && allProductFamilies.length > 0 ? <>
+              {catalogScope === "curated" && filteredProducts.length > 0 ? <>
                 <h3>Found outside curated picks.</h3>
                 <p>These are real synchronised supplier services, but they are not in the current streamlined view. Open the complete catalog to review every available service.</p>
                 <button onClick={() => setCatalogScope("all")}>Browse all services</button>

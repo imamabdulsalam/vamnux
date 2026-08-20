@@ -37,4 +37,18 @@ describe("FoxReload catalog mapper", () => {
     });
     expect(mapped).toMatchObject({ category: "game_key", deliveryType: "digital_code", status: "active" });
   });
+
+  it("classifies an account-delivered Steam game as a game key even when a broad supplier category says gift cards", () => {
+    const mapped = mapFoxReloadProduct({ ...category, name: "Gift Cards", slug: "gift-cards" }, {
+      id: "fox-8", name: "SteamWorld Dig 2 (Steam Account)", slug: "steamworld-dig-2-steam-account", categoryId: "category-1", price: 6, currency: "usd", quantity: 1,
+    });
+    expect(mapped).toMatchObject({ category: "game_key", deliveryType: "digital_code", status: "active" });
+  });
+
+  it("excludes generic unnamed codes and adult-oriented supplier records from the public marketplace", () => {
+    const genericCode = mapFoxReloadProduct(category, { id: "fox-6", name: "Digital Code", slug: "digital-code", categoryId: "category-1", price: 10, currency: "usd", quantity: 1 });
+    const adultProduct = mapFoxReloadProduct(category, { id: "fox-7", name: "Adult Game Pass", slug: "adult-game-pass", categoryId: "category-1", price: 10, currency: "usd", quantity: 1 });
+    expect(genericCode).toBeNull();
+    expect(adultProduct).toBeNull();
+  });
 });

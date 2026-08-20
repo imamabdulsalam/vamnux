@@ -41,6 +41,7 @@ function classifyFoxReloadProduct(product: FoxReloadProduct, category: FoxReload
   const attributes = asRecord(product.attributes);
   if (typeof attributes.game_key_digest === "string" || typeof attributes.game_key_digest_version === "number") return "game_key";
   const terms = [product.name, product.slug, product.description ?? "", category.name, category.slug, ...(category.tags ?? []), JSON.stringify(attributes)].join(" ").toLowerCase();
+  if (/steam account|steam edition|\bdlc\b|expansion|game key|activation key|cd key|game code/.test(terms)) return "game_key";
   if (/gift[ -]?card|voucher|steam|playstation|xbox|apple|itunes|google play|amazon/.test(terms)) return "gift_card";
   if (/subscription|premium|membership|netflix|spotify|youtube|discord nitro|pass/.test(terms)) return "subscription";
   if (/chatgpt|claude|midjourney|ai tool|ai service|artificial intelligence/.test(terms)) return "ai_tool";
@@ -60,9 +61,16 @@ function isSellableFoxReloadCategory(category: FoxReloadCategory) {
   return (category.hasProducts || hasReportedStock) && !/\btest\b/i.test(`${category.name} ${category.slug}`);
 }
 
+function isProfessionalPublicListing(product: FoxReloadProduct) {
+  const normalizedName = product.name.trim().toLowerCase().replace(/\s+/g, " ");
+  const terms = `${product.name} ${product.slug} ${product.description ?? ""}`.toLowerCase();
+  const genericNames = new Set(["digital code", "gift card", "voucher", "top up"]);
+  return !genericNames.has(normalizedName) && !/\b(adult|erotic|futanari|hentai|nude|porn|sex|xxx)\b/.test(terms);
+}
+
 export function mapFoxReloadProduct(category: FoxReloadCategory, product: FoxReloadProduct): SupplierCatalogRow | null {
   const price = Number(product.price);
-  if (!product.id || !product.name?.trim() || !Number.isFinite(price) || price <= 0) return null;
+  if (!product.id || !product.name?.trim() || !isProfessionalPublicListing(product) || !Number.isFinite(price) || price <= 0) return null;
   const inputRequirements = mapInputRequirements(product);
   const mappedCategory = classifyFoxReloadProduct(product, category);
   const requiredLabels = inputRequirements.map((field) => field.label).join(" ").toLowerCase();
