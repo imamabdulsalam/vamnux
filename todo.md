@@ -235,6 +235,8 @@
 - [x] Refine the VAMNUX compact public header with separate secure Sign in and Create account actions plus accessible social navigation inspired by the supplied reference without copying it.
 - [x] Add a protected post-sign-in profile-completion experience that collects only the approved customer details and persists them to the existing customer profile without replacing Manus OAuth identity data.
 - [x] Validate Manus OAuth account entry, profile isolation, dashboard/security activity continuity, responsive header behavior, and unchanged inactive payment and supplier boundaries.
+- [x] Audit and refine remaining storefront, catalog-detail, cart, account, support, and policy frontend components without Supabase, external redirects, payments, supplier orders, or simulated data.
+- [x] Validate the completed frontend refinement across desktop and mobile views while preserving Manus OAuth account isolation and truthful inactive-commerce states.
 - [x] Inspect and document the current Manus OAuth, user, customer-profile, identity-link, session, dashboard, and authorization architecture before any Supabase migration work.
 - [x] Design a non-destructive Supabase Auth mapping that preserves existing VAMNUX records, retains Manus OAuth as a verified fallback, and specifies password-reset treatment for users with no transferable passwords.
 - [ ] Configure required Supabase server and public client environment values securely, stopping for actual provider credentials and dashboard configuration rather than fabricating them.
