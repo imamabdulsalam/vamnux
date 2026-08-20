@@ -146,3 +146,8 @@
 - [x] Correct FoxReload category classification for recognizable game-key records so compact category menus and cards reflect their real product type.
 - [x] Validate the category mega-menu end to end: select a real quick link and confirm the catalog filters to synchronised listings, while confirming the explicit unavailable-category state.
 - [x] Click a compact catalog card or Details action to reach a real product detail route, then re-verify its saved-selection-only add-to-cart behavior.
+- [x] Keep FlashTopUp live validation and remaining pages paused; use the connected FoxReload catalog route as the current low-friction supplier path.
+- [x] Audit and verify that supplier credentials, sync operations, failure states, and catalog persistence are isolated by supplier key so one provider cannot affect another.
+- [x] Add deterministic coverage for supplier-key scoped catalog behavior and verify the isolated multi-supplier catalog in the UI.
+- [x] Mark FlashTopUp synchronization as paused and enforce a server-side pause guard without changing FoxReload availability or catalog data.
+- [x] Reflect the paused FlashTopUp state in the admin supplier controls while retaining the independent FoxReload sync control.

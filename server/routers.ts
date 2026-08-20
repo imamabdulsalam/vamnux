@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
-import { configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCommerceIntegrations, setAdminManagedCatalogProductStatus } from "./db";
+import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCommerceIntegrations, setAdminManagedCatalogProductStatus } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -50,7 +50,11 @@ export const appRouter = router({
     syncFlashTopUpCatalog: adminProcedure.input(z.object({
       page: z.number().int().min(1).default(1),
       perPage: z.number().int().min(1).max(10).default(5),
-    }).optional()).mutation(({ input }) => syncFlashTopUpCatalog(input)),
+    }).optional()).mutation(async ({ input }) => {
+      const syncStatus = await getSupplierSyncStatus("FlashTopUp");
+      if (!canRunSupplierCatalogSync(syncStatus)) throw new Error("FlashTopUp catalog sync is paused. FoxReload catalog access remains unaffected.");
+      return syncFlashTopUpCatalog(input);
+    }),
     syncFoxReloadCatalog: adminProcedure.input(z.object({
       cursor: z.string().trim().min(1).max(512).optional(),
       categoryLimit: z.number().int().min(1).max(10).default(5),

@@ -1,5 +1,5 @@
 import type { CustomerInputRequirement } from "../shared/flashtopup";
-import { configureCommerceIntegration, upsertSupplierCatalogRows } from "./db";
+import { configureCommerceIntegration, upsertFoxReloadCatalogRows } from "./db";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { getFoxReloadClient, type FoxReloadCategory, type FoxReloadProduct } from "./integrations/foxreload";
 
@@ -160,7 +160,7 @@ export async function syncFoxReloadCatalog(input: { cursor?: string; categoryLim
       failures.push({ category: `search:${query}`, message: error instanceof Error ? error.message.slice(0, 180) : "FoxReload product search failed" });
     }
   }
-  await upsertSupplierCatalogRows({ supplierKey: "foxreload", rows });
+  await upsertFoxReloadCatalogRows(rows);
   await configureCommerceIntegration({
     integrationType: "supplier",
     providerName: "FoxReload",

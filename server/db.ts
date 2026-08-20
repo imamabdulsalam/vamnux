@@ -6,6 +6,16 @@ import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type S
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 
+export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
+export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
+
+export function assertSupplierCatalogRowScope(supplierKey: string, rows: SupplierCatalogRow[]) {
+  const requiredPrefix = supplierKey === FLASHTOPUP_SUPPLIER_KEY ? "ft-" : supplierKey === FOXRELOAD_SUPPLIER_KEY ? "fr-" : null;
+  if (requiredPrefix && rows.some((row) => !row.slug.startsWith(requiredPrefix))) {
+    throw new Error(`Catalog rows for ${supplierKey} must use the ${requiredPrefix} supplier slug prefix`);
+  }
+}
+
 let _db: ReturnType<typeof drizzle> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
@@ -238,6 +248,17 @@ export async function listCommerceIntegrations() {
   }).from(commerceIntegrations).orderBy(desc(commerceIntegrations.updatedAt));
 }
 
+export async function getSupplierSyncStatus(providerName: string) {
+  const db = requireDb(await getDb());
+  const [integration] = await db.select({ syncStatus: commerceIntegrations.syncStatus }).from(commerceIntegrations)
+    .where(and(eq(commerceIntegrations.integrationType, "supplier"), eq(commerceIntegrations.providerName, providerName))).limit(1);
+  return integration?.syncStatus ?? null;
+}
+
+export function canRunSupplierCatalogSync(syncStatus: "not_configured" | "ready" | "paused" | "error" | null) {
+  return syncStatus !== "paused";
+}
+
 export async function configureCommerceIntegration(input: {
   integrationType: "supplier" | "payment";
   providerName: string;
@@ -267,6 +288,7 @@ export async function configureCommerceIntegration(input: {
 
 export async function upsertSupplierCatalogRows(input: { supplierKey: string; rows: SupplierCatalogRow[] }) {
   const db = requireDb(await getDb());
+  assertSupplierCatalogRowScope(input.supplierKey, input.rows);
   for (const row of input.rows) {
     await db.insert(products).values({
       slug: row.slug,
@@ -320,7 +342,11 @@ export async function upsertSupplierCatalogRows(input: { supplierKey: string; ro
 }
 
 export async function upsertFlashTopUpCatalogRows(rows: SupplierCatalogRow[]) {
-  return upsertSupplierCatalogRows({ supplierKey: "flashtopup", rows });
+  return upsertSupplierCatalogRows({ supplierKey: FLASHTOPUP_SUPPLIER_KEY, rows });
+}
+
+export async function upsertFoxReloadCatalogRows(rows: SupplierCatalogRow[]) {
+  return upsertSupplierCatalogRows({ supplierKey: FOXRELOAD_SUPPLIER_KEY, rows });
 }
 
 export async function processFlashTopUpWebhook(input: {
