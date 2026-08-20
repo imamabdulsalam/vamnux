@@ -22,6 +22,8 @@ VAMNUX now also has a dedicated `/login` account-entry page. It presents the act
 
 The marketplace now stores a separate, additive provider identity link. The existing production user was backfilled as a `manus_oauth` link, and each future successful Manus OAuth sign-in refreshes that real link. The future `supabase` link is reserved but has no records and does not influence current access, roles, wallets, orders, or sessions.
 
+The Orders dashboard now opens an authenticated customer-owned order-detail view. It exposes only immutable order code, timing, safe statuses, item name, region, delivery type, quantity, and VAMNUX price. Supplier credentials, digital codes, and sensitive fulfilment fields are excluded. The protected procedure rejects unauthenticated callers before it can query an order.
+
 ## Verification
 
 The full deterministic suite passed: **58 tests passed** with **5 opt-in FlashTopUp tests skipped**. The production build passed. The pre-existing external FoxReload live-network test remains excluded after its earlier timeout. Desktop visual checks confirmed the marketplace home, the authenticated user dashboard with truthful zero-state account metrics, and the editable-draft policy page. The customer-facing catalog and cart now use text fallbacks rather than emitting an empty image source when a supplier artwork URL is absent.

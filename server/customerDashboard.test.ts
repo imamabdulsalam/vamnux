@@ -28,5 +28,6 @@ describe("customer dashboard preference boundary", () => {
     await expect(caller.marketplace.createSupportTicket({ category: "account", subject: "Help needed", message: "Please help with my account." })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.createPrivacyRequest({ requestType: "data_access" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.getSupportTicket({ ticketCode: "VS123" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.marketplace.orderDetail({ orderCode: "VO123" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });

@@ -745,6 +745,31 @@ export async function getAccountCommerceSummary(userId: number) {
   };
 }
 
+export async function getCustomerOrderDetail(input: { userId: number; orderCode: string }) {
+  const db = requireDb(await getDb());
+  const [order] = await db.select({
+    orderCode: orders.orderCode,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    supplierStatus: orders.supplierStatus,
+    currency: orders.currency,
+    subtotal: orders.subtotal,
+    total: orders.total,
+    createdAt: orders.createdAt,
+    updatedAt: orders.updatedAt,
+  }).from(orders).where(and(eq(orders.orderCode, input.orderCode), eq(orders.userId, input.userId))).limit(1);
+  if (!order) throw new Error("Order not found in your account.");
+  const items = await db.select({
+    productName: orderItems.productName,
+    quantity: orderItems.quantity,
+    unitPrice: orderItems.unitPrice,
+    regionLabel: orderItems.regionLabel,
+    deliveryType: orderItems.deliveryType,
+  }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id))
+    .where(and(eq(orders.orderCode, input.orderCode), eq(orders.userId, input.userId)));
+  return { order, items };
+}
+
 /** Returns only the authenticated customer's own operational records for the VAMNUX user dashboard. */
 export async function getCustomerDashboard(userId: number) {
   const db = requireDb(await getDb());

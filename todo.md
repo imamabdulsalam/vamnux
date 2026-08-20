@@ -222,3 +222,4 @@
 - [x] Add Super Admin read-only support and customer-account operational visibility without exposing authentication secrets, passwords, payment data, or private support content outside authorized workflows.
 - [x] Add draft Terms, Privacy, Refund, and Cookie policy pages with a clearly visible draft/review status and registration-ready links, not representations of legal approval.
 - [x] Correct any customer-facing catalog image render path that can emit an empty `src` attribute, preserving readable text or icon fallbacks for products without supplier artwork.
+- [x] Add a protected customer order-detail view for immutable product, price, status, and safe delivery information, scoped to the authenticated order owner and excluding supplier credentials or secret fulfilment fields.
