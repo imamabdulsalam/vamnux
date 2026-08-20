@@ -10,7 +10,7 @@ import CompactCatalog from "@/components/CompactCatalog";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope, type CatalogVisibilityScope } from "@shared/catalogVisibility";
-import { categoryQuickLinks } from "@shared/compactCatalog";
+import { categoryQuickLinks, interleaveTopUpFamilies } from "@shared/compactCatalog";
 import { productMatchesKeyword, toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
 import {
@@ -182,9 +182,20 @@ export default function Home() {
   const allProductFamilies = useMemo(() => groupLiveProductFamilies(gameProducts), [gameProducts]);
   const productFamilies = useMemo(() => filterGameFamiliesForScope(allProductFamilies, catalogScope), [allProductFamilies, catalogScope]);
   const compactProducts = useMemo(() => {
-    if (catalogScope === "all") return filteredProducts;
+    const sortForRecognition = (products: Product[]) => [...products].sort((left, right) => {
+      const topUpRank = (product: Product) => {
+        if (product.category !== "Top-up") return 3;
+        const name = product.name.toLowerCase();
+        if (/free fire|pubg mobile|mobile legends/.test(name)) return 0;
+        return 1;
+      };
+      const categoryDifference = topUpRank(left) - topUpRank(right);
+      if (categoryDifference !== 0) return categoryDifference;
+      return left.name.localeCompare(right.name) || left.product.localeCompare(right.product);
+    });
+    if (catalogScope === "all") return interleaveTopUpFamilies(sortForRecognition(filteredProducts));
     const curatedTopUpNames = new Set(productFamilies.map((family) => family.name.toLowerCase()));
-    return filteredProducts.filter((product) => product.category !== "Top-up" || curatedTopUpNames.has(product.name.toLowerCase()));
+    return interleaveTopUpFamilies(sortForRecognition(filteredProducts.filter((product) => product.category !== "Top-up" || curatedTopUpNames.has(product.name.toLowerCase()))));
   }, [catalogScope, filteredProducts, productFamilies]);
   const catalogQuickLinks = useMemo(() => new Map(categories.map(({ filter }) => [filter, categoryQuickLinks(liveProducts, filter, 6)])), [liveProducts]);
 

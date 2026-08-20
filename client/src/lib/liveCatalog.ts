@@ -78,7 +78,7 @@ export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): Liv
     delivery: supplierDeliveryLabel(item),
     image: item.imageUrl || "",
     tone: productTones[index % productTones.length],
-    badge: category === "Voucher" ? "Gift card" : category,
+    badge: item.category === "game_key" ? "Game key" : category === "Voucher" ? "Gift card" : category,
     inputRequirements: fields.filter((field): field is { key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string } => typeof field.key === "string" && typeof field.label === "string" && (field.type === "text" || field.type === "email" || field.type === "select")),
   };
 }
@@ -90,4 +90,13 @@ export function productMatchesKeyword(product: Pick<LiveCatalogProduct, "name" |
     .join(" ")
     .toLowerCase()
     .includes(normalized);
+}
+
+export function catalogProductPresentation(product: Pick<LiveCatalogProduct, "name" | "product" | "delivery" | "inputRequirements">) {
+  const requiredFields = product.inputRequirements.filter((field) => field.required).map((field) => field.label);
+  return {
+    serviceName: product.name,
+    offerName: product.product,
+    requirementLabel: requiredFields.length > 0 ? `${requiredFields.join(" + ")} required` : product.delivery,
+  };
 }

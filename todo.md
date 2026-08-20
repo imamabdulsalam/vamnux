@@ -151,3 +151,10 @@
 - [x] Add deterministic coverage for supplier-key scoped catalog behavior and verify the isolated multi-supplier catalog in the UI.
 - [x] Mark FlashTopUp synchronization as paused and enforce a server-side pause guard without changing FoxReload availability or catalog data.
 - [x] Reflect the paused FlashTopUp state in the admin supplier controls while retaining the independent FoxReload sync control.
+- [x] Audit active supplier listings with generic subscription durations, unclear game/top-up names, unhelpful metadata, or repeated generic imagery.
+- [x] Normalize customer-facing labels from verified supplier data so subscriptions identify their service and term, while top-ups identify their game, denomination, requirements, and price.
+- [x] Replace repeated generic product imagery with meaningful game-specific artwork when verified or neutral category visuals when no verified artwork is available.
+- [x] Refine compact cards and product detail pages to prioritise recognizable service/game identity, denomination or duration, required customer fields, region, delivery type, and price.
+- [x] Validate representative Free Fire, PUBG Mobile, subscription, and game-key listings for clear recognition, correct details, and responsive presentation.
+- [x] Align FoxReload delivery labels with verified supplier text when a product description explicitly states a digital code, without guessing delivery format for other records.
+- [x] Balance the compact top-up catalog so its first visible page surfaces one representative service from each recognised verified game family before additional denominations.

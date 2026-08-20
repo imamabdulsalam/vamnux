@@ -7,6 +7,41 @@ function stableSlug(value: string) {
   return `fr-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 170)}`;
 }
 
+function normalizedSupplierSlug(value: string) {
+  return value.toLowerCase().trim().replace(/\+/g, " plus ").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function titleFromSupplierSlug(value: string) {
+  const specialNames: Record<string, string> = {
+    "mobile-legends": "Mobile Legends",
+    "mobile-legends-brazil": "Mobile Legends — Brazil",
+    "pubg-mobile": "PUBG Mobile",
+    "tom-and-jerry-chase": "Tom & Jerry: Chase",
+    "tiles-survive": "Tiles Survive",
+    "knives-out": "Knives Out",
+    "topups-lineage2m-global": "Lineage2M — Global",
+    netflix: "Netflix",
+    spotify: "Spotify Premium",
+  };
+  const normalized = value.replace(/^(cw|fr)-/, "").replace(/-(france|brazil|austria|united-states|usa|official)$/i, "");
+  if (specialNames[normalized]) return specialNames[normalized];
+  return normalized.split("-").filter(Boolean).map((part) => specialNames[part] ?? (part.length <= 3 ? part.toUpperCase() : `${part[0].toUpperCase()}${part.slice(1)}`)).join(" ");
+}
+
+export function foxReloadDisplayName(category: FoxReloadCategory, product: FoxReloadProduct) {
+  const rawName = product.name.trim();
+  if (category.slug !== "foxreload-search") return `${category.name} — ${rawName}`.slice(0, 255);
+  const genericOnly = /^(?:\d|\d+\s*(?:months?|years?|eur|usd|diamonds?)\b|usa\b|official\b|top-?up\b|weekly\b)/i.test(rawName);
+  if (!genericOnly) return rawName.slice(0, 255);
+  const productSlug = normalizedSupplierSlug(product.slug || "");
+  const denominationSlug = normalizedSupplierSlug(rawName);
+  const identitySlug = denominationSlug && productSlug.endsWith(`-${denominationSlug}`)
+    ? productSlug.slice(0, -(denominationSlug.length + 1))
+    : productSlug;
+  const identity = titleFromSupplierSlug(identitySlug);
+  return identity ? `${identity} — ${rawName}`.slice(0, 255) : rawName.slice(0, 255);
+}
+
 function readableFieldLabel(value: string) {
   return value.replace(/[_-]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -50,9 +85,10 @@ function classifyFoxReloadProduct(product: FoxReloadProduct, category: FoxReload
   return "top_up";
 }
 
-function deliveryTypeFor(category: SupplierCatalogRow["category"]): SupplierCatalogRow["deliveryType"] {
+function deliveryTypeFor(category: SupplierCatalogRow["category"], product: FoxReloadProduct): SupplierCatalogRow["deliveryType"] {
   if (category === "top_up") return "instant";
   if (category === "gift_card" || category === "game_key") return "digital_code";
+  if (/\bdigital\s+code\b/i.test(product.description ?? "")) return "digital_code";
   return "manual_processing";
 }
 
@@ -81,7 +117,7 @@ export function mapFoxReloadProduct(category: FoxReloadCategory, product: FoxRel
     slug: stableSlug(product.slug || product.id),
     supplierSku: product.slug || product.id,
     supplierCategory: category.slug,
-    name: (category.slug === "foxreload-search" ? product.name : `${category.name} — ${product.name}`).slice(0, 255),
+    name: foxReloadDisplayName(category, product),
     category: mappedCategory,
     description: supplierText(product.description),
     regionLabel: typeof attributes.country_code === "string" ? attributes.country_code : typeof attributes.region === "string" ? attributes.region : undefined,
@@ -91,7 +127,7 @@ export function mapFoxReloadProduct(category: FoxReloadCategory, product: FoxRel
     supplierCurrency: currency,
     supplierOfferId: product.id,
     supplierEligible: eligible,
-    deliveryType: deliveryTypeFor(mappedCategory),
+    deliveryType: deliveryTypeFor(mappedCategory, product),
     requiresPlayerId: /player|user\s?id|uid|game\s?id/.test(requiredLabels),
     requiresServerId: /server|zone/.test(requiredLabels),
     inputRequirements,
