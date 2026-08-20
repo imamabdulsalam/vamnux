@@ -158,3 +158,9 @@
 - [x] Validate representative Free Fire, PUBG Mobile, subscription, and game-key listings for clear recognition, correct details, and responsive presentation.
 - [x] Align FoxReload delivery labels with verified supplier text when a product description explicitly states a digital code, without guessing delivery format for other records.
 - [x] Balance the compact top-up catalog so its first visible page surfaces one representative service from each recognised verified game family before additional denominations.
+- [x] Replace the mixed denomination card wall with a compact browse-by-game/service catalog that opens a focused product-selection page.
+- [x] Present each focused product page with real supplier-backed denomination options, required account fields, selected-price summary, and a cart-icon action rather than repeated text buttons.
+- [x] Audit current supplier base-price distributions before applying any VAMNUX display-price markup or override.
+- [x] Add protected admin controls for a default supplier-price markup and a per-product percentage or fixed-price override, with clear supplier cost versus customer display-price context.
+- [x] Apply a user-controlled initial default markup within the requested 20–30% range only to customer-facing display prices, preserving supplier base prices and keeping supplier ordering inactive.
+- [x] Validate desktop and mobile browse-to-detail navigation, price calculations, admin-only authorization, and guarded cart behavior.

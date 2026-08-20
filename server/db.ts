@@ -1,8 +1,9 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, orderItems, orders, products, supplierWebhookEvents, users, wallets } from "../drizzle/schema";
+import { authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, supplierWebhookEvents, users, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
+import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 
@@ -14,6 +15,24 @@ export function assertSupplierCatalogRowScope(supplierKey: string, rows: Supplie
   if (requiredPrefix && rows.some((row) => !row.slug.startsWith(requiredPrefix))) {
     throw new Error(`Catalog rows for ${supplierKey} must use the ${requiredPrefix} supplier slug prefix`);
   }
+}
+
+type PricingSettings = { defaultMarkupPercent: number };
+
+async function ensureMarketplacePricingSettings(db: NonNullable<Awaited<ReturnType<typeof getDb>>>): Promise<PricingSettings> {
+  await db.insert(marketplacePricingSettings).values({ id: 1, defaultMarkupPercent: "25.00" }).onDuplicateKeyUpdate({ set: { id: 1 } });
+  const [settings] = await db.select().from(marketplacePricingSettings).where(eq(marketplacePricingSettings.id, 1)).limit(1);
+  return { defaultMarkupPercent: Number(settings?.defaultMarkupPercent ?? 25) };
+}
+
+function customerPriceForProduct(product: { basePrice: unknown; markupPercentOverride: unknown; displayPriceOverride: unknown }, settings: PricingSettings) {
+  const pricingRule = {
+    supplierBasePrice: Number(product.basePrice),
+    defaultMarkupPercent: settings.defaultMarkupPercent,
+    markupPercentOverride: product.markupPercentOverride === null || product.markupPercentOverride === undefined ? null : Number(product.markupPercentOverride),
+    displayPriceOverride: product.displayPriceOverride === null || product.displayPriceOverride === undefined ? null : Number(product.displayPriceOverride),
+  };
+  return { customerPrice: calculateCustomerDisplayPrice(pricingRule), priceRule: describePriceRule(pricingRule) };
 }
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -110,7 +129,50 @@ function requireDb<T>(db: T | null): T {
 export async function listActiveCatalogProducts() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
+  const settings = await ensureMarketplacePricingSettings(db);
+  const activeProducts = await db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
+  return activeProducts.map((product) => ({ ...product, ...customerPriceForProduct(product, settings) }));
+}
+
+export async function getMarketplacePricingSettings() {
+  const db = requireDb(await getDb());
+  return ensureMarketplacePricingSettings(db);
+}
+
+export async function updateMarketplacePricingSettings(input: { defaultMarkupPercent: number }) {
+  if (!Number.isFinite(input.defaultMarkupPercent) || input.defaultMarkupPercent < -100 || input.defaultMarkupPercent > 500) throw new Error("Default markup must be between -100% and 500%");
+  const db = requireDb(await getDb());
+  await db.insert(marketplacePricingSettings).values({ id: 1, defaultMarkupPercent: input.defaultMarkupPercent.toFixed(2) }).onDuplicateKeyUpdate({ set: { defaultMarkupPercent: input.defaultMarkupPercent.toFixed(2) } });
+  return getMarketplacePricingSettings();
+}
+
+export async function listCatalogPricing() {
+  const db = requireDb(await getDb());
+  const settings = await ensureMarketplacePricingSettings(db);
+  const catalog = await db.select().from(products).orderBy(desc(products.updatedAt));
+  return catalog.map((product) => ({
+    id: product.id, name: product.name, slug: product.slug, supplierKey: product.supplierKey, category: product.category, status: product.status,
+    supplierBasePrice: Number(product.basePrice),
+    markupPercentOverride: product.markupPercentOverride === null ? null : Number(product.markupPercentOverride),
+    displayPriceOverride: product.displayPriceOverride === null ? null : Number(product.displayPriceOverride),
+    ...customerPriceForProduct(product, settings),
+  }));
+}
+
+export async function updateCatalogProductPricing(input: { productId: number; markupPercentOverride?: number | null; displayPriceOverride?: number | null }) {
+  const hasMarkup = input.markupPercentOverride !== undefined && input.markupPercentOverride !== null;
+  const hasFixed = input.displayPriceOverride !== undefined && input.displayPriceOverride !== null;
+  if (hasMarkup && (!Number.isFinite(input.markupPercentOverride!) || input.markupPercentOverride! < -100 || input.markupPercentOverride! > 500)) throw new Error("Product markup must be between -100% and 500%");
+  if (hasFixed && (!Number.isFinite(input.displayPriceOverride!) || input.displayPriceOverride! < 0)) throw new Error("Fixed customer price must be a non-negative number");
+  if (hasMarkup && hasFixed) throw new Error("Use either a percentage markup or a fixed customer price, not both");
+  const db = requireDb(await getDb());
+  const [product] = await db.select({ id: products.id }).from(products).where(eq(products.id, input.productId)).limit(1);
+  if (!product) throw new Error("Catalog product was not found");
+  await db.update(products).set({
+    markupPercentOverride: hasMarkup ? input.markupPercentOverride!.toFixed(2) : null,
+    displayPriceOverride: hasFixed ? input.displayPriceOverride!.toFixed(2) : null,
+  }).where(eq(products.id, input.productId));
+  return listCatalogPricing();
 }
 
 /** Administrative catalog rows have a declared authorised source and never contain supplier credentials. */
@@ -416,12 +478,13 @@ export async function createMarketplaceOrder(input: {
   const db = requireDb(await getDb());
   const productIds = Array.from(new Set(input.items.map((item) => item.productId)));
   const catalogRows = await db.select().from(products).where(and(inArray(products.id, productIds), eq(products.status, "active")));
+  const settings = await ensureMarketplacePricingSettings(db);
   if (catalogRows.length !== productIds.length) throw new Error("One or more selected products are unavailable");
 
   const orderLines = input.items.map((item) => {
     const product = catalogRows.find((row) => row.id === item.productId);
     if (!product) throw new Error("Selected product is unavailable");
-    return { product, quantity: item.quantity, unitPrice: Number(product.basePrice) };
+    return { product, quantity: item.quantity, unitPrice: customerPriceForProduct(product, settings).customerPrice };
   });
   for (const line of orderLines) {
     const requirements = Array.isArray(line.product.inputRequirements)

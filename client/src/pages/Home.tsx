@@ -128,7 +128,7 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
 
-  const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
+  const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("Top-up");
   const [catalogScope, setCatalogScope] = useState<CatalogVisibilityScope>("curated");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
@@ -395,7 +395,7 @@ export default function Home() {
         <div className="product-family-list compact-catalog-results">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving active availability from configured suppliers.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <CompactCatalog products={compactProducts} activeCategory={activeCategory} keyword={query} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} />}
+          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <CompactCatalog products={compactProducts} activeCategory={activeCategory} keyword={query} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onOpenFamily={(familyName) => setLocation(gameFamilyPath(familyName))} onAddToCart={addToCart} />}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />

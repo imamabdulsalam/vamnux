@@ -52,6 +52,8 @@ export const products = mysqlTable("products", {
   baseCurrency: varchar("baseCurrency", { length: 3 }).default("USD").notNull(),
   supplierPrice: decimal("supplierPrice", { precision: 12, scale: 2 }),
   supplierCurrency: varchar("supplierCurrency", { length: 3 }),
+  markupPercentOverride: decimal("markupPercentOverride", { precision: 7, scale: 2 }),
+  displayPriceOverride: decimal("displayPriceOverride", { precision: 12, scale: 2 }),
   supplierOfferId: varchar("supplierOfferId", { length: 120 }),
   supplierUpdatedAt: timestamp("supplierUpdatedAt"),
   supplierEligible: boolean("supplierEligible").default(true).notNull(),
@@ -73,6 +75,13 @@ export const products = mysqlTable("products", {
   supplierOfferIndex: index("products_supplier_offer_idx").on(table.supplierKey, table.supplierOfferId),
   catalogSourceIndex: index("products_catalog_source_idx").on(table.catalogSourceId),
 }));
+
+/** Store-wide customer display-price policy. Supplier base prices remain unchanged and are never stored here. */
+export const marketplacePricingSettings = mysqlTable("marketplace_pricing_settings", {
+  id: int("id").primaryKey(),
+  defaultMarkupPercent: decimal("defaultMarkupPercent", { precision: 7, scale: 2 }).default("25.00").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
 
 /** Integration metadata only. Provider credentials must remain in protected environment variables, not in the database. */
 export const commerceIntegrations = mysqlTable("commerce_integrations", {

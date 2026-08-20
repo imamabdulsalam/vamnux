@@ -1,7 +1,7 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
-import { Archive, ArrowRight, CheckCircle2, CreditCard, PackageOpen, PauseCircle, Plus, ShieldCheck, WalletCards } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { Archive, ArrowRight, CheckCircle2, CircleDollarSign, CreditCard, PackageOpen, PauseCircle, Plus, ShieldCheck, WalletCards } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 
@@ -42,6 +42,62 @@ const initialCatalogSourceForm: CatalogSourceForm = {
   commerceIntegrationId: "",
   agreementReference: "",
 };
+
+function PricingManager() {
+  const utils = trpc.useUtils();
+  const settingsQuery = trpc.admin.getMarketplacePricingSettings.useQuery();
+  const catalogQuery = trpc.admin.listCatalogPricing.useQuery();
+  const [defaultMarkup, setDefaultMarkup] = useState("25");
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [percentageOverride, setPercentageOverride] = useState("");
+  const [fixedPriceOverride, setFixedPriceOverride] = useState("");
+  const selectedProduct = useMemo(() => (catalogQuery.data ?? []).find((product) => product.id === Number(selectedProductId)), [catalogQuery.data, selectedProductId]);
+
+  useEffect(() => {
+    if (settingsQuery.data) setDefaultMarkup(String(settingsQuery.data.defaultMarkupPercent));
+  }, [settingsQuery.data]);
+  useEffect(() => {
+    if (!selectedProduct) return;
+    setPercentageOverride(selectedProduct.markupPercentOverride === null ? "" : String(selectedProduct.markupPercentOverride));
+    setFixedPriceOverride(selectedProduct.displayPriceOverride === null ? "" : String(selectedProduct.displayPriceOverride));
+  }, [selectedProduct]);
+
+  const refreshPricing = async () => {
+    await Promise.all([utils.admin.getMarketplacePricingSettings.invalidate(), utils.admin.listCatalogPricing.invalidate(), utils.marketplace.catalog.invalidate()]);
+  };
+  const saveDefaultMarkup = trpc.admin.updateMarketplacePricingSettings.useMutation({
+    onSuccess: async (settings) => { toast.success(`Default display markup set to ${settings.defaultMarkupPercent}%.`); await refreshPricing(); },
+    onError: (pricingError) => toast.error(pricingError.message || "Could not update the default markup."),
+  });
+  const saveProductOverride = trpc.admin.updateCatalogProductPricing.useMutation({
+    onSuccess: async () => { toast.success("Product display-price rule updated."); await refreshPricing(); },
+    onError: (pricingError) => toast.error(pricingError.message || "Could not update the product price rule."),
+  });
+  const submitDefaultMarkup = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const markup = Number(defaultMarkup);
+    if (!Number.isFinite(markup) || markup < -100 || markup > 500) { toast.error("Enter a markup between -100% and 500%."); return; }
+    saveDefaultMarkup.mutate({ defaultMarkupPercent: markup });
+  };
+  const submitProductOverride = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedProduct) { toast.error("Select a catalog product first."); return; }
+    const percentage = percentageOverride.trim() ? Number(percentageOverride) : null;
+    const fixedPrice = fixedPriceOverride.trim() ? Number(fixedPriceOverride) : null;
+    if (percentage !== null && fixedPrice !== null) { toast.error("Use a percentage override or a fixed customer price, not both."); return; }
+    if (percentage !== null && (!Number.isFinite(percentage) || percentage < -100 || percentage > 500)) { toast.error("Enter a percentage between -100% and 500%."); return; }
+    if (fixedPrice !== null && (!Number.isFinite(fixedPrice) || fixedPrice < 0)) { toast.error("Enter a non-negative fixed customer price."); return; }
+    saveProductOverride.mutate({ productId: selectedProduct.id, markupPercentOverride: percentage, displayPriceOverride: fixedPrice });
+  };
+
+  return <section className="mt-7 overflow-hidden rounded-xl border border-[#f4a11a]/45 bg-white shadow-sm">
+    <div className="border-b border-amber-100 bg-amber-50 px-6 py-5"><p className="text-xs font-bold tracking-[.13em] text-amber-700">PRICING CONTROL</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">Customer price rules</h2><p className="mt-2 max-w-4xl text-sm leading-6 text-slate-600">Supplier base cost stays intact. VAMNUX calculates the customer-facing USD price using the default markup unless you set one product-specific percentage or one fixed display price. Price controls do not send supplier orders or activate payments.</p></div>
+    <div className="grid gap-0 lg:grid-cols-[.9fr_1.1fr]">
+      <form onSubmit={submitDefaultMarkup} className="space-y-4 border-b border-slate-200 p-6 lg:border-b-0 lg:border-r"><div className="flex items-center gap-3"><span className="rounded-lg bg-[#10121a] p-2 text-[#b8ff43]"><CircleDollarSign size={21} /></span><div><p className="text-xs font-bold tracking-[.1em] text-slate-500">STORE-WIDE DEFAULT</p><h3 className="font-['Barlow_Condensed'] text-2xl font-bold uppercase">Markup policy</h3></div></div><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Customer markup percentage<input inputMode="decimal" value={defaultMarkup} onChange={(event) => setDefaultMarkup(event.target.value)} className="mt-2 h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-lg font-bold text-[#10121a] outline-none focus:border-[#286dff]" /><span className="mt-2 block normal-case font-normal tracking-normal text-slate-500">Current default: {settingsQuery.data ? `${settingsQuery.data.defaultMarkupPercent}%` : "Loading…"}. A 25% markup turns a $10.00 supplier cost into a $12.50 VAMNUX display price.</span></label><button type="submit" disabled={saveDefaultMarkup.isPending || settingsQuery.isLoading} className="rounded-full bg-[#10121a] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-white transition hover:bg-[#286dff] disabled:opacity-60">{saveDefaultMarkup.isPending ? "Saving…" : "Save default markup"}</button></form>
+      <form onSubmit={submitProductOverride} className="space-y-4 p-6"><div><p className="text-xs font-bold tracking-[.1em] text-[#286dff]">PRODUCT EXCEPTION</p><h3 className="mt-1 font-['Barlow_Condensed'] text-2xl font-bold uppercase">Override one listing</h3></div><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Catalog product<select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]"><option value="">Select a live or draft product</option>{(catalogQuery.data ?? []).map((product) => <option key={product.id} value={product.id}>{product.name} · {product.status}</option>)}</select></label>{selectedProduct && <div className="rounded-lg bg-slate-50 p-3 text-sm text-slate-700"><strong>{selectedProduct.name}</strong><p className="mt-1">Supplier base cost: <b>${selectedProduct.supplierBasePrice.toFixed(2)}</b> · Current customer price: <b>${selectedProduct.customerPrice.toFixed(2)}</b> · {selectedProduct.priceRule}</p></div>}<div className="grid gap-3 sm:grid-cols-2"><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Percentage override<input inputMode="decimal" value={percentageOverride} onChange={(event) => { setPercentageOverride(event.target.value); if (event.target.value) setFixedPriceOverride(""); }} placeholder="e.g. 30" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Fixed customer price<input inputMode="decimal" value={fixedPriceOverride} onChange={(event) => { setFixedPriceOverride(event.target.value); if (event.target.value) setPercentageOverride(""); }} placeholder="e.g. 12.99" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]" /></label></div><p className="text-xs leading-5 text-slate-500">Leave both blank to return this product to the store-wide markup. Only one override can be active at a time.</p><button type="submit" disabled={!selectedProduct || saveProductOverride.isPending} className="rounded-full bg-[#286dff] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-white transition hover:bg-[#10121a] disabled:opacity-60">{saveProductOverride.isPending ? "Saving…" : "Save product rule"}</button></form>
+    </div>
+  </section>;
+}
 
 function ManualCatalogManager() {
   const utils = trpc.useUtils();
@@ -176,7 +232,7 @@ function AccountContent() {
         </section>
 
         <section className="mt-7 rounded-xl bg-white p-6 shadow-sm ring-1 ring-slate-200"><div className="flex items-center justify-between gap-4"><div><p className="text-xs font-bold tracking-[.13em] text-[#286dff]">ORDER TRACKING</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">Recent activity</h2></div><CreditCard className="text-slate-400" size={24} /></div><div className="mt-6 divide-y divide-slate-100 border-y border-slate-100">{data.orders.length === 0 ? <div className="py-8 text-sm text-slate-500">No orders yet. When checkout is connected to approved products and payments, your delivery status will appear here.</div> : data.orders.map((order) => <div key={order.orderCode} className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm"><div><strong>{order.orderCode}</strong><p className="mt-1 text-xs text-slate-500">{new Date(order.createdAt).toLocaleString()}</p></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold uppercase text-slate-600">{order.status.replaceAll("_", " ")}</span><strong>{order.currency} {Number(order.total).toFixed(2)}</strong></div>)}</div></section>
-        {currentUser?.role === "admin" && <><section className="mt-7 grid gap-4 lg:grid-cols-2"><article className="rounded-xl border border-[#b8ff43] bg-[#10121a] p-6 text-white shadow-lg"><p className="text-xs font-bold tracking-[.13em] text-[#b8ff43]">SUPPLIER ADMIN</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">FlashTopUp catalog sync</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{flashTopUpPaused ? "Catalog sync is paused by the selected operating policy. This does not change FlashTopUp records already in VAMNUX and does not affect FoxReload." : "Sync small supplier pages to keep the integration responsive and recoverable. This read-only operation never creates customer orders, funds wallets, or enables payment."}</p><p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-slate-400">{flashTopUpPaused ? "Paused · no supplier request will be sent" : `Next supplier page: ${supplierPage} · 5 products maximum`}</p><button type="button" onClick={() => syncCatalog.mutate({ page: supplierPage, perPage: 5 })} disabled={flashTopUpPaused || syncCatalog.isPending} className="mt-5 inline-flex items-center rounded-full bg-[#b8ff43] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-[#10121a] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60">{flashTopUpPaused ? "FlashTopUp sync paused" : syncCatalog.isPending ? "Syncing supplier page…" : "Sync next supplier page"}</button></article><article className="rounded-xl border border-[#286dff]/60 bg-[#10121a] p-6 text-white shadow-lg"><p className="text-xs font-bold tracking-[.13em] text-[#7aa4ff]">SUPPLIER ADMIN</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">FoxReload catalog sync</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Import a bounded, verified supplier batch through the server-only FoxReload API key. It reads selected Gift Card, Subscription, game-key, and Gaming Top-Up results only; test orders are excluded. The current supplier search does not expose active Software or AI Tool records, so those categories remain unavailable. This never calls an order, payment, wallet-credit, or delivery endpoint.</p><p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-slate-400">3 categories + 8 search terms · 10 products per read maximum</p><button type="button" onClick={() => syncFoxReloadCatalog.mutate({ categorySlugs: ["ai-services", "gift-cards", "subscriptions"], categoryLimit: 3, productLimit: 25, searchQueries: ["steam", "netflix", "spotify", "office", "adobe", "chatgpt", "top up", "diamonds"], searchLimit: 10 })} disabled={syncFoxReloadCatalog.isPending} className="mt-5 inline-flex items-center rounded-full bg-[#286dff] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-white transition hover:bg-white hover:text-[#10121a] disabled:cursor-not-allowed disabled:opacity-60">{syncFoxReloadCatalog.isPending ? "Syncing supplier batch…" : "Sync Digital Catalog"}</button></article></section><ManualCatalogManager /></>}
+        {currentUser?.role === "admin" && <><section className="mt-7 grid gap-4 lg:grid-cols-2"><article className="rounded-xl border border-[#b8ff43] bg-[#10121a] p-6 text-white shadow-lg"><p className="text-xs font-bold tracking-[.13em] text-[#b8ff43]">SUPPLIER ADMIN</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">FlashTopUp catalog sync</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{flashTopUpPaused ? "Catalog sync is paused by the selected operating policy. This does not change FlashTopUp records already in VAMNUX and does not affect FoxReload." : "Sync small supplier pages to keep the integration responsive and recoverable. This read-only operation never creates customer orders, funds wallets, or enables payment."}</p><p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-slate-400">{flashTopUpPaused ? "Paused · no supplier request will be sent" : `Next supplier page: ${supplierPage} · 5 products maximum`}</p><button type="button" onClick={() => syncCatalog.mutate({ page: supplierPage, perPage: 5 })} disabled={flashTopUpPaused || syncCatalog.isPending} className="mt-5 inline-flex items-center rounded-full bg-[#b8ff43] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-[#10121a] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60">{flashTopUpPaused ? "FlashTopUp sync paused" : syncCatalog.isPending ? "Syncing supplier page…" : "Sync next supplier page"}</button></article><article className="rounded-xl border border-[#286dff]/60 bg-[#10121a] p-6 text-white shadow-lg"><p className="text-xs font-bold tracking-[.13em] text-[#7aa4ff]">SUPPLIER ADMIN</p><h2 className="mt-2 font-['Barlow_Condensed'] text-3xl font-bold uppercase">FoxReload catalog sync</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Import a bounded, verified supplier batch through the server-only FoxReload API key. It reads selected Gift Card, Subscription, game-key, and Gaming Top-Up results only; test orders are excluded. The current supplier search does not expose active Software or AI Tool records, so those categories remain unavailable. This never calls an order, payment, wallet-credit, or delivery endpoint.</p><p className="mt-4 text-xs font-bold uppercase tracking-[.12em] text-slate-400">3 categories + 8 search terms · 10 products per read maximum</p><button type="button" onClick={() => syncFoxReloadCatalog.mutate({ categorySlugs: ["ai-services", "gift-cards", "subscriptions"], categoryLimit: 3, productLimit: 25, searchQueries: ["steam", "netflix", "spotify", "office", "adobe", "chatgpt", "top up", "diamonds"], searchLimit: 10 })} disabled={syncFoxReloadCatalog.isPending} className="mt-5 inline-flex items-center rounded-full bg-[#286dff] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-white transition hover:bg-white hover:text-[#10121a] disabled:cursor-not-allowed disabled:opacity-60">{syncFoxReloadCatalog.isPending ? "Syncing supplier batch…" : "Sync Digital Catalog"}</button></article></section><PricingManager /><ManualCatalogManager /></>}
       </div>
     </div>
   );

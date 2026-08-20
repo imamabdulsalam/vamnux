@@ -1,7 +1,8 @@
 import type { LiveCatalogProduct, ProductCategory } from "@/lib/liveCatalog";
 import { catalogProductPresentation } from "@/lib/liveCatalog";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
+import { groupLiveProductFamilies } from "@shared/marketplace";
 
 type CompactCatalogProps = {
   products: LiveCatalogProduct[];
@@ -9,6 +10,7 @@ type CompactCatalogProps = {
   keyword: string;
   formatPrice: (price: number) => string;
   onOpenProduct: (product: LiveCatalogProduct) => void;
+  onOpenFamily: (familyName: string) => void;
   onAddToCart: (product: LiveCatalogProduct) => void;
 };
 
@@ -16,12 +18,24 @@ function categoryLabel(category: ProductCategory) {
   return category === "Voucher" ? "Gift card" : category;
 }
 
-export default function CompactCatalog({ products, activeCategory, keyword, formatPrice, onOpenProduct, onAddToCart }: CompactCatalogProps) {
+export default function CompactCatalog({ products, activeCategory, keyword, formatPrice, onOpenProduct, onOpenFamily, onAddToCart }: CompactCatalogProps) {
   const [visibleCount, setVisibleCount] = useState(18);
   useEffect(() => setVisibleCount(18), [activeCategory, keyword, products.length]);
   const visibleProducts = products.slice(0, visibleCount);
+  const topUpFamilies = groupLiveProductFamilies(products.filter((product) => product.category === "Top-up"));
+  const showGameFamilyBrowse = activeCategory === "Top-up" && !keyword.trim();
 
   if (!products.length) return null;
+
+  if (showGameFamilyBrowse) return <div className="compact-catalog-shell">
+    <div className="compact-catalog-meta"><span>{topUpFamilies.length} verified game {topUpFamilies.length === 1 ? "family" : "families"}</span><span>Choose a game to see denominations</span></div>
+    <div className="compact-family-grid">
+      {topUpFamilies.map((family, index) => <button className="compact-family-card" key={family.name} onClick={() => onOpenFamily(family.name)} style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}>
+        <div className="compact-family-art">{family.image ? <img src={family.image} alt={`${family.name} supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span>{family.name.slice(0, 1)}</span>}</div>
+        <div><p>{family.items.length} active {family.items.length === 1 ? "option" : "options"}</p><strong>{family.name}</strong><span>From {formatPrice(Math.min(...family.items.map((item) => item.price)))} <ArrowRight size={14} /></span></div>
+      </button>)}
+    </div>
+  </div>;
 
   return <div className="compact-catalog-shell">
     <div className="compact-catalog-meta"><span>{products.length} live {products.length === 1 ? "product" : "products"}</span><span>Supplier-backed pricing</span></div>
@@ -42,7 +56,7 @@ export default function CompactCatalog({ products, activeCategory, keyword, form
         </div>
         <div className="compact-product-footer">
           <div><strong>{formatPrice(product.price)}</strong><small>{product.priceNote}</small></div>
-          <div className="compact-product-actions"><button className="compact-product-details" onClick={() => onOpenProduct(product)}>Details <ArrowRight size={14} /></button><button className="compact-product-add" onClick={() => onAddToCart(product)} aria-label={`Add ${product.product} to cart`}><Plus size={16} /><span>Add</span></button></div>
+          <div className="compact-product-actions"><button className="compact-product-details" onClick={() => onOpenProduct(product)}>Details <ArrowRight size={14} /></button><button className="compact-product-add" onClick={() => onAddToCart(product)} aria-label={`Add ${product.product} to cart`} title="Add to cart"><ShoppingCart size={16} /></button></div>
         </div>
       </article>;
       })}

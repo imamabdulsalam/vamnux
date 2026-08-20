@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, ArrowRight, CircleDollarSign, Gamepad2, Globe2, Search, ShieldCheck, ShoppingBag, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleDollarSign, Gamepad2, Globe2, Search, ShieldCheck, ShoppingBag, ShoppingCart, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
@@ -28,6 +28,7 @@ export default function GameFamilyDetail() {
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [cart, setCart] = useState<LiveCatalogProduct[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const createDraftOrder = trpc.marketplace.createOrder.useMutation({
     onSuccess: (result) => {
@@ -42,6 +43,10 @@ export default function GameFamilyDetail() {
 
   const products = useMemo(() => (supplierCatalog.data ?? []).map(toLiveCatalogProduct), [supplierCatalog.data]);
   const family = useMemo(() => groupLiveProductFamilies(products.filter((product) => product.name.toLowerCase() === familyName?.toLowerCase()))[0], [familyName, products]);
+  const selectedItem = family?.items.find((item) => item.id === selectedServiceId) ?? family?.items[0];
+  useEffect(() => {
+    if (family?.items.length && !family.items.some((item) => item.id === selectedServiceId)) setSelectedServiceId(family.items[0].id);
+  }, [family, selectedServiceId]);
   const config = currencies[currency];
   const formatPrice = (price: number) => new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(price * config.rate);
   const cartTotal = cart.reduce((total, item) => total + item.price, 0);
@@ -87,19 +92,16 @@ export default function GameFamilyDetail() {
         <button className="family-back" onClick={() => setLocation("/")}><ArrowLeft size={17} /> All game listings</button>
         <div className="family-detail-hero-grid">
           <div className="family-detail-art"><div className="live-game-family-fallback"><Gamepad2 size={40} /></div>{family.image && <img src={family.image} alt={`${family.name} official supplier artwork`} onError={(event) => { event.currentTarget.style.display = "none"; }} />}<span>{family.category}</span></div>
-          <div className="family-detail-summary"><p className="detail-eyebrow">Verified supplier game family</p><h1>{family.name}</h1><p>{family.items.length} active supplier services are available. Choose a denomination below to view its real price and add it to your selection.</p><div><ShieldCheck size={17} /> Supplier-backed availability <CircleDollarSign size={17} /> USD base prices</div></div>
+          <div className="family-detail-summary"><p className="detail-eyebrow">Verified supplier game family</p><h1>{family.name}</h1><p>{family.items.length} active supplier services are available. Choose one denomination below, review its exact account requirement, then add the selected option to your saved cart.</p><div><ShieldCheck size={17} /> Supplier-backed availability <CircleDollarSign size={17} /> VAMNUX display price</div></div>
         </div>
       </section>
 
       <section className="family-services" aria-label={`${family.name} services`}>
-        <div className="family-services-heading"><div><p className="detail-eyebrow">Choose a denomination</p><h2>AVAILABLE<br /><em>SERVICES.</em></h2></div><p>Prices, delivery format, regional rules, and required account details come from the currently synchronised supplier service.</p></div>
-        <div className="family-service-list">
-          {family.items.map((item) => <article className={`family-service-row tone-${item.tone}`} key={item.id}>
-            <div className="family-service-name"><h3>{item.product}</h3><p>{item.description}</p><div className="market-tags"><span>{item.region}</span><span>{item.delivery}</span></div></div>
-            <div className="family-service-price"><strong>{formatPrice(item.price)}</strong><small>{item.priceNote} · USD base</small></div>
-            <button onClick={() => addToCart(item)} aria-label={`Add ${item.product} to cart`}>Add to cart <ArrowRight size={17} /></button>
-          </article>)}
-        </div>
+        <div className="family-services-heading"><div><p className="detail-eyebrow">Choose a denomination</p><h2>SELECT<br /><em>YOUR ITEM.</em></h2></div><p>Each option is an active supplier-backed denomination. The current VAMNUX price, region, and exact account requirement are shown before it enters your saved cart.</p></div>
+        {selectedItem && <div className="family-selection-layout">
+          <div className="family-denomination-area"><div className="family-requirement-bar"><span>What’s needed for this top-up</span>{selectedItem.inputRequirements.filter((field) => field.required).length ? selectedItem.inputRequirements.filter((field) => field.required).map((field) => <b key={field.key}>{field.label}</b>) : <b>No account field required</b>}</div><div className="family-denomination-grid">{family.items.map((item) => <button key={item.id} type="button" onClick={() => setSelectedServiceId(item.id)} className={item.id === selectedItem.id ? "family-denomination-card selected" : "family-denomination-card"}><span>{item.product}</span><strong>{formatPrice(item.price)}</strong><small>{item.region} · {item.delivery}</small></button>)}</div></div>
+          <aside className="family-selection-summary"><p className="detail-eyebrow">Your selection</p><h3>{selectedItem.product}</h3><p>{family.name}</p><div className="selection-required-fields">{selectedItem.inputRequirements.filter((field) => field.required).map((field) => { const key = createFulfillmentFieldKey(selectedItem.id, field.key); return <label key={key}><span>{field.label} *</span><input type={field.type === "email" ? "email" : "text"} value={fulfillmentDetails[key] ?? ""} onChange={(event) => setFulfillmentDetails((current) => ({ ...current, [key]: event.target.value }))} placeholder={field.helperText || field.label} /></label>; })}</div><div className="selection-price"><span>VAMNUX price</span><strong>{formatPrice(selectedItem.price)}</strong><small>{selectedItem.priceNote}</small></div><button onClick={() => addToCart(selectedItem)} aria-label={`Add ${family.name} ${selectedItem.product} to cart`} title="Add selected item to cart"><ShoppingCart size={19} /><span>Add selected item</span></button><small className="selection-note">Saved selection only. Payment, wallet funding, supplier ordering, and delivery remain inactive.</small></aside>
+        </div>}
       </section>
 
       <div className={cartOpen ? "cart-overlay open" : "cart-overlay"} onClick={() => setCartOpen(false)} />

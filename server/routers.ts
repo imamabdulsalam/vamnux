@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
-import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCommerceIntegrations, setAdminManagedCatalogProductStatus } from "./db";
+import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, getMarketplacePricingSettings, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, setAdminManagedCatalogProductStatus, updateCatalogProductPricing, updateMarketplacePricingSettings } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
@@ -36,6 +36,14 @@ export const appRouter = router({
     })),
   }),
   admin: router({
+    getMarketplacePricingSettings: adminProcedure.query(() => getMarketplacePricingSettings()),
+    listCatalogPricing: adminProcedure.query(() => listCatalogPricing()),
+    updateMarketplacePricingSettings: adminProcedure.input(z.object({ defaultMarkupPercent: z.number().min(-100).max(500) })).mutation(({ input }) => updateMarketplacePricingSettings(input)),
+    updateCatalogProductPricing: adminProcedure.input(z.object({
+      productId: z.number().int().positive(),
+      markupPercentOverride: z.number().min(-100).max(500).nullable().optional(),
+      displayPriceOverride: z.number().min(0).max(1_000_000).nullable().optional(),
+    }).refine((input) => !(input.markupPercentOverride !== null && input.markupPercentOverride !== undefined && input.displayPriceOverride !== null && input.displayPriceOverride !== undefined), { message: "Use either a percentage markup or a fixed customer price" })).mutation(({ input }) => updateCatalogProductPricing(input)),
     listCommerceIntegrations: adminProcedure.query(() => listCommerceIntegrations()),
     listAdminManagedCatalog: adminProcedure.query(() => listAdminManagedCatalogProducts()),
     listAuthorizedCatalogSources: adminProcedure.query(() => listAuthorizedCatalogSources()),

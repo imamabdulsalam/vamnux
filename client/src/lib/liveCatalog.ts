@@ -24,6 +24,8 @@ type CatalogSourceRow = {
   name: string;
   description: string | null;
   basePrice: string | number;
+  customerPrice: string | number;
+  priceRule: string;
   supplierKey: string | null;
   supplierEligible: boolean;
   regionLabel: string | null;
@@ -51,12 +53,9 @@ function supplierDeliveryLabel(item: Pick<CatalogSourceRow, "requiresPlayerId" |
   return item.deliveryType.replaceAll("_", " ");
 }
 
-function supplierPriceLabel(item: Pick<CatalogSourceRow, "supplierKey" | "supplierEligible">) {
-  if (item.supplierKey === "admin_managed") return "Authorised catalog price";
-  if (!item.supplierEligible) return "Supplier availability paused";
-  if (item.supplierKey === "foxreload") return "FoxReload service price";
-  if (item.supplierKey === "flashtopup") return "FlashTopUp service price";
-  return "Supplier service price";
+function customerPriceLabel(item: Pick<CatalogSourceRow, "priceRule" | "supplierEligible">) {
+  if (!item.supplierEligible) return "Availability paused";
+  return `VAMNUX price · ${item.priceRule}`;
 }
 
 export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): LiveCatalogProduct {
@@ -72,8 +71,8 @@ export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): Liv
     description: item.description?.trim() || (fields.length > 0
       ? `Enter ${fields.filter((field) => field.required).map((field) => field.label || "supplier-required details").join(" and ") || "the supplier-required account details"} before fulfilment.`
       : "Verified supplier service. Availability and delivery format are shown before purchase."),
-    price: Number(item.basePrice),
-    priceNote: supplierPriceLabel(item),
+    price: Number(item.customerPrice),
+    priceNote: customerPriceLabel(item),
     region: item.regionLabel || "Supplier region rules",
     delivery: supplierDeliveryLabel(item),
     image: item.imageUrl || "",
