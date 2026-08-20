@@ -16,6 +16,16 @@ describe("customer dashboard preference boundary", () => {
     expect(mutation.userId).not.toBe(43);
   });
 
+  it("keeps operational dashboard order-status groups limited to real marketplace states", () => {
+    const inProgress = ["pending_payment", "paid", "processing"];
+    const completed = ["delivered"];
+    const cancelled = ["cancelled", "failed"];
+    expect(inProgress).toContain("pending_payment");
+    expect(completed).toEqual(["delivered"]);
+    expect(cancelled).toContain("failed");
+    expect([...inProgress, ...completed, ...cancelled]).not.toContain("fulfilled");
+  });
+
   it("requires an authenticated session before returning a customer dashboard", async () => {
     const caller = appRouter.createCaller({ user: null } as TrpcContext);
     await expect(caller.marketplace.customerDashboard()).rejects.toMatchObject({ code: "UNAUTHORIZED" });

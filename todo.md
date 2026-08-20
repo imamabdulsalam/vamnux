@@ -239,6 +239,9 @@
 - [x] Validate the completed frontend refinement across desktop and mobile views while preserving Manus OAuth account isolation and truthful inactive-commerce states.
 - [x] Replace only the global storefront and User Dashboard typography with a clean rounded modern font system inspired by the supplied reference, preserving every non-typographic interface and behavior.
 - [x] Validate the typography-only update at desktop and mobile sizes without changing layout, colors, content, data, routes, authentication, or commerce behavior.
+- [x] Redesign the protected VAMNUX User Dashboard as a compact dark operational workspace with a VAMNUX-specific sidebar, top bar, overview actions, and real order-status summaries inspired by the supplied reference without copying its branding or third-party content.
+- [x] Preserve existing real customer data, account isolation, wallet-only purchase rules, support/security access, and truthful zero/empty states throughout the dashboard redesign.
+- [x] Validate the VAMNUX User Dashboard redesign across desktop and mobile views with deterministic authorization coverage and no active payment, supplier order, or fulfilment behavior.
 - [x] Inspect and document the current Manus OAuth, user, customer-profile, identity-link, session, dashboard, and authorization architecture before any Supabase migration work.
 - [x] Design a non-destructive Supabase Auth mapping that preserves existing VAMNUX records, retains Manus OAuth as a verified fallback, and specifies password-reset treatment for users with no transferable passwords.
 - [ ] Configure required Supabase server and public client environment values securely, stopping for actual provider credentials and dashboard configuration rather than fabricating them.
