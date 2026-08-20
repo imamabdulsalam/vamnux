@@ -4,6 +4,7 @@ import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSche
 import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, getMarketplacePricingSettings, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, setAdminManagedCatalogProductStatus, updateCatalogProductPricing, updateMarketplacePricingSettings } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
+import { syncGamesDropCatalog } from "./gamesdropCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -71,6 +72,12 @@ export const appRouter = router({
       searchQueries: z.array(z.string().trim().min(2).max(80)).max(10).optional(),
       searchLimit: z.number().int().min(1).max(25).default(10),
     }).optional()).mutation(({ input }) => syncFoxReloadCatalog(input)),
+    syncGamesDropCatalog: adminProcedure.input(z.object({
+      searches: z.array(z.string().trim().min(2).max(120)).max(12).optional(),
+      page: z.number().int().min(1).max(1000).default(1),
+      limit: z.number().int().min(1).max(250).default(50),
+      countryCode: z.string().trim().length(2).toUpperCase().default("NG"),
+    }).optional()).mutation(({ input }) => syncGamesDropCatalog(input)),
     configureCommerceIntegration: adminProcedure.input(z.object({
       integrationType: z.enum(["supplier", "payment"]),
       providerName: z.string().trim().min(2).max(120),

@@ -74,9 +74,11 @@ function mapInputRequirements(product: FoxReloadProduct): CustomerInputRequireme
 
 function classifyFoxReloadProduct(product: FoxReloadProduct, category: FoxReloadCategory): SupplierCatalogRow["category"] {
   const attributes = asRecord(product.attributes);
-  if (typeof attributes.game_key_digest === "string" || typeof attributes.game_key_digest_version === "number") return "game_key";
   const terms = [product.name, product.slug, product.description ?? "", category.name, category.slug, ...(category.tags ?? []), JSON.stringify(attributes)].join(" ").toLowerCase();
+  if (/telegram\s+stars?/.test(terms)) return "telegram_stars";
+  if (typeof attributes.game_key_digest === "string" || typeof attributes.game_key_digest_version === "number") return "game_key";
   if (/steam account|steam edition|\bdlc\b|expansion|game key|activation key|cd key|game code/.test(terms)) return "game_key";
+  if (/steam/.test(terms)) return "steam";
   if (/gift[ -]?card|voucher|steam|playstation|xbox|apple|itunes|google play|amazon/.test(terms)) return "gift_card";
   if (/subscription|premium|membership|netflix|spotify|youtube|discord nitro|pass/.test(terms)) return "subscription";
   if (/chatgpt|claude|midjourney|ai tool|ai service|artificial intelligence/.test(terms)) return "ai_tool";
@@ -87,7 +89,7 @@ function classifyFoxReloadProduct(product: FoxReloadProduct, category: FoxReload
 
 function deliveryTypeFor(category: SupplierCatalogRow["category"], product: FoxReloadProduct): SupplierCatalogRow["deliveryType"] {
   if (category === "top_up") return "instant";
-  if (category === "gift_card" || category === "game_key") return "digital_code";
+  if (category === "gift_card" || category === "game_key" || category === "steam") return "digital_code";
   if (/\bdigital\s+code\b/i.test(product.description ?? "")) return "digital_code";
   return "manual_processing";
 }

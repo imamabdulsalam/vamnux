@@ -169,3 +169,10 @@
 - [x] Audit the curated supplier inventory for clearly region-specific or unsuitable public listings and hide them from the primary VAMNUX storefront without deleting supplier records.
 - [x] Preserve marked-up VAMNUX customer prices and verify no customer-facing price control, product card, or detail page exposes supplier links or base cost.
 - [x] Validate desktop and mobile internal catalog navigation, curated visibility, price presentation, search, and saved-cart actions after removing supplier exits.
+- [x] Review the GamesDrop Partner API documentation, authentication model, catalog endpoints, and seller-order safeguards.
+- [x] Obtain GamesDrop server-only credentials and verify which products, including Steam and Telegram Stars, are exposed to the VAMNUX account.
+- [x] Add GamesDrop as an isolated multi-supplier integration whose sync, credentials, failures, and catalog rows cannot affect FoxReload or FlashTopUp.
+- [x] Map only verified GamesDrop catalog records to VAMNUX gaming top-ups, Steam, Telegram Stars, gift cards, subscriptions, software, and AI tools without inventing inventory.
+- [x] Add internal VAMNUX category browsing for verified Steam and Telegram Stars offers, retaining the curated regional-suitability policy and no external supplier redirects.
+- [x] Add deterministic GamesDrop mapper and supplier-isolation tests, validate the catalog, and keep payments, wallet settlement, supplier orders, and fulfilment inactive.
+- [x] Verify FoxReload Telegram Stars and Steam Wallet searches, map verified offers to their dedicated categories, and retain only global/worldwide Steam stock in the primary public catalog.

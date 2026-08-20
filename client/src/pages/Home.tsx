@@ -26,6 +26,7 @@ import {
   Heart,
   Laptop,
   Search,
+  Send,
   ShieldCheck,
   ShoppingBag,
   Smartphone,
@@ -92,6 +93,8 @@ const categories = [
   { label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
   { label: "Software", icon: Laptop, filter: "Software" as ProductCategory },
   { label: "AI tools", icon: Sparkles, filter: "AI tools" as ProductCategory },
+  { label: "Steam", icon: Gamepad2, filter: "Steam" as ProductCategory },
+  { label: "Telegram Stars", icon: Send, filter: "Telegram Stars" as ProductCategory },
 ];
 
 const unavailableCategoryDescriptions: Record<Exclude<ProductCategory, "Top-up">, string> = {
@@ -99,12 +102,16 @@ const unavailableCategoryDescriptions: Record<Exclude<ProductCategory, "Top-up">
   Subscription: "Subscription services are planned for this category and will appear after an approved supplier is connected.",
   Software: "Software licences will appear here after VAMNUX connects an authorised software supplier.",
   "AI tools": "AI tool subscriptions and licences will appear here after an authorised catalog source is connected.",
+  Steam: "Global Steam offers will appear here when an authorised supplier exposes an eligible product.",
+  "Telegram Stars": "Telegram Stars will appear here when an authorised supplier exposes an eligible denomination.",
 };
 
 function DigitalProductIcon({ category }: { category: ProductCategory }) {
   if (category === "Voucher") return <Gift size={28} />;
   if (category === "Subscription") return <Tv size={28} />;
   if (category === "Software") return <Laptop size={28} />;
+  if (category === "Steam") return <Gamepad2 size={28} />;
+  if (category === "Telegram Stars") return <Send size={28} />;
   return <Sparkles size={28} />;
 }
 
@@ -366,7 +373,7 @@ export default function Home() {
         </div>
 
         <div className="filter-row" aria-label="Filter product list">
-          {(["All", "Top-up", "Voucher", "Subscription", "Software", "AI tools"] as const).map((filter) => (
+          {(["All", "Top-up", "Voucher", "Subscription", "Software", "AI tools", "Steam", "Telegram Stars"] as const).map((filter) => (
             <button key={filter} onClick={() => setActiveCategory(filter)} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
               {filter === "All" ? "All picks" : filter}
             </button>

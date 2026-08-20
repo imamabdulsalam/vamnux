@@ -9,9 +9,10 @@ import { ENV } from './_core/env';
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
+export const GAMESDROP_SUPPLIER_KEY = "gamesdrop" as const;
 
 export function assertSupplierCatalogRowScope(supplierKey: string, rows: SupplierCatalogRow[]) {
-  const requiredPrefix = supplierKey === FLASHTOPUP_SUPPLIER_KEY ? "ft-" : supplierKey === FOXRELOAD_SUPPLIER_KEY ? "fr-" : null;
+  const requiredPrefix = supplierKey === FLASHTOPUP_SUPPLIER_KEY ? "ft-" : supplierKey === FOXRELOAD_SUPPLIER_KEY ? "fr-" : supplierKey === GAMESDROP_SUPPLIER_KEY ? "gd-" : null;
   if (requiredPrefix && rows.some((row) => !row.slug.startsWith(requiredPrefix))) {
     throw new Error(`Catalog rows for ${supplierKey} must use the ${requiredPrefix} supplier slug prefix`);
   }
@@ -409,6 +410,10 @@ export async function upsertFlashTopUpCatalogRows(rows: SupplierCatalogRow[]) {
 
 export async function upsertFoxReloadCatalogRows(rows: SupplierCatalogRow[]) {
   return upsertSupplierCatalogRows({ supplierKey: FOXRELOAD_SUPPLIER_KEY, rows });
+}
+
+export async function upsertGamesDropCatalogRows(rows: SupplierCatalogRow[]) {
+  return upsertSupplierCatalogRows({ supplierKey: GAMESDROP_SUPPLIER_KEY, rows });
 }
 
 export async function processFlashTopUpWebhook(input: {

@@ -24,4 +24,14 @@ describe("Nigeria-priority catalog visibility", () => {
     ];
     expect(filterPrimaryMarketProducts(products)).toEqual([{ category: "Top-up", name: "Free Fire Global" }]);
   });
+
+  it("keeps active Telegram Stars and global or worldwide Steam records while withholding regional Steam keys", () => {
+    const products = [
+      { category: "Telegram Stars", name: "Telegram Stars", region: "Supplier region rules" },
+      { category: "Steam", name: "7 Days to Die Steam CD Key", region: "Global" },
+      { category: "Steam", name: "Steam Wallet Top Up", region: "WW" },
+      { category: "Steam", name: "Resident Evil 4 Steam CD Key", region: "Europe" },
+    ];
+    expect(filterPrimaryMarketProducts(products)).toEqual(products.slice(0, 3));
+  });
 });

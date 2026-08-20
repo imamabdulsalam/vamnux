@@ -20,14 +20,18 @@ describe("FoxReload catalog mapper", () => {
     expect(mapped).toMatchObject({ category: "software", deliveryType: "manual_processing", supplierEligible: false, status: "paused" });
   });
 
-  it("maps gift-card and AI supplier naming cues to the intended VAMNUX browse categories", () => {
-    const giftCard = mapFoxReloadProduct({ ...category, name: "Gift Cards", slug: "gift-cards" }, {
+  it("maps Steam Wallet, Telegram Stars, and AI supplier naming cues to the intended VAMNUX browse categories", () => {
+    const steam = mapFoxReloadProduct({ ...category, name: "Gift Cards", slug: "gift-cards" }, {
       id: "fox-3", name: "Steam Wallet Code", slug: "steam-wallet-code", categoryId: "category-1", price: 10, currency: "usd", quantity: 1,
+    });
+    const telegramStars = mapFoxReloadProduct({ ...category, name: "Digital catalog", slug: "foxreload-search" }, {
+      id: "fox-telegram", name: "100 Telegram Stars", slug: "telegram-stars-100", categoryId: "category-1", price: 2, currency: "usd", quantity: 1,
     });
     const ai = mapFoxReloadProduct({ ...category, name: "AI Services", slug: "ai-services" }, {
       id: "fox-4", name: "AI Assistant Plan", slug: "ai-assistant-plan", categoryId: "category-1", price: 20, currency: "usd", quantity: 1,
     });
-    expect(giftCard).toMatchObject({ category: "gift_card", deliveryType: "digital_code" });
+    expect(steam).toMatchObject({ category: "steam", deliveryType: "digital_code" });
+    expect(telegramStars).toMatchObject({ category: "telegram_stars", deliveryType: "manual_processing" });
     expect(ai).toMatchObject({ category: "ai_tool", deliveryType: "manual_processing" });
   });
 

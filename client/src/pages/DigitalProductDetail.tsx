@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, ArrowRight, CircleDollarSign, Gift, Globe2, Laptop, Search, ShieldCheck, ShoppingBag, Sparkles, Tv, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleDollarSign, Gift, Globe2, Laptop, Search, Send, ShieldCheck, ShoppingBag, Sparkles, Tv, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
@@ -20,6 +20,8 @@ function DigitalIcon({ category, size = 40 }: { category: LiveCatalogProduct["ca
   if (category === "Voucher") return <Gift size={size} />;
   if (category === "Subscription") return <Tv size={size} />;
   if (category === "Software") return <Laptop size={size} />;
+  if (category === "Telegram Stars") return <Send size={size} />;
+  if (category === "Steam") return <Gift size={size} />;
   return <Sparkles size={size} />;
 }
 

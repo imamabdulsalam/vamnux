@@ -5,7 +5,7 @@ export type SupplierCatalogRow = {
   supplierSku: string;
   supplierCategory: string;
   name: string;
-  category: "top_up" | "gift_card" | "subscription" | "software" | "ai_tool" | "game_key";
+  category: "top_up" | "gift_card" | "subscription" | "software" | "ai_tool" | "game_key" | "steam" | "telegram_stars";
   description?: string;
   imageUrl?: string;
   regionLabel?: string;

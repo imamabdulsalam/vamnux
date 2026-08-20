@@ -1,4 +1,4 @@
-export type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software" | "AI tools";
+export type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software" | "AI tools" | "Steam" | "Telegram Stars";
 
 export type LiveCatalogProduct = {
   id: number;
@@ -43,6 +43,8 @@ const supplierCategoryLabels: Record<string, ProductCategory> = {
   software: "Software",
   game_key: "Voucher",
   ai_tool: "AI tools",
+  steam: "Steam",
+  telegram_stars: "Telegram Stars",
 };
 
 const productTones = ["ember", "ice", "lime", "coral", "cobalt"];

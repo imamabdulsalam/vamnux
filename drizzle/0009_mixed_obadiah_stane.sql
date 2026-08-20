@@ -1,0 +1,1 @@
+ALTER TABLE `products` MODIFY COLUMN `category` enum('top_up','gift_card','game_key','subscription','ai_tool','software','steam','telegram_stars') NOT NULL;

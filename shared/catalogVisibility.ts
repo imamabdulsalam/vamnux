@@ -23,11 +23,14 @@ export function filterGameFamiliesForScope<T extends { name: string }>(families:
  * families selected for the current market. Region-specific digital codes and
  * subscriptions stay in supplier records but are not shown as public VAMNUX offers.
  */
-export function isPrimaryMarketProduct<T extends { category: string; name: string }>(product: T) {
+export function isPrimaryMarketProduct<T extends { category: string; name: string; region?: string }>(product: T) {
   const isTopUp = product.category === "Top-up" || product.category === "top_up";
-  return isTopUp && isNigeriaPriorityFamily(product.name);
+  if (isTopUp) return isNigeriaPriorityFamily(product.name);
+  if (product.category === "Telegram Stars" || product.category === "telegram_stars") return true;
+  if (product.category === "Steam" || product.category === "steam") return /^(global|glb|worldwide|ww)$/i.test(product.region ?? "");
+  return false;
 }
 
-export function filterPrimaryMarketProducts<T extends { category: string; name: string }>(products: T[]) {
+export function filterPrimaryMarketProducts<T extends { category: string; name: string; region?: string }>(products: T[]) {
   return products.filter(isPrimaryMarketProduct);
 }
