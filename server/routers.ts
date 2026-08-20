@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
-import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceOrder, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getMarketplacePricingSettings, getPublicPolicyPage, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordSuperAdminAuditEvent, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateMarketplacePricingSettings } from "./db";
+import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getMarketplacePricingSettings, getPublicPolicyPage, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listPriceChangeHistory, listPublishedSiteContentBlocks, listSiteContentBlocks, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSuperAdminAuditEvent, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, upsertExchangeRate, upsertSiteContentBlock } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -24,6 +24,7 @@ export const appRouter = router({
   }),
   marketplace: router({
     catalog: publicProcedure.query(() => listActiveCatalogProducts()),
+    siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "refund-policy", "cookie-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
     accountSummary: protectedProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
     customerDashboard: protectedProcedure.query(({ ctx }) => getCustomerDashboard(ctx.user.id)),
@@ -98,12 +99,32 @@ export const appRouter = router({
     listAuditEvents: adminProcedure.query(() => listSuperAdminAuditEvents()),
     getMarketplacePricingSettings: adminProcedure.query(() => getMarketplacePricingSettings()),
     listCatalogPricing: adminProcedure.query(() => listCatalogPricing()),
+    listPriceChangeHistory: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPriceChangeHistory(input?.limit)),
     updateMarketplacePricingSettings: adminProcedure.input(z.object({ defaultMarkupPercent: z.number().min(-100).max(500) })).mutation(({ ctx, input }) => updateMarketplacePricingSettings({ ...input, adminUserId: ctx.user.id })),
     updateCatalogProductPricing: adminProcedure.input(z.object({
       productId: z.number().int().positive(),
       markupPercentOverride: z.number().min(-100).max(500).nullable().optional(),
       displayPriceOverride: z.number().min(0).max(1_000_000).nullable().optional(),
     }).refine((input) => !(input.markupPercentOverride !== null && input.markupPercentOverride !== undefined && input.displayPriceOverride !== null && input.displayPriceOverride !== undefined), { message: "Use either a percentage markup or a fixed customer price" })).mutation(({ ctx, input }) => updateCatalogProductPricing({ ...input, adminUserId: ctx.user.id })),
+    listMarketplaceCategories: adminProcedure.query(() => listMarketplaceCategories({ includeArchived: true })),
+    createMarketplaceCategory: adminProcedure.input(z.object({
+      slug: z.string().trim().min(1).max(80), name: z.string().trim().min(1).max(120), description: z.string().trim().max(5000).nullable().optional(), imageUrl: z.string().url().nullable().optional(), seoTitle: z.string().trim().max(180).nullable().optional(), seoDescription: z.string().trim().max(300).nullable().optional(), sortOrder: z.number().int().min(-10_000).max(10_000).default(0), visible: z.boolean().default(true), featured: z.boolean().default(false), status: z.enum(["active", "archived"]).default("active"),
+    })).mutation(({ ctx, input }) => createMarketplaceCategory({ ...input, adminUserId: ctx.user.id })),
+    updateMarketplaceCategory: adminProcedure.input(z.object({
+      id: z.number().int().positive(), slug: z.string().trim().min(1).max(80), name: z.string().trim().min(1).max(120), description: z.string().trim().max(5000).nullable().optional(), imageUrl: z.string().url().nullable().optional(), seoTitle: z.string().trim().max(180).nullable().optional(), seoDescription: z.string().trim().max(300).nullable().optional(), sortOrder: z.number().int().min(-10_000).max(10_000).default(0), visible: z.boolean().default(true), featured: z.boolean().default(false), status: z.enum(["active", "archived"]).default("active"),
+    })).mutation(({ ctx, input }) => updateMarketplaceCategory({ ...input, adminUserId: ctx.user.id })),
+    listAdminProductOperations: adminProcedure.query(() => listAdminProductOperations()),
+    updateProductAdminAttributes: adminProcedure.input(z.object({
+      productId: z.number().int().positive(), storefrontStatus: z.enum(["visible", "hidden", "coming_soon"]), featured: z.boolean(), trending: z.boolean(), bestSeller: z.boolean(), newProduct: z.boolean(), deal: z.boolean(), seoTitle: z.string().trim().max(180).nullable().optional(), seoDescription: z.string().trim().max(300).nullable().optional(), internalNote: z.string().trim().max(5000).nullable().optional(),
+    })).mutation(({ ctx, input }) => updateProductAdminAttributes({ ...input, adminUserId: ctx.user.id })),
+    listExchangeRates: adminProcedure.query(() => listExchangeRates()),
+    upsertExchangeRate: adminProcedure.input(z.object({ baseCurrency: z.string().trim().length(3), quoteCurrency: z.string().trim().length(3), rate: z.number().positive().max(10_000_000), bufferPercent: z.number().min(0).max(100), active: z.boolean() }))
+      .mutation(({ ctx, input }) => upsertExchangeRate({ ...input, adminUserId: ctx.user.id })),
+    listSiteContentBlocks: adminProcedure.query(() => listSiteContentBlocks()),
+    upsertSiteContentBlock: adminProcedure.input(z.object({
+      blockKey: z.string().trim().min(1).max(120), blockType: z.enum(["hero_slide", "banner", "announcement", "faq", "featured_list", "category_spotlight"]), title: z.string().trim().max(255).nullable().optional(), content: z.record(z.string(), z.unknown()).nullable().optional(), imageUrl: z.string().url().nullable().optional(), ctaLabel: z.string().trim().max(100).nullable().optional(), ctaUrl: z.string().trim().max(500).nullable().optional(), status: z.enum(["draft", "published", "archived"]), sortOrder: z.number().int().min(-10_000).max(10_000),
+    })).mutation(({ ctx, input }) => upsertSiteContentBlock({ ...input, adminUserId: ctx.user.id })),
+    listSupplierSyncRuns: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listSupplierSyncRuns(input?.limit)),
     listCommerceIntegrations: adminProcedure.query(() => listCommerceIntegrations()),
     listAdminManagedCatalog: adminProcedure.query(() => listAdminManagedCatalogProducts()),
     listAuthorizedCatalogSources: adminProcedure.query(() => listAuthorizedCatalogSources()),
@@ -122,6 +143,7 @@ export const appRouter = router({
       const syncStatus = await getSupplierSyncStatus("FlashTopUp");
       if (!canRunSupplierCatalogSync(syncStatus)) throw new Error("FlashTopUp catalog sync is paused. FoxReload catalog access remains unaffected.");
       const result = await syncFlashTopUpCatalog(input);
+      await recordCompletedSupplierCatalogSync({ supplierKey: "flashtopup", providerName: "FlashTopUp", adminUserId: ctx.user.id, productsUpdated: result.productCount, productsFailed: result.failures.length, summary: `Read-only catalog page ${result.page}: ${result.productCount} product records, ${result.serviceCount} services.` });
       await recordSuperAdminAuditEvent({ adminUserId: ctx.user.id, action: "supplier.catalog_sync", targetType: "supplier", targetId: "FlashTopUp", summary: `Read-only FlashTopUp catalog sync completed for page ${result.page}`, metadata: { page: result.page, productCount: result.productCount, serviceCount: result.serviceCount, failures: result.failures.length } });
       return result;
     }),
@@ -134,6 +156,7 @@ export const appRouter = router({
       searchLimit: z.number().int().min(1).max(25).default(10),
     }).optional()).mutation(async ({ ctx, input }) => {
       const result = await syncFoxReloadCatalog(input);
+      await recordCompletedSupplierCatalogSync({ supplierKey: "foxreload", providerName: "FoxReload", adminUserId: ctx.user.id, productsUpdated: result.productCount, productsFailed: result.failures.length, summary: `Read-only catalog sync: ${result.categoryCount} categories and ${result.productCount} product records.` });
       await recordSuperAdminAuditEvent({ adminUserId: ctx.user.id, action: "supplier.catalog_sync", targetType: "supplier", targetId: "FoxReload", summary: "Read-only FoxReload catalog sync completed", metadata: { categoryCount: result.categoryCount, productCount: result.productCount, failures: result.failures.length } });
       return result;
     }),
@@ -144,6 +167,7 @@ export const appRouter = router({
       countryCode: z.string().trim().length(2).toUpperCase().default("NG"),
     }).optional()).mutation(async ({ ctx, input }) => {
       const result = await syncGamesDropCatalog(input);
+      await recordCompletedSupplierCatalogSync({ supplierKey: "gamesdrop", providerName: "GamesDrop", adminUserId: ctx.user.id, productsUpdated: result.productCount, productsFailed: result.failures.length, summary: `Read-only catalog sync: ${result.productCount} product records across ${result.searches.length} searches.` });
       await recordSuperAdminAuditEvent({ adminUserId: ctx.user.id, action: "supplier.catalog_sync", targetType: "supplier", targetId: "GamesDrop", summary: "Read-only GamesDrop catalog sync completed", metadata: { searches: result.searches, productCount: result.productCount, failures: result.failures.length } });
       return result;
     }),

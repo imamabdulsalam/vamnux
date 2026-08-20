@@ -1,0 +1,1 @@
+ALTER TABLE `price_change_history` MODIFY COLUMN `productId` int;

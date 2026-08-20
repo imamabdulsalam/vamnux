@@ -87,6 +87,9 @@ const slides = [
   },
 ];
 
+const productCategories: ProductCategory[] = ["Top-up", "Voucher", "Subscription", "Software", "AI tools", "Steam", "Telegram Stars"];
+function isProductCategory(value: unknown): value is ProductCategory { return typeof value === "string" && productCategories.includes(value as ProductCategory); }
+
 const categories = [
   { label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
   { label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
@@ -133,6 +136,7 @@ export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
+  const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
 
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("Top-up");
@@ -154,10 +158,35 @@ export default function Home() {
     onError: (orderError) => toast.error(orderError.message || "We could not create your draft order."),
   });
 
+  const carouselSlides = useMemo(() => {
+    const heroBlocks = (publishedContentBlocks.data ?? []).filter((block) => block.blockType === "hero_slide");
+    const validSlides = heroBlocks.map((block, index) => {
+      const content = block.content && typeof block.content === "object" && !Array.isArray(block.content) ? block.content as Record<string, unknown> : {};
+      const category = isProductCategory(content.category) ? content.category : "Top-up" as ProductCategory;
+      const headline = typeof content.headline === "string" ? content.headline.trim() : typeof content.title === "string" ? content.title.trim() : block.title?.trim() || "";
+      const [titleLine = "", emphasis = ""] = headline.split("\n");
+      const description = typeof content.description === "string" ? content.description.trim() : "";
+      if (!titleLine || !description) return null;
+      return {
+        key: ["violet", "jade", "ember"][index % 3],
+        kicker: typeof content.kicker === "string" ? content.kicker.trim() : `VAMNUX / ${category.toUpperCase()}`,
+        title: headline,
+        emphasis: emphasis || titleLine,
+        description,
+        cta: block.ctaLabel || (typeof content.cta === "string" ? content.cta : "Explore now"),
+        category,
+        metric: typeof content.metric === "string" ? content.metric : category,
+        note: typeof content.note === "string" ? content.note : "VAMNUX marketplace selection.",
+      };
+    }).filter((slide): slide is NonNullable<typeof slide> => Boolean(slide));
+    return validSlides.length ? validSlides : slides;
+  }, [publishedContentBlocks.data]);
+
   useEffect(() => {
-    const interval = window.setInterval(() => setActiveSlide((current) => (current + 1) % slides.length), 5200);
+    setActiveSlide((current) => current % carouselSlides.length);
+    const interval = window.setInterval(() => setActiveSlide((current) => (current + 1) % carouselSlides.length), 5200);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [carouselSlides.length]);
 
   const formatPrice = (basePrice: number) => {
     const config = currencies[currency];
@@ -260,7 +289,7 @@ export default function Home() {
     toast.message(`Prices now display in ${next}`, { description: "This storefront preview uses USD as the base price. Live checkout should confirm final FX and currency availability." });
   };
 
-  const slide = slides[activeSlide];
+  const slide = carouselSlides[activeSlide] ?? carouselSlides[0];
 
   return (
     <main id="top" className="global-marketplace">
@@ -326,7 +355,7 @@ export default function Home() {
             <div className="terminal-bottom"><span>READY</span><span>01 / 03</span></div>
           </div>
           <div className="carousel-controls" aria-label="Carousel slides">
-            {slides.map((item, index) => <button key={item.key} onClick={() => setActiveSlide(index)} aria-label={`Show ${item.kicker}`} className={activeSlide === index ? "active" : ""}>{String(index + 1).padStart(2, "0")}</button>)}
+            {carouselSlides.map((item, index) => <button key={`${item.key}-${index}`} onClick={() => setActiveSlide(index)} aria-label={`Show ${item.kicker}`} className={activeSlide === index ? "active" : ""}>{String(index + 1).padStart(2, "0")}</button>)}
           </div>
         </div>
       </section>

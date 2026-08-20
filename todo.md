@@ -223,3 +223,8 @@
 - [x] Add draft Terms, Privacy, Refund, and Cookie policy pages with a clearly visible draft/review status and registration-ready links, not representations of legal approval.
 - [x] Correct any customer-facing catalog image render path that can emit an empty `src` attribute, preserving readable text or icon fallbacks for products without supplier artwork.
 - [x] Add a protected customer order-detail view for immutable product, price, status, and safe delivery information, scoped to the authenticated order owner and excluding supplier credentials or secret fulfilment fields.
+- [x] Reconcile the full owner-provided Super Admin master brief with existing VAMNUX Super Admin modules, data, integrations, and explicit commerce safety gates.
+- [ ] Extend the Super Admin information architecture for products, categories, suppliers, pricing, exchange rates, customers, wallets, payments, refunds, finance, promotions, referrals, loyalty, resellers, analytics, notifications, content, system health, audit logs, and settings.
+- [x] Build additive, real-data operational models for the approved Admin-only modules without fabricating business activity or exposing credentials, digital codes, payment data, or private environment variables.
+- [ ] Implement secure owner-only controls, confirmations, audit events, truthful zero states, and safe deferred states for every approved Super Admin action.
+- [ ] Validate all expanded Super Admin modules against owner-only server authorization, account isolation, wallet-only purchasing, inactive provider checkout, and inactive supplier fulfilment before publishing.

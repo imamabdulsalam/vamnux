@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, siteContentPages, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, marketplaceCategories, marketplacePricingSettings, orderItems, orders, priceChangeHistory, productAdminAttributes, products, savedProducts, siteContentBlocks, siteContentPages, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -201,7 +201,12 @@ export async function listActiveCatalogProducts() {
   if (!db) return [];
   const settings = await ensureMarketplacePricingSettings(db);
   const activeProducts = await db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
-  return activeProducts.map((product) => ({ ...product, ...customerPriceForProduct(product, settings) }));
+  const attributes = await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, newProduct: productAdminAttributes.newProduct, deal: productAdminAttributes.deal })
+    .from(productAdminAttributes);
+  const attributesByProductId = new Map(attributes.map((attribute) => [attribute.productId, attribute]));
+  return activeProducts
+    .filter((product) => attributesByProductId.get(product.id)?.storefrontStatus !== "hidden")
+    .map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null }));
 }
 
 export async function getMarketplacePricingSettings() {
@@ -214,6 +219,14 @@ export async function updateMarketplacePricingSettings(input: { defaultMarkupPer
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
   await db.insert(marketplacePricingSettings).values({ id: 1, defaultMarkupPercent: input.defaultMarkupPercent.toFixed(2) }).onDuplicateKeyUpdate({ set: { defaultMarkupPercent: input.defaultMarkupPercent.toFixed(2) } });
+  await db.insert(priceChangeHistory).values({
+    productId: null,
+    adminUserId: input.adminUserId,
+    changeType: "global_markup",
+    oldValue: settings.defaultMarkupPercent.toFixed(2),
+    newValue: input.defaultMarkupPercent.toFixed(2),
+    reason: "Global customer markup updated in Super Admin",
+  });
   await appendAdminAuditEvent(db, {
     adminUserId: input.adminUserId,
     action: "pricing.global_updated",
@@ -251,6 +264,14 @@ export async function updateCatalogProductPricing(input: { productId: number; ma
     markupPercentOverride: hasMarkup ? input.markupPercentOverride!.toFixed(2) : null,
     displayPriceOverride: hasFixed ? input.displayPriceOverride!.toFixed(2) : null,
   }).where(eq(products.id, product.id));
+  await db.insert(priceChangeHistory).values({
+    productId: product.id,
+    adminUserId: input.adminUserId,
+    changeType: hasMarkup ? "product_markup" : "product_fixed_price",
+    oldValue: JSON.stringify({ markupPercentOverride: product.markupPercentOverride, displayPriceOverride: product.displayPriceOverride }),
+    newValue: JSON.stringify({ markupPercentOverride: hasMarkup ? input.markupPercentOverride : null, displayPriceOverride: hasFixed ? input.displayPriceOverride : null }),
+    reason: "Product customer price rule updated in Super Admin",
+  });
   await appendAdminAuditEvent(db, {
     adminUserId: input.adminUserId,
     action: "pricing.product_updated",
@@ -265,6 +286,294 @@ export async function updateCatalogProductPricing(input: { productId: number; ma
     },
   });
   return listCatalogPricing();
+}
+
+type MarketplaceCategoryInput = {
+  slug: string;
+  name: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  sortOrder?: number;
+  visible?: boolean;
+  featured?: boolean;
+  status?: "active" | "archived";
+};
+
+function normaliseCategorySlug(value: string) {
+  const slug = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!slug || slug.length > 80) throw new Error("Category slug must contain 1–80 lowercase letters, numbers, or hyphens");
+  return slug;
+}
+
+/** VAMNUX-controlled navigation categories. No supplier or inventory records are created by these operations. */
+export async function listMarketplaceCategories(input: { includeArchived?: boolean } = {}) {
+  const db = requireDb(await getDb());
+  if (input.includeArchived) return db.select().from(marketplaceCategories).orderBy(marketplaceCategories.sortOrder, marketplaceCategories.name);
+  return db.select().from(marketplaceCategories).where(eq(marketplaceCategories.status, "active")).orderBy(marketplaceCategories.sortOrder, marketplaceCategories.name);
+}
+
+export async function createMarketplaceCategory(input: MarketplaceCategoryInput & { adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const slug = normaliseCategorySlug(input.slug);
+  const name = input.name.trim();
+  if (!name || name.length > 120) throw new Error("Category name must contain 1–120 characters");
+  const [created] = await db.insert(marketplaceCategories).values({
+    slug,
+    name,
+    description: input.description?.trim() || null,
+    imageUrl: input.imageUrl?.trim() || null,
+    seoTitle: input.seoTitle?.trim() || null,
+    seoDescription: input.seoDescription?.trim() || null,
+    sortOrder: input.sortOrder ?? 0,
+    visible: input.visible ?? true,
+    featured: input.featured ?? false,
+    status: input.status ?? "active",
+  }).$returningId();
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: "catalog.category_created",
+    targetType: "marketplace_category",
+    targetId: created.id,
+    summary: `Created managed category ${name}`,
+    metadata: { slug, visible: input.visible ?? true, featured: input.featured ?? false, status: input.status ?? "active" },
+  });
+  return { id: created.id, slug, name };
+}
+
+export async function updateMarketplaceCategory(input: MarketplaceCategoryInput & { id: number; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [existing] = await db.select().from(marketplaceCategories).where(eq(marketplaceCategories.id, input.id)).limit(1);
+  if (!existing) throw new Error("Managed category was not found");
+  const slug = normaliseCategorySlug(input.slug);
+  const name = input.name.trim();
+  if (!name || name.length > 120) throw new Error("Category name must contain 1–120 characters");
+  await db.update(marketplaceCategories).set({
+    slug,
+    name,
+    description: input.description?.trim() || null,
+    imageUrl: input.imageUrl?.trim() || null,
+    seoTitle: input.seoTitle?.trim() || null,
+    seoDescription: input.seoDescription?.trim() || null,
+    sortOrder: input.sortOrder ?? existing.sortOrder,
+    visible: input.visible ?? existing.visible,
+    featured: input.featured ?? existing.featured,
+    status: input.status ?? existing.status,
+  }).where(eq(marketplaceCategories.id, existing.id));
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: "catalog.category_updated",
+    targetType: "marketplace_category",
+    targetId: existing.id,
+    summary: `Updated managed category ${name}`,
+    metadata: { previousSlug: existing.slug, nextSlug: slug, previousStatus: existing.status, nextStatus: input.status ?? existing.status },
+  });
+  return { id: existing.id, slug, name };
+}
+
+export async function listPriceChangeHistory(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select({
+    id: priceChangeHistory.id,
+    productId: priceChangeHistory.productId,
+    productName: products.name,
+    adminUserId: priceChangeHistory.adminUserId,
+    changeType: priceChangeHistory.changeType,
+    oldValue: priceChangeHistory.oldValue,
+    newValue: priceChangeHistory.newValue,
+    reason: priceChangeHistory.reason,
+    createdAt: priceChangeHistory.createdAt,
+  }).from(priceChangeHistory).leftJoin(products, eq(priceChangeHistory.productId, products.id))
+    .orderBy(desc(priceChangeHistory.createdAt)).limit(Math.min(250, Math.max(1, limit)));
+}
+
+export async function listExchangeRates() {
+  const db = requireDb(await getDb());
+  const rows = await db.select().from(exchangeRates).orderBy(exchangeRates.baseCurrency, exchangeRates.quoteCurrency);
+  return rows.map((row) => ({ ...row, rate: Number(row.rate), bufferPercent: Number(row.bufferPercent) }));
+}
+
+export async function upsertExchangeRate(input: { baseCurrency: string; quoteCurrency: string; rate: number; bufferPercent: number; active: boolean; adminUserId: number }) {
+  const baseCurrency = input.baseCurrency.trim().toUpperCase();
+  const quoteCurrency = input.quoteCurrency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(baseCurrency) || !/^[A-Z]{3}$/.test(quoteCurrency) || baseCurrency === quoteCurrency) throw new Error("Choose two different three-letter currency codes");
+  if (!Number.isFinite(input.rate) || input.rate <= 0) throw new Error("Exchange rate must be greater than zero");
+  if (!Number.isFinite(input.bufferPercent) || input.bufferPercent < 0 || input.bufferPercent > 100) throw new Error("Exchange-rate buffer must be between 0% and 100%");
+  const db = requireDb(await getDb());
+  const [existing] = await db.select().from(exchangeRates).where(and(eq(exchangeRates.baseCurrency, baseCurrency), eq(exchangeRates.quoteCurrency, quoteCurrency))).limit(1);
+  const values = { baseCurrency, quoteCurrency, rate: input.rate.toFixed(6), bufferPercent: input.bufferPercent.toFixed(2), source: "manual" as const, active: input.active, updatedByAdminId: input.adminUserId };
+  await db.insert(exchangeRates).values(values).onDuplicateKeyUpdate({ set: values });
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: existing ? "exchange_rate.updated" : "exchange_rate.created",
+    targetType: "exchange_rate",
+    targetId: `${baseCurrency}_${quoteCurrency}`,
+    summary: `${existing ? "Updated" : "Created"} ${baseCurrency}/${quoteCurrency} manual exchange rate`,
+    metadata: { previousRate: existing ? Number(existing.rate) : null, nextRate: input.rate, previousBufferPercent: existing ? Number(existing.bufferPercent) : null, nextBufferPercent: input.bufferPercent, active: input.active },
+  });
+  return listExchangeRates();
+}
+
+/** Storefront presentation settings are additive to supplier catalog records and never replace supplier source data. */
+export async function listAdminProductOperations() {
+  const db = requireDb(await getDb());
+  const settings = await ensureMarketplacePricingSettings(db);
+  const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
+    .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
+    .orderBy(desc(products.updatedAt));
+  return rows.map(({ product, attributes }) => {
+    const price = customerPriceForProduct(product, settings);
+    return {
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      supplierKey: product.supplierKey,
+      category: product.category,
+      productStatus: product.status,
+      supplierEligible: product.supplierEligible,
+      basePrice: Number(product.basePrice),
+      baseCurrency: product.baseCurrency,
+      displayPrice: price.customerPrice,
+      priceRule: price.priceRule,
+      storefrontStatus: attributes?.storefrontStatus ?? "visible",
+      featured: attributes?.featured ?? false,
+      trending: attributes?.trending ?? false,
+      bestSeller: attributes?.bestSeller ?? false,
+      newProduct: attributes?.newProduct ?? false,
+      deal: attributes?.deal ?? false,
+      seoTitle: attributes?.seoTitle ?? null,
+      seoDescription: attributes?.seoDescription ?? null,
+      internalNote: attributes?.internalNote ?? null,
+      updatedAt: attributes?.updatedAt ?? product.updatedAt,
+    };
+  });
+}
+
+export async function updateProductAdminAttributes(input: {
+  productId: number;
+  storefrontStatus: "visible" | "hidden" | "coming_soon";
+  featured: boolean;
+  trending: boolean;
+  bestSeller: boolean;
+  newProduct: boolean;
+  deal: boolean;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  internalNote?: string | null;
+  adminUserId: number;
+}) {
+  const db = requireDb(await getDb());
+  const [product] = await db.select({ id: products.id, name: products.name }).from(products).where(eq(products.id, input.productId)).limit(1);
+  if (!product) throw new Error("Catalog product was not found");
+  const [existing] = await db.select().from(productAdminAttributes).where(eq(productAdminAttributes.productId, product.id)).limit(1);
+  const values = {
+    productId: product.id,
+    storefrontStatus: input.storefrontStatus,
+    featured: input.featured,
+    trending: input.trending,
+    bestSeller: input.bestSeller,
+    newProduct: input.newProduct,
+    deal: input.deal,
+    seoTitle: input.seoTitle?.trim() || null,
+    seoDescription: input.seoDescription?.trim() || null,
+    internalNote: input.internalNote?.trim() || null,
+    updatedByAdminId: input.adminUserId,
+  };
+  await db.insert(productAdminAttributes).values(values).onDuplicateKeyUpdate({ set: values });
+  await db.insert(priceChangeHistory).values({
+    productId: product.id,
+    adminUserId: input.adminUserId,
+    changeType: "product_status",
+    oldValue: existing ? JSON.stringify({ storefrontStatus: existing.storefrontStatus, featured: existing.featured, trending: existing.trending, bestSeller: existing.bestSeller, newProduct: existing.newProduct, deal: existing.deal }) : null,
+    newValue: JSON.stringify({ storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal }),
+    reason: "Product storefront presentation updated in Super Admin",
+  });
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: "catalog.product_presentation_updated",
+    targetType: "product",
+    targetId: product.id,
+    summary: `Updated storefront presentation for ${product.name}`,
+    metadata: { storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal },
+  });
+  return { productId: product.id };
+}
+
+export async function listSiteContentBlocks() {
+  const db = requireDb(await getDb());
+  return db.select().from(siteContentBlocks).orderBy(siteContentBlocks.blockType, siteContentBlocks.sortOrder);
+}
+
+/** Public projection for intentionally published storefront blocks. Admin notes and unpublished content remain private. */
+export async function listPublishedSiteContentBlocks() {
+  const db = requireDb(await getDb());
+  return db.select({
+    blockKey: siteContentBlocks.blockKey,
+    blockType: siteContentBlocks.blockType,
+    title: siteContentBlocks.title,
+    content: siteContentBlocks.content,
+    imageUrl: siteContentBlocks.imageUrl,
+    ctaLabel: siteContentBlocks.ctaLabel,
+    ctaUrl: siteContentBlocks.ctaUrl,
+    sortOrder: siteContentBlocks.sortOrder,
+    updatedAt: siteContentBlocks.updatedAt,
+  }).from(siteContentBlocks).where(eq(siteContentBlocks.status, "published"))
+    .orderBy(siteContentBlocks.blockType, siteContentBlocks.sortOrder);
+}
+
+export async function upsertSiteContentBlock(input: {
+  blockKey: string;
+  blockType: "hero_slide" | "banner" | "announcement" | "faq" | "featured_list" | "category_spotlight";
+  title?: string | null;
+  content?: Record<string, unknown> | null;
+  imageUrl?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  status: "draft" | "published" | "archived";
+  sortOrder: number;
+  adminUserId: number;
+}) {
+  const blockKey = input.blockKey.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!blockKey || blockKey.length > 120) throw new Error("Content block key must contain 1–120 letters, numbers, underscores, or hyphens");
+  if (input.ctaUrl && !input.ctaUrl.startsWith("/")) throw new Error("Content calls-to-action must use an internal VAMNUX path");
+  const db = requireDb(await getDb());
+  const [existing] = await db.select({ id: siteContentBlocks.id, status: siteContentBlocks.status }).from(siteContentBlocks).where(eq(siteContentBlocks.blockKey, blockKey)).limit(1);
+  const values = { blockKey, blockType: input.blockType, title: input.title?.trim() || null, content: input.content ?? null, imageUrl: input.imageUrl?.trim() || null, ctaLabel: input.ctaLabel?.trim() || null, ctaUrl: input.ctaUrl?.trim() || null, status: input.status, sortOrder: input.sortOrder, updatedByAdminId: input.adminUserId };
+  await db.insert(siteContentBlocks).values(values).onDuplicateKeyUpdate({ set: values });
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: existing ? "content.block_updated" : "content.block_created",
+    targetType: "site_content_block",
+    targetId: blockKey,
+    summary: `${existing ? "Updated" : "Created"} ${input.blockType} content block ${blockKey}`,
+    metadata: { previousStatus: existing?.status ?? null, nextStatus: input.status, sortOrder: input.sortOrder },
+  });
+  return { blockKey };
+}
+
+export async function listSupplierSyncRuns(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select().from(supplierSyncRuns).orderBy(desc(supplierSyncRuns.startedAt)).limit(Math.min(250, Math.max(1, limit)));
+}
+
+/** Records an already-completed, explicitly initiated read-only catalog operation. It never triggers a supplier request. */
+export async function recordCompletedSupplierCatalogSync(input: { supplierKey: string; providerName: string; adminUserId: number; productsAdded?: number; productsUpdated?: number; productsFailed?: number; summary: string }) {
+  const db = requireDb(await getDb());
+  const [integration] = await db.select({ id: commerceIntegrations.id }).from(commerceIntegrations)
+    .where(and(eq(commerceIntegrations.integrationType, "supplier"), eq(commerceIntegrations.providerName, input.providerName))).limit(1);
+  await db.insert(supplierSyncRuns).values({
+    integrationId: integration?.id ?? null,
+    supplierKey: input.supplierKey,
+    initiatedByAdminId: input.adminUserId,
+    operation: "catalog",
+    status: "completed",
+    productsAdded: Math.max(0, input.productsAdded ?? 0),
+    productsUpdated: Math.max(0, input.productsUpdated ?? 0),
+    productsFailed: Math.max(0, input.productsFailed ?? 0),
+    summary: input.summary.slice(0, 500),
+    completedAt: new Date(),
+  });
 }
 
 /** Administrative catalog rows have a declared authorised source and never contain supplier credentials. */
