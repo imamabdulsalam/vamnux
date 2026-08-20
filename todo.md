@@ -191,3 +191,8 @@
 - [x] Move protected customer-price controls into the Super Admin Pricing Engine and retain editable 25% global markup plus per-product percentage/fixed-price overrides with confirmation.
 - [x] Add protected Supplier, Customers, Orders, System Health, and Audit Log workspace views with read-only or currently-approved safe actions only.
 - [x] Validate owner-only access, audit wiring, pricing controls, responsive Admin navigation, and the unchanged customer storefront before publishing, without creating synthetic production actions.
+- [x] Review existing wallet funding-attempt and immutable-ledger structures for a customer top-up request flow with no automatic credit.
+- [x] Design customer-owned top-up request states and Super Admin review/settlement controls, including confirmation, idempotency, account isolation, and append-only audit records.
+- [x] Add a User Dashboard wallet top-up request form that creates a real pending request only and clearly states that no payment has been collected or balance credited.
+- [x] Add a Super Admin wallet-funding review workspace that can review, reject, or manually settle an approved verified request, without enabling payment gateways or supplier orders.
+- [x] Validate wallet-request privacy, authorization, settlement safeguards, audit wiring, and inactive supplier fulfilment before publishing without creating a synthetic payment or wallet credit.

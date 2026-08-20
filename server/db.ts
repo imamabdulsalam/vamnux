@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, supplierWebhookEvents, users, walletEntries, wallets } from "../drizzle/schema";
+import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, supplierWebhookEvents, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -378,6 +378,7 @@ export async function getSuperAdminOverview() {
   const [customerCount] = await db.select({ total: sql<number>`count(*)` }).from(users).where(eq(users.role, "user"));
   const [orderCount] = await db.select({ total: sql<number>`count(*)` }).from(orders);
   const [walletEntryCount] = await db.select({ total: sql<number>`count(*)` }).from(walletEntries);
+  const [pendingFundingCount] = await db.select({ total: sql<number>`count(*)` }).from(walletFundingAttempts).where(eq(walletFundingAttempts.status, "pending"));
   const suppliers = await db.select({
     id: commerceIntegrations.id,
     providerName: commerceIntegrations.providerName,
@@ -393,6 +394,7 @@ export async function getSuperAdminOverview() {
       customers: numericValue(customerCount?.total),
       orders: numericValue(orderCount?.total),
       walletEntries: numericValue(walletEntryCount?.total),
+      pendingFundingRequests: numericValue(pendingFundingCount?.total),
     },
     suppliers,
     recentAudit: await listSuperAdminAuditEvents(6),
@@ -427,6 +429,23 @@ export async function listSuperAdminOrders(limit = 100) {
     customerName: users.name,
     customerEmail: users.email,
   }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.createdAt)).limit(limit);
+}
+
+export async function listSuperAdminWalletFundingRequests(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select({
+    fundingCode: walletFundingAttempts.fundingCode,
+    userId: walletFundingAttempts.userId,
+    walletId: walletFundingAttempts.walletId,
+    amount: walletFundingAttempts.amount,
+    currency: walletFundingAttempts.currency,
+    status: walletFundingAttempts.status,
+    providerReference: walletFundingAttempts.providerReference,
+    createdAt: walletFundingAttempts.createdAt,
+    settledAt: walletFundingAttempts.settledAt,
+    customerName: users.name,
+    customerEmail: users.email,
+  }).from(walletFundingAttempts).leftJoin(users, eq(walletFundingAttempts.userId, users.id)).orderBy(desc(walletFundingAttempts.createdAt)).limit(limit);
 }
 
 export async function listSuperAdminAuditEvents(limit = 100) {
@@ -669,11 +688,20 @@ export async function getCustomerDashboard(userId: number) {
     displayPriceOverride: products.displayPriceOverride,
   }).from(savedProducts).innerJoin(products, eq(savedProducts.productId, products.id))
     .where(and(eq(savedProducts.userId, userId), eq(products.status, "active"))).orderBy(desc(savedProducts.createdAt)).limit(24);
+  const fundingRequests = await db.select({
+    fundingCode: walletFundingAttempts.fundingCode,
+    amount: walletFundingAttempts.amount,
+    currency: walletFundingAttempts.currency,
+    status: walletFundingAttempts.status,
+    createdAt: walletFundingAttempts.createdAt,
+    settledAt: walletFundingAttempts.settledAt,
+  }).from(walletFundingAttempts).where(eq(walletFundingAttempts.userId, userId)).orderBy(desc(walletFundingAttempts.createdAt)).limit(12);
   return {
     profile: profile ?? null,
     wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
     orders: recentOrders,
     walletEntries: recentWalletEntries,
+    fundingRequests,
     savedProducts: savedRows.map((product) => ({ ...product, ...customerPriceForProduct(product, settings) })),
   };
 }
@@ -700,6 +728,62 @@ export async function toggleCustomerSavedProduct(input: { userId: number; produc
   if (!product) throw new Error("This VAMNUX product is unavailable to save");
   await db.insert(savedProducts).values({ userId: input.userId, productId: input.productId });
   return { productId: input.productId, saved: true } as const;
+}
+
+function createWalletFundingCode() {
+  return `WF${crypto.randomUUID().replace(/-/g, "").slice(0, 18).toUpperCase()}`;
+}
+
+export async function createCustomerWalletFundingRequest(input: { userId: number; amount: number; currency: "USD" | "EUR" | "GBP" | "NGN"; customerNote?: string }) {
+  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a wallet top-up amount between 0.01 and 1,000,000");
+  const db = requireDb(await getDb());
+  await db.insert(wallets).values({ userId: input.userId, currency: input.currency }).onDuplicateKeyUpdate({ set: { userId: input.userId } });
+  const [wallet] = await db.select({ id: wallets.id, status: wallets.status }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
+  if (!wallet || wallet.status !== "active") throw new Error("This wallet is not available for a top-up request");
+  const fundingCode = createWalletFundingCode();
+  await db.insert(walletFundingAttempts).values({
+    fundingCode,
+    userId: input.userId,
+    walletId: wallet.id,
+    integrationId: null,
+    idempotencyKey: `manual-request:${fundingCode}`,
+    amount: input.amount.toFixed(2),
+    currency: input.currency,
+    status: "pending",
+    metadata: { requestKind: "manual_admin_review", customerNote: input.customerNote?.trim().slice(0, 500) || null },
+  });
+  return { fundingCode, status: "pending" as const, amount: input.amount.toFixed(2), currency: input.currency };
+}
+
+export async function reviewCustomerWalletFundingRequest(input: { adminUserId: number; fundingCode: string; action: "settle" | "reject"; verificationReference?: string; reviewNote?: string }) {
+  const db = requireDb(await getDb());
+  const reviewNote = input.reviewNote?.trim().slice(0, 500) || null;
+  const verificationReference = input.verificationReference?.trim().slice(0, 160) || null;
+  if (input.action === "settle" && !verificationReference) throw new Error("A verified settlement reference is required before crediting a wallet");
+  return db.transaction(async (tx) => {
+    const [attempt] = await tx.select().from(walletFundingAttempts).where(eq(walletFundingAttempts.fundingCode, input.fundingCode)).limit(1);
+    if (!attempt) throw new Error("Wallet funding request was not found");
+    if (attempt.status !== "pending") throw new Error(`Only pending funding requests can be reviewed; this request is ${attempt.status}`);
+    const nextMetadata = {
+      ...(attempt.metadata && typeof attempt.metadata === "object" && !Array.isArray(attempt.metadata) ? attempt.metadata as Record<string, unknown> : {}),
+      reviewedByAdminId: input.adminUserId,
+      reviewNote,
+      verificationReference,
+    };
+    if (input.action === "reject") {
+      await tx.update(walletFundingAttempts).set({ status: "failed", metadata: nextMetadata }).where(eq(walletFundingAttempts.id, attempt.id));
+      await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "wallet_funding.rejected", targetType: "wallet_funding_request", targetId: attempt.fundingCode, summary: `Rejected wallet top-up request ${attempt.fundingCode}`, metadata: { amount: Number(attempt.amount), currency: attempt.currency, reviewNote } });
+      return { fundingCode: attempt.fundingCode, status: "failed" as const };
+    }
+    const ledgerReference = `wallet-funding:${attempt.fundingCode}`;
+    const [existingEntry] = await tx.select({ id: walletEntries.id }).from(walletEntries).where(eq(walletEntries.reference, ledgerReference)).limit(1);
+    if (existingEntry) throw new Error("This wallet funding request already has a ledger entry");
+    await tx.insert(walletEntries).values({ walletId: attempt.walletId, direction: "credit", entryType: "funding", amount: attempt.amount, currency: attempt.currency, reference: ledgerReference, status: "completed", metadata: { fundingCode: attempt.fundingCode, verificationReference } });
+    await tx.update(wallets).set({ availableBalance: sql`${wallets.availableBalance} + ${attempt.amount}` }).where(eq(wallets.id, attempt.walletId));
+    await tx.update(walletFundingAttempts).set({ status: "settled", providerReference: verificationReference, metadata: nextMetadata, settledAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "wallet_funding.settled", targetType: "wallet_funding_request", targetId: attempt.fundingCode, summary: `Settled wallet top-up request ${attempt.fundingCode}`, metadata: { amount: Number(attempt.amount), currency: attempt.currency, verificationReference, reviewNote } });
+    return { fundingCode: attempt.fundingCode, status: "settled" as const };
+  });
 }
 
 export async function createMarketplaceOrder(input: {

@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
-import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, getCustomerDashboard, getMarketplacePricingSettings, getSuperAdminOverview, getSuperAdminSystemHealth, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, recordSuperAdminAuditEvent, setAdminManagedCatalogProductStatus, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateMarketplacePricingSettings } from "./db";
+import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerWalletFundingRequest, createMarketplaceOrder, getAccountCommerceSummary, getCustomerDashboard, getMarketplacePricingSettings, getSuperAdminOverview, getSuperAdminSystemHealth, getSupplierSyncStatus, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminWalletFundingRequests, recordSuperAdminAuditEvent, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateMarketplacePricingSettings } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -32,6 +32,11 @@ export const appRouter = router({
     })).mutation(({ ctx, input }) => updateCustomerDashboardPreferences({ userId: ctx.user.id, ...input })),
     toggleSavedProduct: protectedProcedure.input(z.object({ productId: z.number().int().positive() }))
       .mutation(({ ctx, input }) => toggleCustomerSavedProduct({ userId: ctx.user.id, productId: input.productId })),
+    createWalletFundingRequest: protectedProcedure.input(z.object({
+      amount: z.number().positive().max(1_000_000),
+      currency: z.enum(["USD", "EUR", "GBP", "NGN"]),
+      customerNote: z.string().trim().max(500).optional(),
+    })).mutation(({ ctx, input }) => createCustomerWalletFundingRequest({ userId: ctx.user.id, ...input })),
     createOrder: protectedProcedure.input(z.object({
       currency: z.enum(["USD", "EUR", "GBP", "NGN"]),
       items: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(25) })).min(1).max(25),
@@ -48,6 +53,13 @@ export const appRouter = router({
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     listOrders: adminProcedure.query(() => listSuperAdminOrders()),
+    listWalletFundingRequests: adminProcedure.query(() => listSuperAdminWalletFundingRequests()),
+    reviewWalletFundingRequest: adminProcedure.input(z.object({
+      fundingCode: z.string().trim().min(4).max(32),
+      action: z.enum(["settle", "reject"]),
+      verificationReference: z.string().trim().min(2).max(160).optional(),
+      reviewNote: z.string().trim().max(500).optional(),
+    })).mutation(({ ctx, input }) => reviewCustomerWalletFundingRequest({ adminUserId: ctx.user.id, ...input })),
     listAuditEvents: adminProcedure.query(() => listSuperAdminAuditEvents()),
     getMarketplacePricingSettings: adminProcedure.query(() => getMarketplacePricingSettings()),
     listCatalogPricing: adminProcedure.query(() => listCatalogPricing()),

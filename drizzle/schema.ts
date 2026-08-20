@@ -175,6 +175,7 @@ export const walletEntries = mysqlTable("wallet_entries", {
 }, (table) => ({
   walletCreatedIndex: index("wallet_entries_wallet_created_idx").on(table.walletId, table.createdAt),
   referenceIndex: index("wallet_entries_reference_idx").on(table.reference),
+  referenceUnique: uniqueIndex("wallet_entries_reference_unique").on(table.reference),
 }));
 
 /** One provider transaction attempt that may eventually create a completed wallet-credit ledger entry. */
@@ -183,7 +184,7 @@ export const walletFundingAttempts = mysqlTable("wallet_funding_attempts", {
   fundingCode: varchar("fundingCode", { length: 32 }).notNull(),
   userId: int("userId").notNull(),
   walletId: int("walletId").notNull(),
-  integrationId: int("integrationId").notNull(),
+  integrationId: int("integrationId"),
   providerReference: varchar("providerReference", { length: 160 }),
   providerEventId: varchar("providerEventId", { length: 160 }),
   idempotencyKey: varchar("idempotencyKey", { length: 120 }).notNull(),
