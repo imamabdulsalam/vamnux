@@ -230,3 +230,16 @@
 - [x] Validate all expanded Super Admin modules against owner-only server authorization, account isolation, wallet-only purchasing, inactive provider checkout, and inactive supplier fulfilment before publishing.
 - [x] Add owner-only redacted webhook monitoring, truthful manual job/sync history, and non-accusatory risk/manual-review empty states without inventing operational events or enabling scheduled supplier automation.
 - [x] Add safe, authorized Admin CSV export of existing non-secret records and real date-window analytics aggregates without exposing credentials, payment details, fulfilment payloads, or customer data beyond the owner-only workspace.
+- [x] Add date-window paid-order revenue and units by product/category, explicitly reporting per-line profit as unavailable until supplier cost is persisted at item level.
+- [x] Preserve Manus OAuth as the only active VAMNUX identity path and leave Supabase, email/password, password reset, Google OAuth, and MFA deferred until the user provides and approves an identity-provider configuration.
+- [x] Refine the VAMNUX compact public header with separate secure Sign in and Create account actions plus accessible social navigation inspired by the supplied reference without copying it.
+- [x] Add a protected post-sign-in profile-completion experience that collects only the approved customer details and persists them to the existing customer profile without replacing Manus OAuth identity data.
+- [x] Validate Manus OAuth account entry, profile isolation, dashboard/security activity continuity, responsive header behavior, and unchanged inactive payment and supplier boundaries.
+- [x] Inspect and document the current Manus OAuth, user, customer-profile, identity-link, session, dashboard, and authorization architecture before any Supabase migration work.
+- [x] Design a non-destructive Supabase Auth mapping that preserves existing VAMNUX records, retains Manus OAuth as a verified fallback, and specifies password-reset treatment for users with no transferable passwords.
+- [ ] Configure required Supabase server and public client environment values securely, stopping for actual provider credentials and dashboard configuration rather than fabricating them.
+- [ ] Implement staged Supabase email/password sign-up, verification, login, logout, password reset, secure sessions, logout-all-devices, security activity, and optional MFA/TOTP without enabling payments or supplier orders.
+- [ ] Prepare disabled-by-default Google OAuth support that requires confirmed Google client credentials and approved redirect URLs before activation.
+- [ ] Connect verified Supabase identities to existing customer profiles and apply owner-enforced customer isolation for profile, orders, wallet, favorites, notifications, support, and security data.
+- [ ] Refine VAMNUX sign-in/sign-up entry actions and add accessible social navigation in the supplied compact-header direction without copying third-party branding or layout.
+- [ ] Validate staged identity flows, account isolation, migration preservation, dashboard access, and storefront continuity, then report remaining provider configuration and security boundaries.

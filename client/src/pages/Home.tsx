@@ -19,12 +19,15 @@ import {
   ChevronRight,
   CircleDollarSign,
   Coins,
+  Facebook,
   Gamepad2,
   Gift,
   Globe2,
   Headphones,
   Heart,
+  Instagram,
   Laptop,
+  Linkedin,
   Search,
   Send,
   ShieldCheck,
@@ -308,13 +311,19 @@ export default function Home() {
             <span className="search-category">All products <ChevronDown size={15} /></span>
           </label>
           <div className="header-actions">
+            <div className="header-socials" aria-label="VAMNUX social channels">
+              <button type="button" className="header-social-button" onClick={() => toast.message("VAMNUX social channel links are awaiting the official account URLs.")} aria-label="VAMNUX on Instagram" title="Instagram"><Instagram size={17} /></button>
+              <button type="button" className="header-social-button" onClick={() => toast.message("VAMNUX social channel links are awaiting the official account URLs.")} aria-label="VAMNUX on Facebook" title="Facebook"><Facebook size={17} /></button>
+              <button type="button" className="header-social-button" onClick={() => toast.message("VAMNUX social channel links are awaiting the official account URLs.")} aria-label="VAMNUX on LinkedIn" title="LinkedIn"><Linkedin size={17} /></button>
+              <button type="button" className="header-social-button" onClick={() => toast.message("VAMNUX social channel links are awaiting the official account URLs.")} aria-label="VAMNUX on Telegram" title="Telegram"><Send size={17} /></button>
+            </div>
             <label className="currency-switcher" title="Change display currency">
               <Globe2 size={17} />
               <select value={currency} onChange={(event) => handleCurrencyChange(event.target.value as CurrencyCode)} aria-label="Display currency">
                 {Object.entries(currencies).map(([code, details]) => <option key={code} value={code}>{details.label}</option>)}
               </select>
             </label>
-            <button className="header-icon" onClick={openAccount} aria-label="Account"><UserRound size={20} /><span>{user?.name ? "Account" : "Login"}</span></button>
+            {isAuthenticated ? <button className="header-icon" onClick={openAccount} aria-label="Open account"><UserRound size={20} /><span>Account</span></button> : <div className="header-auth-actions"><button className="header-signin" type="button" onClick={() => setLocation("/login")}>Sign in</button><button className="header-create-account" type="button" onClick={() => setLocation("/login")}>Create account</button></div>}
             <button className="header-icon favourite-button" onClick={() => toast.message("Favourites are ready to connect", { description: "Add customer accounts to save products between visits." })} aria-label="Favourites"><Heart size={20} /></button>
             <button className="header-cart" onClick={openCart} aria-label="Open cart"><ShoppingBag size={21} /><span>Cart</span>{cart.length > 0 && <b>{cart.length}</b>}</button>
           </div>
