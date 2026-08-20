@@ -23,6 +23,7 @@ function Router() {
       <Route path="/products/:slug" component={DigitalProductDetail} />
       <Route path="/account" component={UserDashboard} />
       <Route path="/login" component={CustomerAuth} />
+      <Route path="/register" component={CustomerAuth} />
       <Route path="/policies/:slug" component={PolicyPage} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={SuperAdmin} />

@@ -127,6 +127,13 @@
       "when": 1787254952500,
       "tag": "0017_vengeful_captain_britain",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1787268645427,
+      "tag": "0018_low_king_cobra",
+      "breakpoints": true
     }
   ]
 }

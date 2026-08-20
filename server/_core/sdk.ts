@@ -286,11 +286,15 @@ class SDKServer {
     }
 
     const sessionUserId = session.openId;
+    const isNativeSession = sessionUserId.startsWith("native_");
     const signedInAt = new Date();
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically
     if (!user) {
+      if (isNativeSession) {
+        throw ForbiddenError("Native account not found");
+      }
       try {
         const userInfo = await this.getUserInfoWithJwt(sessionToken ?? "");
         await db.upsertUser({
@@ -309,6 +313,10 @@ class SDKServer {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+
+    if (isNativeSession && !(await db.isNativeSessionActive({ userId: user.id, sessionToken: sessionToken ?? "" }))) {
+      throw ForbiddenError("Native session is not active");
     }
 
     await db.upsertUser({

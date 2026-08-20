@@ -50,7 +50,7 @@ export const customerProfiles = mysqlTable("customer_profiles", {
 export const customerIdentityLinks = mysqlTable("customer_identity_links", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  provider: mysqlEnum("provider", ["manus_oauth", "supabase"]).notNull(),
+  provider: mysqlEnum("provider", ["manus_oauth", "supabase", "native_email"]).notNull(),
   providerSubject: varchar("providerSubject", { length: 255 }).notNull(),
   providerEmail: varchar("providerEmail", { length: 320 }),
   emailVerifiedAt: timestamp("emailVerifiedAt"),
@@ -60,6 +60,52 @@ export const customerIdentityLinks = mysqlTable("customer_identity_links", {
   providerSubjectUnique: uniqueIndex("customer_identity_links_provider_subject_unique").on(table.provider, table.providerSubject),
   userProviderUnique: uniqueIndex("customer_identity_links_user_provider_unique").on(table.userId, table.provider),
   userIndex: index("customer_identity_links_user_idx").on(table.userId),
+}));
+
+/** Native VAMNUX credentials. Password values are represented only by a server-side memory-hard hash. */
+export const nativeCredentials = mysqlTable("native_credentials", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  passwordHash: varchar("passwordHash", { length: 1024 }).notNull(),
+  emailVerifiedAt: timestamp("emailVerifiedAt"),
+  credentialStatus: mysqlEnum("credentialStatus", ["active", "locked", "disabled"]).default("active").notNull(),
+  passwordChangedAt: timestamp("passwordChangedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userUnique: uniqueIndex("native_credentials_user_unique").on(table.userId),
+  emailUnique: uniqueIndex("native_credentials_email_unique").on(table.email),
+  statusIndex: index("native_credentials_status_idx").on(table.credentialStatus),
+}));
+
+/** Revocable browser sessions for native VAMNUX credentials. Only a SHA-256 session hash is persisted. */
+export const nativeSessions = mysqlTable("native_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  sessionHash: varchar("sessionHash", { length: 128 }).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  revokedAt: timestamp("revokedAt"),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  sessionHashUnique: uniqueIndex("native_sessions_hash_unique").on(table.sessionHash),
+  userExpiryIndex: index("native_sessions_user_expiry_idx").on(table.userId, table.expiresAt),
+}));
+
+/** Privacy-minimized rolling counters for native registration and sign-in abuse controls. */
+export const nativeAuthRateLimits = mysqlTable("native_auth_rate_limits", {
+  id: int("id").autoincrement().primaryKey(),
+  bucketHash: varchar("bucketHash", { length: 128 }).notNull(),
+  action: mysqlEnum("action", ["register", "sign_in"]).notNull(),
+  attemptCount: int("attemptCount").default(0).notNull(),
+  windowExpiresAt: timestamp("windowExpiresAt").notNull(),
+  lastAttemptAt: timestamp("lastAttemptAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  bucketActionUnique: uniqueIndex("native_auth_rate_limit_bucket_action_unique").on(table.bucketHash, table.action),
+  expiryIndex: index("native_auth_rate_limit_expiry_idx").on(table.windowExpiresAt),
 }));
 
 /** Independently recorded customer legal and marketing consent decisions. */

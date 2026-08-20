@@ -1,11 +1,13 @@
-import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { createHash, randomUUID } from "node:crypto";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, nativeAuthRateLimits, nativeCredentials, nativeSessions, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
+import { hashNativePassword, verifyNativePassword } from "./nativeAuthCrypto";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -194,6 +196,99 @@ export async function getUserByOpenId(openId: string) {
 function requireDb<T>(db: T | null): T {
   if (!db) throw new Error("Marketplace database is not available");
   return db;
+}
+
+const NATIVE_AUTH_WINDOW_MS = 15 * 60 * 1000;
+const NATIVE_AUTH_MAX_ATTEMPTS = 8;
+
+function normalizeNativeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+function nativeOpaqueHash(value: string) {
+  return createHash("sha256").update(`${ENV.cookieSecret}:${value}`).digest("hex");
+}
+
+async function consumeNativeAuthAttempt(input: { email: string; action: "register" | "sign_in" }) {
+  const db = requireDb(await getDb());
+  const bucketHash = nativeOpaqueHash(normalizeNativeEmail(input.email));
+  const now = new Date();
+  const [existing] = await db.select().from(nativeAuthRateLimits).where(and(eq(nativeAuthRateLimits.bucketHash, bucketHash), eq(nativeAuthRateLimits.action, input.action))).limit(1);
+  if (!existing || existing.windowExpiresAt <= now) {
+    await db.insert(nativeAuthRateLimits).values({ bucketHash, action: input.action, attemptCount: 1, windowExpiresAt: new Date(now.getTime() + NATIVE_AUTH_WINDOW_MS), lastAttemptAt: now }).onDuplicateKeyUpdate({ set: { attemptCount: 1, windowExpiresAt: new Date(now.getTime() + NATIVE_AUTH_WINDOW_MS), lastAttemptAt: now } });
+    return true;
+  }
+  if (existing.attemptCount >= NATIVE_AUTH_MAX_ATTEMPTS) return false;
+  await db.update(nativeAuthRateLimits).set({ attemptCount: existing.attemptCount + 1, lastAttemptAt: now }).where(eq(nativeAuthRateLimits.id, existing.id));
+  return true;
+}
+
+export async function registerNativeCustomer(input: { firstName: string; lastName: string; countryCode: string; email: string; registrationSource?: string | null; phone?: string | null; password: string; marketingConsent: boolean }) {
+  const db = requireDb(await getDb());
+  const email = normalizeNativeEmail(input.email);
+  if (!(await consumeNativeAuthAttempt({ email, action: "register" }))) throw new Error("Please wait before trying again.");
+
+  const [existingCredential] = await db.select({ id: nativeCredentials.id }).from(nativeCredentials).where(eq(nativeCredentials.email, email)).limit(1);
+  if (existingCredential) throw new Error("We could not create an account with those details. Try signing in or use a different email address.");
+
+  const openId = `native_${randomUUID().replaceAll("-", "")}`;
+  const passwordHash = await hashNativePassword(input.password);
+  const name = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+  try {
+    await db.insert(users).values({ openId, name, email, loginMethod: "native_email", role: "user", lastSignedIn: new Date() });
+    const [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+    if (!user) throw new Error("Unable to initialize account.");
+    await ensureCustomerAccountRows(db, user.id);
+    await db.update(customerProfiles).set({ firstName: input.firstName.trim(), lastName: input.lastName.trim(), countryCode: input.countryCode.trim().toUpperCase(), phone: input.phone?.trim() || null, registrationSource: input.registrationSource?.trim() || null, accountStatus: "pending_email_verification" }).where(eq(customerProfiles.userId, user.id));
+    await db.insert(nativeCredentials).values({ userId: user.id, email, passwordHash });
+    await db.insert(customerIdentityLinks).values({ userId: user.id, provider: "native_email", providerSubject: openId, providerEmail: email }).onDuplicateKeyUpdate({ set: { providerEmail: email, lastAuthenticatedAt: new Date() } });
+    await db.insert(customerConsents).values([
+      { userId: user.id, consentType: "terms_privacy", policyVersion: "draft-1", granted: true },
+      { userId: user.id, consentType: "marketing", policyVersion: "draft-1", granted: input.marketingConsent },
+    ]);
+    await recordCustomerSecurityEvent({ userId: user.id, eventType: "native_registration", summary: "A native VAMNUX password account was created. Email verification is pending." });
+    return user;
+  } catch (error) {
+    const [created] = await db.select({ id: users.id }).from(users).where(eq(users.openId, openId)).limit(1);
+    if (created) await db.delete(users).where(eq(users.id, created.id));
+    throw error;
+  }
+}
+
+export async function authenticateNativeCustomer(input: { email: string; password: string }) {
+  const db = requireDb(await getDb());
+  const email = normalizeNativeEmail(input.email);
+  if (!(await consumeNativeAuthAttempt({ email, action: "sign_in" }))) throw new Error("Unable to sign in with those details.");
+  const [record] = await db.select({ credential: nativeCredentials, user: users }).from(nativeCredentials).innerJoin(users, eq(nativeCredentials.userId, users.id)).where(eq(nativeCredentials.email, email)).limit(1);
+  if (!record || record.credential.credentialStatus !== "active" || !(await verifyNativePassword(record.credential.passwordHash, input.password))) {
+    throw new Error("Unable to sign in with those details.");
+  }
+  await db.update(nativeCredentials).set({ updatedAt: new Date() }).where(eq(nativeCredentials.id, record.credential.id));
+  await recordCustomerSecurityEvent({ userId: record.user.id, eventType: "native_sign_in", summary: "A VAMNUX password account signed in." });
+  return record.user;
+}
+
+export async function createNativeSession(input: { userId: number; sessionToken: string; expiresAt: Date }) {
+  const db = requireDb(await getDb());
+  await db.insert(nativeSessions).values({ userId: input.userId, sessionHash: nativeOpaqueHash(input.sessionToken), expiresAt: input.expiresAt });
+}
+
+export async function isNativeSessionActive(input: { userId: number; sessionToken: string }) {
+  const db = requireDb(await getDb());
+  const [session] = await db.select({ id: nativeSessions.id }).from(nativeSessions).where(and(eq(nativeSessions.userId, input.userId), eq(nativeSessions.sessionHash, nativeOpaqueHash(input.sessionToken)), isNull(nativeSessions.revokedAt), gte(nativeSessions.expiresAt, new Date()))).limit(1);
+  if (!session) return false;
+  await db.update(nativeSessions).set({ lastSeenAt: new Date() }).where(eq(nativeSessions.id, session.id));
+  return true;
+}
+
+export async function revokeNativeSession(input: { userId: number; sessionToken: string }) {
+  const db = requireDb(await getDb());
+  await db.update(nativeSessions).set({ revokedAt: new Date() }).where(and(eq(nativeSessions.userId, input.userId), eq(nativeSessions.sessionHash, nativeOpaqueHash(input.sessionToken)), isNull(nativeSessions.revokedAt)));
+}
+
+export async function revokeAllNativeSessions(userId: number) {
+  const db = requireDb(await getDb());
+  await db.update(nativeSessions).set({ revokedAt: new Date() }).where(and(eq(nativeSessions.userId, userId), isNull(nativeSessions.revokedAt)));
 }
 
 export async function listActiveCatalogProducts() {

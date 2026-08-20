@@ -1,4 +1,5 @@
 import { COOKIE_NAME } from "@shared/const";
+import { parse as parseCookie } from "cookie";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
 import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminFinanceAnalytics, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSuperAdminAuditEvent, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
@@ -8,18 +9,56 @@ import { syncGamesDropCatalog } from "./gamesdropCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { sdk } from "./_core/sdk";
+import { authenticateNativeCustomer, createNativeSession, registerNativeCustomer, revokeAllNativeSessions, revokeNativeSession } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
+    nativeRegister: publicProcedure.input(z.object({
+      firstName: z.string().trim().min(1).max(80),
+      lastName: z.string().trim().min(1).max(80),
+      countryCode: z.string().trim().length(2).toUpperCase(),
+      email: z.string().trim().email().max(320),
+      registrationSource: z.enum(["Google", "Facebook", "Instagram", "TikTok", "X", "YouTube", "WhatsApp", "Friend", "Referral", "Advertisement", "Other"]).nullable().optional(),
+      phone: z.string().trim().max(32).nullable().optional(),
+      password: z.string().min(12).max(256),
+      confirmPassword: z.string().min(12).max(256),
+      termsAccepted: z.literal(true),
+      marketingConsent: z.boolean().default(false),
+    }).refine((input) => input.password === input.confirmPassword, { message: "Passwords do not match.", path: ["confirmPassword"] })).mutation(async ({ ctx, input }) => {
+      const user = await registerNativeCustomer(input);
+      const expiresInMs = 30 * 24 * 60 * 60 * 1000;
+      const token = await sdk.createSessionToken(user.openId, { expiresInMs, name: user.name || "VAMNUX customer" });
+      await createNativeSession({ userId: user.id, sessionToken: token, expiresAt: new Date(Date.now() + expiresInMs) });
+      ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: expiresInMs });
+      return { success: true, emailStatus: "unverified" as const };
+    }),
+    nativeSignIn: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(256) })).mutation(async ({ ctx, input }) => {
+      const user = await authenticateNativeCustomer(input);
+      const expiresInMs = 30 * 24 * 60 * 60 * 1000;
+      const token = await sdk.createSessionToken(user.openId, { expiresInMs, name: user.name || "VAMNUX customer" });
+      await createNativeSession({ userId: user.id, sessionToken: token, expiresAt: new Date(Date.now() + expiresInMs) });
+      ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: expiresInMs });
+      return { success: true, emailStatus: "unverified" as const };
+    }),
+    logout: publicProcedure.mutation(async ({ ctx }) => {
+      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME];
+      if (ctx.user?.openId.startsWith("native_") && sessionToken) await revokeNativeSession({ userId: ctx.user.id, sessionToken });
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return {
         success: true,
       } as const;
+    }),
+    logoutAllNativeSessions: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!ctx.user.openId.startsWith("native_")) throw new Error("This control is available for VAMNUX password accounts only.");
+      await revokeAllNativeSessions(ctx.user.id);
+      const cookieOptions = getSessionCookieOptions(ctx.req);
+      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+      return { success: true } as const;
     }),
   }),
   marketplace: router({
