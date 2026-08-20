@@ -37,6 +37,18 @@ export const customerProfiles = mysqlTable("customer_profiles", {
   userUnique: uniqueIndex("customer_profiles_user_unique").on(table.userId),
 }));
 
+/** A customer-owned wishlist of active VAMNUX catalog records. */
+export const savedProducts = mysqlTable("saved_products", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  productId: int("productId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  customerProductUnique: uniqueIndex("saved_products_customer_product_unique").on(table.userId, table.productId),
+  customerCreatedIndex: index("saved_products_customer_created_idx").on(table.userId, table.createdAt),
+  productIndex: index("saved_products_product_idx").on(table.productId),
+}));
+
 /** Supplier-normalised catalog records. Supplier secrets must remain in environment variables, never this table. */
 export const products = mysqlTable("products", {
   id: int("id").autoincrement().primaryKey(),
@@ -241,3 +253,4 @@ export type CommerceIntegration = typeof commerceIntegrations.$inferSelect;
 export type AuthorizedCatalogSource = typeof authorizedCatalogSources.$inferSelect;
 export type WalletFundingAttempt = typeof walletFundingAttempts.$inferSelect;
 export type SupplierWebhookEvent = typeof supplierWebhookEvents.$inferSelect;
+export type SavedProduct = typeof savedProducts.$inferSelect;

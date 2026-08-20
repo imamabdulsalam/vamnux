@@ -5,10 +5,10 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import Account from "./pages/Account";
 import DigitalProductDetail from "./pages/DigitalProductDetail";
 import GameFamilyDetail from "./pages/GameFamilyDetail";
 import Home from "./pages/Home";
+import UserDashboard from "./pages/UserDashboard";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -17,7 +17,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/games/:family" component={GameFamilyDetail} />
       <Route path="/products/:slug" component={DigitalProductDetail} />
-      <Route path="/account" component={Account} />
+      <Route path="/account" component={UserDashboard} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, supplierWebhookEvents, users, wallets } from "../drizzle/schema";
+import { authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, supplierWebhookEvents, users, walletEntries, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -472,6 +472,83 @@ export async function getAccountCommerceSummary(userId: number) {
     wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
     orders: recentOrders,
   };
+}
+
+/** Returns only the authenticated customer's own operational records for the VAMNUX user dashboard. */
+export async function getCustomerDashboard(userId: number) {
+  const db = requireDb(await getDb());
+  await db.insert(customerProfiles).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+  await db.insert(wallets).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+  const settings = await ensureMarketplacePricingSettings(db);
+  const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.userId, userId)).limit(1);
+  const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1);
+  const recentOrders = await db.select({
+    orderCode: orders.orderCode,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    supplierStatus: orders.supplierStatus,
+    currency: orders.currency,
+    total: orders.total,
+    createdAt: orders.createdAt,
+  }).from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt)).limit(12);
+  const recentWalletEntries = wallet
+    ? await db.select({
+      id: walletEntries.id,
+      direction: walletEntries.direction,
+      entryType: walletEntries.entryType,
+      amount: walletEntries.amount,
+      currency: walletEntries.currency,
+      reference: walletEntries.reference,
+      status: walletEntries.status,
+      createdAt: walletEntries.createdAt,
+    }).from(walletEntries).where(eq(walletEntries.walletId, wallet.id)).orderBy(desc(walletEntries.createdAt)).limit(12)
+    : [];
+  const savedRows = await db.select({
+    savedId: savedProducts.id,
+    savedAt: savedProducts.createdAt,
+    id: products.id,
+    slug: products.slug,
+    name: products.name,
+    category: products.category,
+    imageUrl: products.imageUrl,
+    regionLabel: products.regionLabel,
+    deliveryType: products.deliveryType,
+    basePrice: products.basePrice,
+    markupPercentOverride: products.markupPercentOverride,
+    displayPriceOverride: products.displayPriceOverride,
+  }).from(savedProducts).innerJoin(products, eq(savedProducts.productId, products.id))
+    .where(and(eq(savedProducts.userId, userId), eq(products.status, "active"))).orderBy(desc(savedProducts.createdAt)).limit(24);
+  return {
+    profile: profile ?? null,
+    wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
+    orders: recentOrders,
+    walletEntries: recentWalletEntries,
+    savedProducts: savedRows.map((product) => ({ ...product, ...customerPriceForProduct(product, settings) })),
+  };
+}
+
+export async function updateCustomerDashboardPreferences(input: { userId: number; preferredCurrency: "USD" | "EUR" | "GBP" | "NGN"; countryCode?: string | null }) {
+  const db = requireDb(await getDb());
+  const countryCode = input.countryCode?.trim().toUpperCase() || null;
+  await db.insert(customerProfiles).values({ userId: input.userId, preferredCurrency: input.preferredCurrency, countryCode })
+    .onDuplicateKeyUpdate({ set: { preferredCurrency: input.preferredCurrency, countryCode } });
+  const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.userId, input.userId)).limit(1);
+  return profile;
+}
+
+export async function toggleCustomerSavedProduct(input: { userId: number; productId: number }) {
+  const db = requireDb(await getDb());
+  const [existing] = await db.select({ id: savedProducts.id }).from(savedProducts)
+    .where(and(eq(savedProducts.userId, input.userId), eq(savedProducts.productId, input.productId))).limit(1);
+  if (existing) {
+    await db.delete(savedProducts).where(eq(savedProducts.id, existing.id));
+    return { productId: input.productId, saved: false } as const;
+  }
+  const [product] = await db.select({ id: products.id }).from(products)
+    .where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
+  if (!product) throw new Error("This VAMNUX product is unavailable to save");
+  await db.insert(savedProducts).values({ userId: input.userId, productId: input.productId });
+  return { productId: input.productId, saved: true } as const;
 }
 
 export async function createMarketplaceOrder(input: {
