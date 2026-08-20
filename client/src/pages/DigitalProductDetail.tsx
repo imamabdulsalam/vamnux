@@ -7,6 +7,7 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { createFulfillmentFieldKey } from "@shared/marketplace";
 import { decodeDigitalProductSegment } from "@shared/catalogRoutes";
+import { filterPrimaryMarketProducts } from "@shared/catalogVisibility";
 import { toLiveCatalogProduct, type LiveCatalogProduct } from "@/lib/liveCatalog";
 import "./cartFields.css";
 
@@ -32,7 +33,7 @@ export default function DigitalProductDetail() {
   const [cart, setCart] = useState<LiveCatalogProduct[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
-  const products = useMemo(() => (supplierCatalog.data ?? []).map(toLiveCatalogProduct), [supplierCatalog.data]);
+  const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data]);
   const product = products.find((item) => item.slug === slug && item.category !== "Top-up");
   const config = currencies[currency];
   const formatPrice = (price: number) => new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(price * config.rate);

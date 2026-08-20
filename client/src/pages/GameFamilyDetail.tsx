@@ -7,6 +7,7 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { decodeGameFamilySegment } from "@shared/catalogRoutes";
+import { filterPrimaryMarketProducts } from "@shared/catalogVisibility";
 import { toLiveCatalogProduct, type LiveCatalogProduct } from "@/lib/liveCatalog";
 import "./cartFields.css";
 
@@ -41,7 +42,7 @@ export default function GameFamilyDetail() {
     onError: (orderError) => toast.error(orderError.message || "We could not create your draft order."),
   });
 
-  const products = useMemo(() => (supplierCatalog.data ?? []).map(toLiveCatalogProduct), [supplierCatalog.data]);
+  const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data]);
   const family = useMemo(() => groupLiveProductFamilies(products.filter((product) => product.name.toLowerCase() === familyName?.toLowerCase()))[0], [familyName, products]);
   const selectedItem = family?.items.find((item) => item.id === selectedServiceId) ?? family?.items[0];
   useEffect(() => {

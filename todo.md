@@ -164,3 +164,8 @@
 - [x] Add protected admin controls for a default supplier-price markup and a per-product percentage or fixed-price override, with clear supplier cost versus customer display-price context.
 - [x] Apply a user-controlled initial default markup within the requested 20–30% range only to customer-facing display prices, preserving supplier base prices and keeping supplier ordering inactive.
 - [x] Validate desktop and mobile browse-to-detail navigation, price calculations, admin-only authorization, and guarded cart behavior.
+- [x] Remove public FlashTopUp catalogue recognition links and ensure every customer-visible product/gaming journey remains within VAMNUX.
+- [x] Replace the supplier-recognition gallery with internal VAMNUX browse cards that link only to active synchronized product/family routes or an honest unavailable state.
+- [x] Audit the curated supplier inventory for clearly region-specific or unsuitable public listings and hide them from the primary VAMNUX storefront without deleting supplier records.
+- [x] Preserve marked-up VAMNUX customer prices and verify no customer-facing price control, product card, or detail page exposes supplier links or base cost.
+- [x] Validate desktop and mobile internal catalog navigation, curated visibility, price presentation, search, and saved-cart actions after removing supplier exits.

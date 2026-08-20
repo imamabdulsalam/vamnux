@@ -9,10 +9,9 @@ import { trpc } from "@/lib/trpc";
 import CompactCatalog from "@/components/CompactCatalog";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
-import { filterGameFamiliesForScope, type CatalogVisibilityScope } from "@shared/catalogVisibility";
+import { filterGameFamiliesForScope, filterPrimaryMarketProducts } from "@shared/catalogVisibility";
 import { categoryQuickLinks, interleaveTopUpFamilies } from "@shared/compactCatalog";
 import { productMatchesKeyword, toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
-import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
 import {
   ArrowRight,
   Check,
@@ -129,7 +128,6 @@ export default function Home() {
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
 
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("Top-up");
-  const [catalogScope, setCatalogScope] = useState<CatalogVisibilityScope>("curated");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -160,27 +158,23 @@ export default function Home() {
 
   const liveProducts = useMemo<Product[]>(() => (supplierCatalog.data ?? []).map(toLiveCatalogProduct), [supplierCatalog.data]);
 
+  const publicProducts = useMemo(() => filterPrimaryMarketProducts(liveProducts), [liveProducts]);
   const filteredProducts = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return liveProducts.filter((item) => {
+    return publicProducts.filter((item) => {
       const matchesCategory = activeCategory === "All" || item.category === activeCategory;
       const matchesSearch = productMatchesKeyword(item, normalized);
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, liveProducts, query]);
-
-  const discoveryMatches = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized || (activeCategory !== "All" && activeCategory !== "Top-up")) return [];
-    return findPublicSupplierDiscoveryMatches(normalized);
-  }, [activeCategory, query]);
+  }, [activeCategory, publicProducts, query]);
 
   const selectedCategory = categories.find((category) => category.filter === activeCategory);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
   const gameProducts = useMemo(() => filteredProducts.filter((product) => product.category === "Top-up"), [filteredProducts]);
   const allProductFamilies = useMemo(() => groupLiveProductFamilies(gameProducts), [gameProducts]);
-  const productFamilies = useMemo(() => filterGameFamiliesForScope(allProductFamilies, catalogScope), [allProductFamilies, catalogScope]);
+  const productFamilies = useMemo(() => filterGameFamiliesForScope(allProductFamilies, "curated"), [allProductFamilies]);
+  const internalGameFamilies = useMemo(() => groupLiveProductFamilies(publicProducts.filter((product) => product.category === "Top-up")), [publicProducts]);
   const compactProducts = useMemo(() => {
     const sortForRecognition = (products: Product[]) => [...products].sort((left, right) => {
       const topUpRank = (product: Product) => {
@@ -193,11 +187,10 @@ export default function Home() {
       if (categoryDifference !== 0) return categoryDifference;
       return left.name.localeCompare(right.name) || left.product.localeCompare(right.product);
     });
-    if (catalogScope === "all") return interleaveTopUpFamilies(sortForRecognition(filteredProducts));
     const curatedTopUpNames = new Set(productFamilies.map((family) => family.name.toLowerCase()));
     return interleaveTopUpFamilies(sortForRecognition(filteredProducts.filter((product) => product.category !== "Top-up" || curatedTopUpNames.has(product.name.toLowerCase()))));
-  }, [catalogScope, filteredProducts, productFamilies]);
-  const catalogQuickLinks = useMemo(() => new Map(categories.map(({ filter }) => [filter, categoryQuickLinks(liveProducts, filter, 6)])), [liveProducts]);
+  }, [filteredProducts, productFamilies]);
+  const catalogQuickLinks = useMemo(() => new Map(categories.map(({ filter }) => [filter, categoryQuickLinks(publicProducts, filter, 6)])), [publicProducts]);
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
@@ -352,23 +345,23 @@ export default function Home() {
 
       <section className="supplier-recognition" aria-labelledby="supplier-recognition-title">
         <div className="supplier-recognition-head">
-          <div><p className="eyebrow"><span /> FlashTopUp public catalogue</p><h2 id="supplier-recognition-title">RECOGNISED<br /><em>GAME FAMILIES.</em></h2></div>
-          <p>Browse real game identities from FlashTopUp’s public catalogue. A game becomes purchasable on VAMNUX only after a service is synchronised and active for this reseller account.</p>
+          <div><p className="eyebrow"><span /> VAMNUX game catalogue</p><h2 id="supplier-recognition-title">PLAYABLE<br /><em>GAME FAMILIES.</em></h2></div>
+          <p>Choose a game that is already active on VAMNUX. Each card stays within VAMNUX and opens its real supplier-backed denominations, account requirements, and VAMNUX display prices.</p>
         </div>
         <div className="supplier-game-grid">
-          {PUBLIC_FLASHTOPUP_DISCOVERY.map((game) => <a key={game.name} className="supplier-game-card" href={game.href} target="_blank" rel="noreferrer" title={`Open ${game.name} in the official FlashTopUp catalogue`}><img src={game.image} alt={`${game.name} official FlashTopUp category artwork`} loading="lazy" /><div><span>Browse official catalogue</span><strong>{game.name}</strong></div></a>)}
+          {internalGameFamilies.map((game) => <button key={game.name} type="button" className="supplier-game-card" onClick={() => setLocation(gameFamilyPath(game.name))} title={`View ${game.name} on VAMNUX`}><img src={game.image} alt={`${game.name} game artwork`} loading="lazy" /><div><span>View on VAMNUX</span><strong>{game.name}</strong></div></button>)}
         </div>
       </section>
 
       <section id="products" className="product-section global-product-section" aria-labelledby="products-title">
         <div className="section-heading compact-catalog-heading">
           <div>
-            <div className="eyebrow dark-eyebrow"><span /> {catalogScope === "curated" ? "Curated marketplace inventory" : "Full supplier inventory"}</div>
+            <div className="eyebrow dark-eyebrow"><span /> Curated VAMNUX inventory</div>
             <h2 id="products-title">FIND YOUR<br /><em>DIGITAL PICK.</em></h2>
           </div>
           <div className="section-heading-right">
             <p>Search or use a category menu to go straight to real supplier products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
-            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); setCatalogScope("all"); }}>Browse all products <ArrowRight size={17} /></button>
+            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); }}>Browse VAMNUX products <ArrowRight size={17} /></button>
           </div>
         </div>
 
@@ -379,11 +372,6 @@ export default function Home() {
             </button>
           ))}
           <span className="price-display-note">Prices shown in <strong>{currency}</strong></span>
-        </div>
-
-        <div className="catalog-scope-switch" aria-label="Catalog market scope">
-          <div><strong>Curated picks</strong><span>A streamlined selection of real, widely recognised game services.</span></div>
-          <div className="catalog-scope-controls"><button className={catalogScope === "curated" ? "active" : ""} onClick={() => setCatalogScope("curated")}>Curated picks</button><button className={catalogScope === "all" ? "active" : ""} onClick={() => setCatalogScope("all")}>Browse all services</button></div>
         </div>
 
         <div className="catalog-keyword-search" aria-label="Search live game listings">
@@ -399,23 +387,13 @@ export default function Home() {
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
-              {catalogScope === "curated" && filteredProducts.length > 0 ? <>
-                <h3>Found outside curated picks.</h3>
-                <p>These are real synchronised supplier services, but they are not in the current streamlined view. Open the complete catalog to review every available service.</p>
-                <button onClick={() => setCatalogScope("all")}>Browse all services</button>
-              </> : discoveryMatches.length > 0 ? <>
-                <h3>Found in the supplier catalogue.</h3>
-                <p>These real FlashTopUp game families are not yet synchronised as purchasable VAMNUX services. Open the official listing or wait for the supplier sync.</p>
-                <div className="discovery-match-grid">
-                  {discoveryMatches.map((game) => <a key={game.name} className="discovery-match" href={game.href} target="_blank" rel="noreferrer"><img src={game.image} alt="" /><span><strong>{game.name}</strong><small>Awaiting VAMNUX sync <ArrowRight size={14} /></small></span></a>)}
-                </div>
-              </> : activeCategory !== "All" && activeCategory !== "Top-up" ? <>
+              {activeCategory !== "All" && activeCategory !== "Top-up" ? <>
                 <h3>{selectedCategory?.label ?? activeCategory} are planned.</h3>
                 <p>{unavailableCategoryDescriptions[activeCategory]}</p>
                 <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Browse live inventory</button>
               </> : <>
                 <h3>No live match yet.</h3>
-                <p>{query.trim() ? `No active VAMNUX service matches “${query.trim()}”. Try a game name, denomination, region, or requirement.` : "Try a game family or denomination. Public supplier-catalogue matches are shown when available, while purchasable items stay limited to synchronised services."}</p>
+                <p>{query.trim() ? `No active VAMNUX service matches “${query.trim()}”. Try a game name, denomination, region, or requirement.` : "Try a game family or denomination. VAMNUX shows only active synchronised services and never redirects customers to a supplier catalogue."}</p>
                 <button onClick={() => { setActiveCategory("All"); setQuery(""); }}>Reset catalog</button>
               </>}
             </div>

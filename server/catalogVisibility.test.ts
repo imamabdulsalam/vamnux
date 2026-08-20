@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterGameFamiliesForScope, isNigeriaPriorityFamily } from "../shared/catalogVisibility";
+import { filterGameFamiliesForScope, filterPrimaryMarketProducts, isNigeriaPriorityFamily } from "../shared/catalogVisibility";
 
 describe("Nigeria-priority catalog visibility", () => {
   it("prioritises real relevant or globally-labelled active families without making an eligibility claim", () => {
@@ -13,5 +13,15 @@ describe("Nigeria-priority catalog visibility", () => {
     const families = [{ name: "PUBG Mobile" }, { name: "Free Fire Indonesia" }, { name: "Valorant Philippines" }];
     expect(filterGameFamiliesForScope(families, "curated")).toEqual([{ name: "PUBG Mobile" }]);
     expect(filterGameFamiliesForScope(families, "all")).toEqual(families);
+  });
+
+  it("keeps only verified curated top-up families in the primary public catalogue", () => {
+    const products = [
+      { category: "Top-up", name: "Free Fire Global" },
+      { category: "Top-up", name: "Free Fire Indonesia" },
+      { category: "Subscription", name: "Spotify Premium Brazil — 1 month" },
+      { category: "Voucher", name: "Steam Wallet Top Up | CIS" },
+    ];
+    expect(filterPrimaryMarketProducts(products)).toEqual([{ category: "Top-up", name: "Free Fire Global" }]);
   });
 });

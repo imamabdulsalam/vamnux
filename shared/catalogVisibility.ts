@@ -17,3 +17,17 @@ export function filterGameFamiliesForScope<T extends { name: string }>(families:
   if (scope === "all") return families;
   return families.filter((family) => isNigeriaPriorityFamily(family.name));
 }
+
+/**
+ * Primary public catalogue policy: keep the storefront focused on verified game
+ * families selected for the current market. Region-specific digital codes and
+ * subscriptions stay in supplier records but are not shown as public VAMNUX offers.
+ */
+export function isPrimaryMarketProduct<T extends { category: string; name: string }>(product: T) {
+  const isTopUp = product.category === "Top-up" || product.category === "top_up";
+  return isTopUp && isNigeriaPriorityFamily(product.name);
+}
+
+export function filterPrimaryMarketProducts<T extends { category: string; name: string }>(products: T[]) {
+  return products.filter(isPrimaryMarketProduct);
+}
