@@ -9,6 +9,8 @@ import DigitalProductDetail from "./pages/DigitalProductDetail";
 import GameFamilyDetail from "./pages/GameFamilyDetail";
 import Home from "./pages/Home";
 import UserDashboard from "./pages/UserDashboard";
+import AdminLogin from "./pages/AdminLogin";
+import SuperAdmin from "./pages/SuperAdmin";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -18,6 +20,8 @@ function Router() {
       <Route path="/games/:family" component={GameFamilyDetail} />
       <Route path="/products/:slug" component={DigitalProductDetail} />
       <Route path="/account" component={UserDashboard} />
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/dashboard" component={SuperAdmin} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

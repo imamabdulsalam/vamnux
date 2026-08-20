@@ -176,12 +176,18 @@
 - [x] Add internal VAMNUX category browsing for verified Steam and Telegram Stars offers, retaining the curated regional-suitability policy and no external supplier redirects.
 - [x] Add deterministic GamesDrop mapper and supplier-isolation tests, validate the catalog, and keep payments, wallet settlement, supplier orders, and fulfilment inactive.
 - [x] Verify FoxReload Telegram Stars and Steam Wallet searches, map verified offers to their dedicated categories, and retain only global/worldwide Steam stock in the primary public catalog.
-- [ ] Review the complete owner-provided VAMNUX Super Admin Panel brief and reconcile its requested modules with the current marketplace architecture.
-- [ ] Confirm the Super Admin authentication approach, 2FA policy, security-monitoring retention, and Phase 1 module scope before implementing new privileged capabilities.
-- [ ] Design the protected Super Admin route, owner-only authorization boundary, audit model, and role-ready data structures without exposing supplier or payment secrets.
-- [ ] Build the approved Super Admin dashboard and operations workspace using the existing secured VAMNUX backend and database.
-- [ ] Retain the editable 25% global VAMNUX markup and add clear Super Admin controls for changing global and per-product customer-price rules at any time.
+- [x] Review the complete owner-provided VAMNUX Super Admin Panel brief and reconcile its requested modules with the current marketplace architecture.
+- [x] Confirm the Super Admin authentication approach, 2FA policy, security-monitoring retention, and Phase 1 module scope before implementing new privileged capabilities.
+- [x] Design the protected Super Admin route, owner-only authorization boundary, audit model, and role-ready data structures without exposing supplier or payment secrets.
+- [x] Build the approved Super Admin dashboard and operations workspace using the existing secured VAMNUX backend and database.
+- [x] Retain the editable 25% global VAMNUX markup and add clear Super Admin controls for changing global and per-product customer-price rules at any time.
 - [x] Review the existing authenticated account area and replace it with a dedicated user-facing VAMNUX dashboard before Super Admin implementation resumes.
 - [x] Build protected user-dashboard navigation for account overview, real order history, wallet activity, saved products, and account preferences without exposing another user’s data.
 - [x] Use only real customer records and explicitly inactive states for wallet funding, payments, refunds, and supplier fulfilment; do not create simulated balances, orders, or delivery events.
 - [x] Validate user-dashboard access, account isolation, real-data empty states, and retained storefront navigation before publishing; mobile styling is included and should be spot-checked by the owner during acceptance testing.
+- [x] Implement protected `/admin/login` and `/admin/dashboard` routes backed by the existing owner-only server-side authorization guard, without adding custom passwords or secrets.
+- [x] Add append-only Super Admin audit events for catalog pricing, catalog-status, and supplier sync actions, with safe target identifiers and no supplier/payment secrets.
+- [x] Build a real-data Super Admin overview for active catalog, suppliers, customers, orders, wallet activity, and system readiness, rendering truthful zero/empty states.
+- [x] Move protected customer-price controls into the Super Admin Pricing Engine and retain editable 25% global markup plus per-product percentage/fixed-price overrides with confirmation.
+- [x] Add protected Supplier, Customers, Orders, System Health, and Audit Log workspace views with read-only or currently-approved safe actions only.
+- [x] Validate owner-only access, audit wiring, pricing controls, responsive Admin navigation, and the unchanged customer storefront before publishing, without creating synthetic production actions.

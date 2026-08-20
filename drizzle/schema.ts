@@ -49,6 +49,22 @@ export const savedProducts = mysqlTable("saved_products", {
   productIndex: index("saved_products_product_idx").on(table.productId),
 }));
 
+/** Append-only record of privileged VAMNUX operations. Metadata must never contain credentials or raw customer fulfilment details. */
+export const adminAuditEvents = mysqlTable("admin_audit_events", {
+  id: int("id").autoincrement().primaryKey(),
+  adminUserId: int("adminUserId").notNull(),
+  action: varchar("action", { length: 120 }).notNull(),
+  targetType: varchar("targetType", { length: 80 }).notNull(),
+  targetId: varchar("targetId", { length: 160 }).notNull(),
+  summary: varchar("summary", { length: 500 }).notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  adminCreatedIndex: index("admin_audit_events_admin_created_idx").on(table.adminUserId, table.createdAt),
+  targetCreatedIndex: index("admin_audit_events_target_created_idx").on(table.targetType, table.targetId, table.createdAt),
+  actionCreatedIndex: index("admin_audit_events_action_created_idx").on(table.action, table.createdAt),
+}));
+
 /** Supplier-normalised catalog records. Supplier secrets must remain in environment variables, never this table. */
 export const products = mysqlTable("products", {
   id: int("id").autoincrement().primaryKey(),
@@ -254,3 +270,4 @@ export type AuthorizedCatalogSource = typeof authorizedCatalogSources.$inferSele
 export type WalletFundingAttempt = typeof walletFundingAttempts.$inferSelect;
 export type SupplierWebhookEvent = typeof supplierWebhookEvents.$inferSelect;
 export type SavedProduct = typeof savedProducts.$inferSelect;
+export type AdminAuditEvent = typeof adminAuditEvents.$inferSelect;

@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, supplierWebhookEvents, users, walletEntries, wallets } from "../drizzle/schema";
+import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, supplierWebhookEvents, users, walletEntries, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -19,6 +19,31 @@ export function assertSupplierCatalogRowScope(supplierKey: string, rows: Supplie
 }
 
 type PricingSettings = { defaultMarkupPercent: number };
+
+type SafeAuditInput = {
+  adminUserId: number;
+  action: string;
+  targetType: string;
+  targetId: string | number;
+  summary: string;
+  metadata?: Record<string, unknown>;
+};
+
+async function appendAdminAuditEvent(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: SafeAuditInput) {
+  await db.insert(adminAuditEvents).values({
+    adminUserId: input.adminUserId,
+    action: input.action.slice(0, 120),
+    targetType: input.targetType.slice(0, 80),
+    targetId: String(input.targetId).slice(0, 160),
+    summary: input.summary.slice(0, 500),
+    metadata: input.metadata,
+  });
+}
+
+export async function recordSuperAdminAuditEvent(input: SafeAuditInput) {
+  const db = requireDb(await getDb());
+  await appendAdminAuditEvent(db, input);
+}
 
 async function ensureMarketplacePricingSettings(db: NonNullable<Awaited<ReturnType<typeof getDb>>>): Promise<PricingSettings> {
   await db.insert(marketplacePricingSettings).values({ id: 1, defaultMarkupPercent: "25.00" }).onDuplicateKeyUpdate({ set: { id: 1 } });
@@ -140,10 +165,19 @@ export async function getMarketplacePricingSettings() {
   return ensureMarketplacePricingSettings(db);
 }
 
-export async function updateMarketplacePricingSettings(input: { defaultMarkupPercent: number }) {
+export async function updateMarketplacePricingSettings(input: { defaultMarkupPercent: number; adminUserId: number }) {
   if (!Number.isFinite(input.defaultMarkupPercent) || input.defaultMarkupPercent < -100 || input.defaultMarkupPercent > 500) throw new Error("Default markup must be between -100% and 500%");
   const db = requireDb(await getDb());
+  const settings = await ensureMarketplacePricingSettings(db);
   await db.insert(marketplacePricingSettings).values({ id: 1, defaultMarkupPercent: input.defaultMarkupPercent.toFixed(2) }).onDuplicateKeyUpdate({ set: { defaultMarkupPercent: input.defaultMarkupPercent.toFixed(2) } });
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: "pricing.global_updated",
+    targetType: "marketplace_pricing_settings",
+    targetId: 1,
+    summary: `Updated default customer markup from ${settings.defaultMarkupPercent}% to ${input.defaultMarkupPercent}%`,
+    metadata: { previousMarkupPercent: settings.defaultMarkupPercent, nextMarkupPercent: input.defaultMarkupPercent },
+  });
   return getMarketplacePricingSettings();
 }
 
@@ -160,19 +194,32 @@ export async function listCatalogPricing() {
   }));
 }
 
-export async function updateCatalogProductPricing(input: { productId: number; markupPercentOverride?: number | null; displayPriceOverride?: number | null }) {
+export async function updateCatalogProductPricing(input: { productId: number; markupPercentOverride?: number | null; displayPriceOverride?: number | null; adminUserId: number }) {
   const hasMarkup = input.markupPercentOverride !== undefined && input.markupPercentOverride !== null;
   const hasFixed = input.displayPriceOverride !== undefined && input.displayPriceOverride !== null;
   if (hasMarkup && (!Number.isFinite(input.markupPercentOverride!) || input.markupPercentOverride! < -100 || input.markupPercentOverride! > 500)) throw new Error("Product markup must be between -100% and 500%");
   if (hasFixed && (!Number.isFinite(input.displayPriceOverride!) || input.displayPriceOverride! < 0)) throw new Error("Fixed customer price must be a non-negative number");
   if (hasMarkup && hasFixed) throw new Error("Use either a percentage markup or a fixed customer price, not both");
   const db = requireDb(await getDb());
-  const [product] = await db.select({ id: products.id }).from(products).where(eq(products.id, input.productId)).limit(1);
+  const [product] = await db.select({ id: products.id, name: products.name, markupPercentOverride: products.markupPercentOverride, displayPriceOverride: products.displayPriceOverride }).from(products).where(eq(products.id, input.productId)).limit(1);
   if (!product) throw new Error("Catalog product was not found");
   await db.update(products).set({
     markupPercentOverride: hasMarkup ? input.markupPercentOverride!.toFixed(2) : null,
     displayPriceOverride: hasFixed ? input.displayPriceOverride!.toFixed(2) : null,
-  }).where(eq(products.id, input.productId));
+  }).where(eq(products.id, product.id));
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: "pricing.product_updated",
+    targetType: "product",
+    targetId: product.id,
+    summary: `Updated customer price rule for ${product.name}`,
+    metadata: {
+      previousMarkupPercent: product.markupPercentOverride === null ? null : Number(product.markupPercentOverride),
+      previousFixedPrice: product.displayPriceOverride === null ? null : Number(product.displayPriceOverride),
+      nextMarkupPercent: hasMarkup ? input.markupPercentOverride : null,
+      nextFixedPrice: hasFixed ? input.displayPriceOverride : null,
+    },
+  });
   return listCatalogPricing();
 }
 
@@ -279,9 +326,9 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
   return { id: created.id, name: input.name, status: input.status, slug };
 }
 
-export async function setAdminManagedCatalogProductStatus(input: { productId: number; status: "active" | "paused" | "archived" }) {
+export async function setAdminManagedCatalogProductStatus(input: { productId: number; status: "active" | "paused" | "archived"; adminUserId: number }) {
   const db = requireDb(await getDb());
-  const [product] = await db.select({ id: products.id, name: products.name }).from(products)
+  const [product] = await db.select({ id: products.id, name: products.name, status: products.status }).from(products)
     .where(and(eq(products.id, input.productId), eq(products.supplierKey, ADMIN_MANAGED_SUPPLIER_KEY))).limit(1);
   if (!product) throw new Error("Admin-managed catalog item was not found");
 
@@ -289,6 +336,14 @@ export async function setAdminManagedCatalogProductStatus(input: { productId: nu
     status: input.status,
     supplierEligible: input.status === "active",
   }).where(eq(products.id, product.id));
+  await appendAdminAuditEvent(db, {
+    adminUserId: input.adminUserId,
+    action: "catalog.status_updated",
+    targetType: "product",
+    targetId: product.id,
+    summary: `Changed ${product.name} from ${product.status} to ${input.status}`,
+    metadata: { previousStatus: product.status, nextStatus: input.status },
+  });
 
   return { productId: product.id, name: product.name, status: input.status };
 }
@@ -309,6 +364,102 @@ export async function listCommerceIntegrations() {
     lastError: commerceIntegrations.lastError,
     updatedAt: commerceIntegrations.updatedAt,
   }).from(commerceIntegrations).orderBy(desc(commerceIntegrations.updatedAt));
+}
+
+const numericValue = (value: unknown) => Number(value ?? 0);
+
+export async function getSuperAdminOverview() {
+  const db = requireDb(await getDb());
+  const [catalog] = await db.select({
+    total: sql<number>`count(*)`,
+    active: sql<number>`sum(case when ${products.status} = 'active' then 1 else 0 end)`,
+    paused: sql<number>`sum(case when ${products.status} = 'paused' then 1 else 0 end)`,
+  }).from(products);
+  const [customerCount] = await db.select({ total: sql<number>`count(*)` }).from(users).where(eq(users.role, "user"));
+  const [orderCount] = await db.select({ total: sql<number>`count(*)` }).from(orders);
+  const [walletEntryCount] = await db.select({ total: sql<number>`count(*)` }).from(walletEntries);
+  const suppliers = await db.select({
+    id: commerceIntegrations.id,
+    providerName: commerceIntegrations.providerName,
+    syncStatus: commerceIntegrations.syncStatus,
+    lastSyncAt: commerceIntegrations.lastSyncAt,
+    lastError: commerceIntegrations.lastError,
+  }).from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier")).orderBy(desc(commerceIntegrations.updatedAt));
+  return {
+    metrics: {
+      totalProducts: numericValue(catalog?.total),
+      activeProducts: numericValue(catalog?.active),
+      pausedProducts: numericValue(catalog?.paused),
+      customers: numericValue(customerCount?.total),
+      orders: numericValue(orderCount?.total),
+      walletEntries: numericValue(walletEntryCount?.total),
+    },
+    suppliers,
+    recentAudit: await listSuperAdminAuditEvents(6),
+  };
+}
+
+export async function listSuperAdminCustomers(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select({
+    id: users.id,
+    name: users.name,
+    email: users.email,
+    role: users.role,
+    createdAt: users.createdAt,
+    lastSignedIn: users.lastSignedIn,
+    preferredCurrency: customerProfiles.preferredCurrency,
+    countryCode: customerProfiles.countryCode,
+  }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).orderBy(desc(users.createdAt)).limit(limit);
+}
+
+export async function listSuperAdminOrders(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select({
+    orderCode: orders.orderCode,
+    status: orders.status,
+    paymentStatus: orders.paymentStatus,
+    supplierStatus: orders.supplierStatus,
+    currency: orders.currency,
+    total: orders.total,
+    createdAt: orders.createdAt,
+    customerId: users.id,
+    customerName: users.name,
+    customerEmail: users.email,
+  }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.createdAt)).limit(limit);
+}
+
+export async function listSuperAdminAuditEvents(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select({
+    id: adminAuditEvents.id,
+    action: adminAuditEvents.action,
+    targetType: adminAuditEvents.targetType,
+    targetId: adminAuditEvents.targetId,
+    summary: adminAuditEvents.summary,
+    metadata: adminAuditEvents.metadata,
+    createdAt: adminAuditEvents.createdAt,
+    adminUserId: adminAuditEvents.adminUserId,
+    adminName: users.name,
+    adminEmail: users.email,
+  }).from(adminAuditEvents).leftJoin(users, eq(adminAuditEvents.adminUserId, users.id)).orderBy(desc(adminAuditEvents.createdAt)).limit(limit);
+}
+
+export async function getSuperAdminSystemHealth() {
+  const db = requireDb(await getDb());
+  const supplierRows = await db.select({ providerName: commerceIntegrations.providerName, syncStatus: commerceIntegrations.syncStatus, lastSyncAt: commerceIntegrations.lastSyncAt, lastError: commerceIntegrations.lastError })
+    .from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier")).orderBy(desc(commerceIntegrations.updatedAt));
+  return {
+    database: { status: "operational" as const, detail: "Managed marketplace database is reachable." },
+    payments: { status: "paused" as const, detail: "No payment gateway is active." },
+    walletFunding: { status: "paused" as const, detail: "Wallet funding remains inactive by operating policy." },
+    supplierOrdering: { status: "paused" as const, detail: "Supplier ordering and fulfilment remain disabled." },
+    suppliers: supplierRows.map((supplier) => ({
+      ...supplier,
+      status: supplier.syncStatus === "ready" ? "operational" as const : supplier.syncStatus === "error" ? "attention" as const : "paused" as const,
+      detail: supplier.syncStatus === "ready" ? "Catalog connector configured for approved read-only operations." : supplier.syncStatus === "paused" ? "Catalog connector is paused by policy." : supplier.syncStatus === "error" ? (supplier.lastError || "Catalog connector requires review.") : "Catalog connector is not configured for active operations.",
+    })),
+  };
 }
 
 export async function getSupplierSyncStatus(providerName: string) {
