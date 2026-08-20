@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, orderItems, orders, products, supplierWebhookEvents, users, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
-import type { FlashTopUpCatalogRow } from "./flashtopupCatalog";
+import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -265,17 +265,19 @@ export async function configureCommerceIntegration(input: {
   return listCommerceIntegrations();
 }
 
-export async function upsertFlashTopUpCatalogRows(rows: FlashTopUpCatalogRow[]) {
+export async function upsertSupplierCatalogRows(input: { supplierKey: string; rows: SupplierCatalogRow[] }) {
   const db = requireDb(await getDb());
-  for (const row of rows) {
+  for (const row of input.rows) {
     await db.insert(products).values({
       slug: row.slug,
-      supplierKey: "flashtopup",
+      supplierKey: input.supplierKey,
       supplierSku: row.supplierSku,
       supplierCategory: row.supplierCategory,
       name: row.name,
       category: row.category,
+      description: row.description,
       imageUrl: row.imageUrl,
+      regionLabel: row.regionLabel,
       basePrice: row.basePrice,
       baseCurrency: row.baseCurrency,
       supplierPrice: row.supplierPrice,
@@ -295,7 +297,9 @@ export async function upsertFlashTopUpCatalogRows(rows: FlashTopUpCatalogRow[]) 
         supplierCategory: row.supplierCategory,
         name: row.name,
         category: row.category,
+        description: row.description,
         imageUrl: row.imageUrl,
+        regionLabel: row.regionLabel,
         basePrice: row.basePrice,
         baseCurrency: row.baseCurrency,
         supplierPrice: row.supplierPrice,
@@ -312,7 +316,11 @@ export async function upsertFlashTopUpCatalogRows(rows: FlashTopUpCatalogRow[]) 
       },
     });
   }
-  return { synced: rows.length };
+  return { synced: input.rows.length };
+}
+
+export async function upsertFlashTopUpCatalogRows(rows: SupplierCatalogRow[]) {
+  return upsertSupplierCatalogRows({ supplierKey: "flashtopup", rows });
 }
 
 export async function processFlashTopUpWebhook(input: {

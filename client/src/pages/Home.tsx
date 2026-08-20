@@ -7,7 +7,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
-import { gameFamilyPath } from "@shared/catalogRoutes";
+import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope, type CatalogVisibilityScope } from "@shared/catalogVisibility";
 import { productMatchesKeyword, toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import { findPublicSupplierDiscoveryMatches, PUBLIC_FLASHTOPUP_DISCOVERY } from "@shared/supplierDiscovery";
@@ -100,6 +100,13 @@ const unavailableCategoryDescriptions: Record<Exclude<ProductCategory, "Top-up">
   "AI tools": "AI tool subscriptions and licences will appear here after an authorised catalog source is connected.",
 };
 
+function DigitalProductIcon({ category }: { category: ProductCategory }) {
+  if (category === "Voucher") return <Gift size={28} />;
+  if (category === "Subscription") return <Tv size={28} />;
+  if (category === "Software") return <Laptop size={28} />;
+  return <Sparkles size={28} />;
+}
+
 function Logo() {
   return (
     <a className="brand" href="#top" aria-label="VAMNUX home">
@@ -168,7 +175,9 @@ export default function Home() {
   const selectedCategory = categories.find((category) => category.filter === activeCategory);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
-  const allProductFamilies = useMemo(() => groupLiveProductFamilies(filteredProducts), [filteredProducts]);
+  const gameProducts = useMemo(() => filteredProducts.filter((product) => product.category === "Top-up"), [filteredProducts]);
+  const digitalProducts = useMemo(() => filteredProducts.filter((product) => product.category !== "Top-up"), [filteredProducts]);
+  const allProductFamilies = useMemo(() => groupLiveProductFamilies(gameProducts), [gameProducts]);
   const productFamilies = useMemo(() => filterGameFamiliesForScope(allProductFamilies, catalogScope), [allProductFamilies, catalogScope]);
 
   const addToCart = (item: Product) => {
@@ -343,11 +352,11 @@ export default function Home() {
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
           <div className="catalog-keyword-input"><input id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
-          <p>{query.trim() ? `${productFamilies.length} live ${productFamilies.length === 1 ? "game family" : "game families"} match “${query.trim()}”` : "Search by game, denomination, region, or Player ID requirement."}</p>
+          <p>{query.trim() ? `${productFamilies.length + digitalProducts.length} live ${productFamilies.length + digitalProducts.length === 1 ? "listing" : "listings"} match “${query.trim()}”` : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
         </div>
 
         <div className="product-family-list">
-          {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving live availability from FlashTopUp.</p></div>}
+          {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving active availability from configured suppliers.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
           {productFamilies.map((family, familyIndex) => {
             const fromPrice = Math.min(...family.items.map((item) => item.price));
@@ -359,7 +368,8 @@ export default function Home() {
               </button>
             </article>;
           })}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && productFamilies.length === 0 && (
+          {digitalProducts.map((product, productIndex) => <article className="compact-game-listing compact-digital-listing" key={product.id} style={{ animationDelay: `${(productFamilies.length + productIndex) * 35}ms` }}><button className="compact-game-listing-button" onClick={() => setLocation(digitalProductPath(product.slug))} aria-label={`View ${product.product} details`}><div className="compact-game-image compact-digital-image"><DigitalProductIcon category={product.category} /><span>{product.category}</span></div><div className="compact-game-copy"><p>Verified supplier listing</p><h3>{product.product}</h3><span>{product.region} · from {formatPrice(product.price)}</span></div><div className="compact-game-action">View details <ArrowRight size={18} /></div></button></article>)}
+          {!supplierCatalog.isLoading && !supplierCatalog.error && productFamilies.length === 0 && digitalProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
               {catalogScope === "curated" && allProductFamilies.length > 0 ? <>
@@ -384,7 +394,7 @@ export default function Home() {
             </div>
           )}
         </div>
-        <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX SUPPLIER NOTE:</strong> These products are synchronized from FlashTopUp. Display conversion is informational only; customer payment and wallet funding remain inactive.</p>
+          <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX SUPPLIER NOTE:</strong> Listings are synchronised from configured suppliers. Display conversion is informational only; customer payment, wallet funding, and supplier fulfilment remain inactive.</p>
       </section>
 
       <section id="how-it-works" className="process-section" aria-labelledby="process-title">

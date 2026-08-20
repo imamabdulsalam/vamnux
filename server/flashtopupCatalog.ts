@@ -1,29 +1,10 @@
 import { classifyFlashTopUpProduct, needsPlayerDetails, type CustomerInputRequirement } from "../shared/flashtopup";
 import type { FlashTopUpInputField, FlashTopUpProduct, FlashTopUpService } from "./integrations/flashtopup";
+import type { SupplierCatalogRow } from "./catalogTypes";
 import { getFlashTopUpClient } from "./integrations/flashtopup";
 import { configureCommerceIntegration, upsertFlashTopUpCatalogRows } from "./db";
 
-export type FlashTopUpCatalogRow = {
-  slug: string;
-  supplierSku: string;
-  supplierCategory: string;
-  name: string;
-  category: "top_up" | "gift_card" | "subscription";
-  imageUrl?: string;
-  basePrice: string;
-  baseCurrency: string;
-  supplierPrice: string;
-  supplierCurrency: string;
-  supplierOfferId: string;
-  supplierUpdatedAt?: Date;
-  supplierEligible: boolean;
-  deliveryType: "instant" | "digital_code" | "manual_processing";
-  requiresPlayerId: boolean;
-  requiresServerId: boolean;
-  inputRequirements: CustomerInputRequirement[];
-  status: "active" | "paused";
-  metadata: Record<string, unknown>;
-};
+export type FlashTopUpCatalogRow = SupplierCatalogRow;
 
 function validDate(value: string | undefined) {
   if (!value) return undefined;

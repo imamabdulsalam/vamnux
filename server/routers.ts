@@ -3,6 +3,7 @@ import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
 import { configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createMarketplaceOrder, getAccountCommerceSummary, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAuthorizedCatalogSources, listCommerceIntegrations, setAdminManagedCatalogProductStatus } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
+import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -50,6 +51,14 @@ export const appRouter = router({
       page: z.number().int().min(1).default(1),
       perPage: z.number().int().min(1).max(10).default(5),
     }).optional()).mutation(({ input }) => syncFlashTopUpCatalog(input)),
+    syncFoxReloadCatalog: adminProcedure.input(z.object({
+      cursor: z.string().trim().min(1).max(512).optional(),
+      categoryLimit: z.number().int().min(1).max(10).default(5),
+      productLimit: z.number().int().min(1).max(200).default(100),
+      categorySlugs: z.array(z.string().trim().min(1).max(120)).max(10).optional(),
+      searchQueries: z.array(z.string().trim().min(2).max(80)).max(10).optional(),
+      searchLimit: z.number().int().min(1).max(25).default(10),
+    }).optional()).mutation(({ input }) => syncFoxReloadCatalog(input)),
     configureCommerceIntegration: adminProcedure.input(z.object({
       integrationType: z.enum(["supplier", "payment"]),
       providerName: z.string().trim().min(2).max(120),

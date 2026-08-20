@@ -2,6 +2,7 @@ export type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software"
 
 export type LiveCatalogProduct = {
   id: number;
+  slug: string;
   category: ProductCategory;
   name: string;
   product: string;
@@ -18,6 +19,7 @@ export type LiveCatalogProduct = {
 
 type CatalogSourceRow = {
   id: number;
+  slug: string;
   category: string;
   name: string;
   description: string | null;
@@ -49,12 +51,21 @@ function supplierDeliveryLabel(item: Pick<CatalogSourceRow, "requiresPlayerId" |
   return item.deliveryType.replaceAll("_", " ");
 }
 
+function supplierPriceLabel(item: Pick<CatalogSourceRow, "supplierKey" | "supplierEligible">) {
+  if (item.supplierKey === "admin_managed") return "Authorised catalog price";
+  if (!item.supplierEligible) return "Supplier availability paused";
+  if (item.supplierKey === "foxreload") return "FoxReload service price";
+  if (item.supplierKey === "flashtopup") return "FlashTopUp service price";
+  return "Supplier service price";
+}
+
 export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): LiveCatalogProduct {
   const nameParts = item.name.split(" — ");
   const fields = Array.isArray(item.inputRequirements) ? item.inputRequirements as Array<{ key?: string; label?: string; type?: "text" | "email" | "select"; required?: boolean; helperText?: string }> : [];
   const category = supplierCategoryLabels[item.category] ?? "Top-up";
   return {
     id: item.id,
+    slug: item.slug,
     category,
     name: nameParts[0] || item.name,
     product: nameParts.slice(1).join(" — ") || item.name,
@@ -62,9 +73,7 @@ export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): Liv
       ? `Enter ${fields.filter((field) => field.required).map((field) => field.label || "supplier-required details").join(" and ") || "the supplier-required account details"} before fulfilment.`
       : "Verified supplier service. Availability and delivery format are shown before purchase."),
     price: Number(item.basePrice),
-    priceNote: item.supplierKey === "admin_managed"
-      ? "Authorised catalog price"
-      : item.supplierEligible ? "FlashTopUp service price" : "Supplier availability paused",
+    priceNote: supplierPriceLabel(item),
     region: item.regionLabel || "Supplier region rules",
     delivery: supplierDeliveryLabel(item),
     image: item.imageUrl || "",

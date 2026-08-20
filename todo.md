@@ -113,10 +113,24 @@
 - [x] Add deterministic coverage for Nigeria-priority family selection and international-view fallback without asserting supplier eligibility.
 - [x] Remove all customer-facing Nigeria-labelled catalog headings, helper text, and controls while retaining the curated default service selection.
 - [x] Rename the broader supplier-catalog control with neutral premium marketplace language.
+- [x] Review the official FoxReload API documentation and authentication requirements for a secure VAMNUX supplier adapter.
+- [x] Add FoxReload as a configured multi-supplier integration with server-side credentials only.
+- [x] Implement FoxReload mapper support for VAMNUX Gaming Top-Ups, Gift Cards, Subscriptions, Software, AI Tools, and game keys without inventing inventory.
+- [x] Implement and validate bounded FoxReload catalog synchronization with payments, wallet debits, and supplier orders disabled.
+- [x] Add deterministic FoxReload mapper tests for category assignment, stock eligibility, supplier price, and required customer fields.
+- [x] Add an admin-only bounded FoxReload catalog sync control with clear read-only and no-order safeguards.
+- [x] Exclude FoxReload test-order data and target supplier categories that report live stock even when the has-products flag is stale.
+- [x] Diagnose the supplier-reported Gift Card and Subscription stock counts when their initial bounded product reads return no products.
+- [x] Check the documented FoxReload product-search endpoint for account-exposed Gift Card, Subscription, and Software records before representing them as available inventory.
+- [x] Import only a bounded, deduplicated set of account-exposed FoxReload search results for verified digital product families; do not represent empty category endpoints as inventory.
+- [x] Present active FoxReload non-top-up listings through category-aware cards and individual product details rather than game-family pages.
+- [x] Verify that FoxReload exposes real active Gaming Top-Ups but no active eligible Software or AI Tool records in the authenticated supplier searches; import only the returned top-ups and keep unavailable categories explicit.
+- [x] Validate category-aware storefront and detail presentation against the actually active FoxReload Gaming Top-Up, Gift Card, Subscription, and game-key categories.
+- [x] Decode common HTML entities from FoxReload supplier descriptions before displaying real product information.
 - [x] Attempt the user-authorised read-only FlashTopUp catalog synchronisation after temporarily allowlisting `197.42.21.111`; no data was imported because egress shifted before the request.
 - [x] Recover temporary catalog access after `197.63.115.110` was allowlisted and verify the authenticated read can return real supplier products.
 - [x] Run the user-authorised final read-only bounded catalog synchronisation after allowlisting `197.63.115.110`, importing pages 2–4 successfully.
 - [x] Continue bounded read-only FlashTopUp catalog synchronisation through pages 5–7 while temporary allowlisted access remained available.
 - [ ] Resume remaining FlashTopUp catalog pages only after addressing the new dynamic egress block at `188.2.150.193`.
 - [x] Run the user-authorised additional bounded catalog-page attempt after allowlisting `188.2.150.193`, expanding the active catalog to 31 real game families and 486 services.
-- [ ] Connect and approve an additional supplier before adding new Gift Card or Subscription sources or products.
+- [x] Connect and approve an additional supplier before adding new Gift Card or Subscription sources or products.

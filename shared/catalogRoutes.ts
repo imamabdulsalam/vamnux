@@ -11,3 +11,17 @@ export function decodeGameFamilySegment(segment: string | undefined) {
     return null;
   }
 }
+
+export function digitalProductPath(slug: string) {
+  return `/products/${encodeURIComponent(slug)}`;
+}
+
+export function decodeDigitalProductSegment(segment: string | undefined) {
+  if (!segment) return null;
+  try {
+    const decoded = decodeURIComponent(segment).trim();
+    return decoded || null;
+  } catch {
+    return null;
+  }
+}
