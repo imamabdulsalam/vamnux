@@ -357,7 +357,7 @@ export default function Home() {
           <p>Choose a game that is already active on VAMNUX. Each card stays within VAMNUX and opens its real supplier-backed denominations, account requirements, and VAMNUX display prices.</p>
         </div>
         <div className="supplier-game-grid">
-          {internalGameFamilies.map((game) => <button key={game.name} type="button" className="supplier-game-card" onClick={() => setLocation(gameFamilyPath(game.name))} title={`View ${game.name} on VAMNUX`}><img src={game.image} alt={`${game.name} game artwork`} loading="lazy" /><div><span>View on VAMNUX</span><strong>{game.name}</strong></div></button>)}
+          {internalGameFamilies.map((game) => <button key={game.name} type="button" className="supplier-game-card" onClick={() => setLocation(gameFamilyPath(game.name))} title={`View ${game.name} on VAMNUX`}>{game.image ? <img src={game.image} alt={`${game.name} game artwork`} loading="lazy" /> : <span className="supplier-game-fallback">{game.name.slice(0, 1)}</span>}<div><span>View on VAMNUX</span><strong>{game.name}</strong></div></button>)}
         </div>
       </section>
 
@@ -460,7 +460,7 @@ export default function Home() {
         <div className="cart-drawer-head"><div><span className="section-marker">YOUR SELECTION</span><h2>Cart <em>({cart.length})</em></h2></div><button onClick={() => setCartOpen(false)} aria-label="Close cart"><X size={22} /></button></div>
         <div className="cart-items">
           {cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={35} /><h3>Your cart is clear.</h3><p>Pick a digital product and it will appear here.</p><button onClick={() => { setCartOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}>Browse products</button></div> : cart.map((item, index) => (
-            <div className="cart-item" key={`${item.id}-${index}`}><img src={item.image} alt="" /><div><span>{item.name}</span><strong>{item.product}</strong><small>{formatPrice(item.price)}</small></div><button onClick={() => setCart((current) => current.filter((_, i) => i !== index))} aria-label={`Remove ${item.product}`}><X size={16} /></button></div>
+            <div className="cart-item" key={`${item.id}-${index}`}>{item.image ? <img src={item.image} alt="" /> : <span className="cart-item-fallback">{item.name.slice(0, 1)}</span>}<div><span>{item.name}</span><strong>{item.product}</strong><small>{formatPrice(item.price)}</small></div><button onClick={() => setCart((current) => current.filter((_, i) => i !== index))} aria-label={`Remove ${item.product}`}><X size={16} /></button></div>
           ))}
         </div>
         {cart.length > 0 && <div className="cart-checkout"><p>Cart total: <strong>{formatPrice(cartTotal)}</strong>. VAMNUX products are wallet-only: this USD order requires sufficient settled USD wallet balance. {isAuthenticated ? <><br />Your current wallet: <strong>{customerDashboard.data ? `${customerDashboard.data.wallet.currency} ${Number(customerDashboard.data.wallet.availableBalance).toFixed(2)}` : "Loading wallet…"}</strong>.</> : " Sign in to check your wallet balance."} No direct product payment is offered.</p><div className="cart-fulfillment-fields">{cart.flatMap((item, itemIndex) => item.inputRequirements.map((field) => {

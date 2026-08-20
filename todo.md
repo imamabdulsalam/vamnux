@@ -201,3 +201,24 @@
 - [x] Change product purchase eligibility so an authenticated customer needs sufficient settled VAMNUX wallet balance before an order can be created, while supplier ordering remains deferred.
 - [x] Update customer and Admin interfaces to show the wallet-only purchase state and truthful zero-balance/top-up guidance without enabling provider checkout.
 - [x] Validate wallet-only order gating, account isolation, insufficient-balance behavior, and inactive supplier fulfilment before publishing.
+- [x] Review the full owner-provided VAMNUX authentication and feature-rich User Dashboard brief against the existing OAuth, customer dashboard, wallet-only purchase, and supplier safeguards.
+- [x] Confirm the chosen identity provider, email delivery service, email-verification/reset policy, optional customer MFA, mandatory Super Admin MFA, and legal-policy content before building password-based authentication; Supabase and Resend activation remains intentionally deferred.
+- [x] Design privacy-minimized account registration, username, profile, consent, referral, rewards, support, subscriptions, transaction, and secure order-detail data boundaries using real records only.
+- [ ] Add highly visible customer authentication entry points and approved secure account journeys without exposing whether an account email or username exists.
+- [x] Expand the User Dashboard with approved real-data modules, responsive mobile navigation, and truthful unavailable states for orders, rewards, referrals, subscriptions, support, and provider-dependent capabilities.
+- [ ] Validate customer authorization, email/password and MFA controls if configured, account isolation, real-data states, wallet-only checkout, and protected digital-code access before publishing; credential-independent authorization is validated, while Supabase/Resend identity tests remain deferred.
+- [x] Audit the existing VAMNUX authentication, database users, OAuth sessions, dashboard data, and current owner account before adding any parallel identity provider.
+- [ ] Configure Supabase Auth as the new staged identity provider and Resend as transactional email infrastructure through secure environment configuration, retaining Manus OAuth as the working fallback.
+- [ ] Build a parallel VAMNUX account profile, username, country, phone, registration-source, consent, account-status, notification, support, security-event, and identity-link data model without losing existing users.
+- [ ] Build staged Supabase email/password registration, email verification, generic-error login/reset, Google OAuth, secure session, logout-all, and optional customer MFA/TOTP flows without removing Manus OAuth.
+- [ ] Enforce required Terms/Privacy acceptance and independently recorded optional marketing consent, then prepare editable clearly labelled draft Terms, Privacy, Refund, and Cookie policy pages.
+- [ ] Expand the real-data Phase 1 customer dashboard for profile, security, notifications, support tickets, orders/order details, transactions, favorites, and wallet-only quick actions, preserving truthful empty states.
+- [ ] Connect appropriate customer identity, activity, wallet, order, and support views to Super Admin with server-side authorization and audit logging, never exposing passwords, secrets, or card data.
+- [ ] Test registration, verification, login, password reset, Google, MFA, session invalidation, user migration, account isolation, and existing storefront continuity before any Manus OAuth retirement is proposed.
+- [x] Document the deferred Supabase and Resend activation gate, preserve the existing Manus OAuth fallback, and complete only customer-account improvements that do not require external authentication or email credentials.
+- [x] Add non-destructive profile metadata, consent records, security events, notification preferences, support tickets/messages, and editable policy-content records linked to existing Manus-authenticated users.
+- [x] Record actual Manus OAuth sign-ins as customer security events without altering the active OAuth session mechanism or exposing precise location/device data.
+- [x] Build protected customer profile, notifications, support-ticket, security-activity, and privacy/policy views with server-side account scoping and truthful empty states.
+- [x] Add Super Admin read-only support and customer-account operational visibility without exposing authentication secrets, passwords, payment data, or private support content outside authorized workflows.
+- [x] Add draft Terms, Privacy, Refund, and Cookie policy pages with a clearly visible draft/review status and registration-ready links, not representations of legal approval.
+- [x] Correct any customer-facing catalog image render path that can emit an empty `src` attribute, preserving readable text or icon fallbacks for products without supplier artwork.

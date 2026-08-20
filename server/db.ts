@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerProfiles, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, supplierWebhookEvents, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerConsents, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, InsertUser, marketplacePricingSettings, orderItems, orders, products, savedProducts, siteContentPages, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -29,6 +29,13 @@ type SafeAuditInput = {
   metadata?: Record<string, unknown>;
 };
 
+const POLICY_DRAFTS = [
+  { slug: "terms-of-service", title: "VAMNUX Terms of Service", version: "draft-1", body: "# Draft Terms of Service\n\n**Draft for owner and legal review — not a final legal document.**\n\nThese draft terms describe the proposed rules for using VAMNUX, including account responsibility, wallet-only purchases, product eligibility, order handling, acceptable use, and dispute contact. They must be reviewed, edited, and approved by qualified legal counsel before publication or launch." },
+  { slug: "privacy-policy", title: "VAMNUX Privacy Policy", version: "draft-1", body: "# Draft Privacy Policy\n\n**Draft for owner and legal review — not a final legal document.**\n\nThis draft explains the proposed collection and use of minimum account, order, wallet, and support information needed to operate VAMNUX. It also describes customer rights to request access, correction, or account-deletion review. It must be reviewed, edited, and approved by qualified legal counsel before publication or launch." },
+  { slug: "refund-policy", title: "VAMNUX Refund Policy", version: "draft-1", body: "# Draft Refund Policy\n\n**Draft for owner and legal review — not a final legal document.**\n\nThis draft sets out a proposed review process for eligible failed, duplicate, or unfulfilled digital-product transactions. Product, supplier, payment, and jurisdiction-specific rules must be confirmed before any final customer-facing policy is published." },
+  { slug: "cookie-policy", title: "VAMNUX Cookie Policy", version: "draft-1", body: "# Draft Cookie Policy\n\n**Draft for owner and legal review — not a final legal document.**\n\nThis draft explains the proposed use of essential session cookies and any future optional analytics or preference technologies. It must be reviewed, edited, and approved before publication or launch." },
+] as const;
+
 async function appendAdminAuditEvent(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: SafeAuditInput) {
   await db.insert(adminAuditEvents).values({
     adminUserId: input.adminUserId,
@@ -43,6 +50,28 @@ async function appendAdminAuditEvent(db: NonNullable<Awaited<ReturnType<typeof g
 export async function recordSuperAdminAuditEvent(input: SafeAuditInput) {
   const db = requireDb(await getDb());
   await appendAdminAuditEvent(db, input);
+}
+
+async function ensureCustomerAccountRows(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, userId: number) {
+  await db.insert(customerProfiles).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+  await db.insert(wallets).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+  await db.insert(customerNotificationPreferences).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+}
+
+async function ensureDraftPolicyPages(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  for (const policy of POLICY_DRAFTS) {
+    await db.insert(siteContentPages).values(policy).onDuplicateKeyUpdate({ set: { slug: policy.slug } });
+  }
+}
+
+export async function recordCustomerSecurityEvent(input: { userId: number; eventType: string; summary: string; metadata?: Record<string, unknown> }) {
+  const db = requireDb(await getDb());
+  await db.insert(customerSecurityEvents).values({
+    userId: input.userId,
+    eventType: input.eventType.slice(0, 80),
+    summary: input.summary.slice(0, 255),
+    metadata: input.metadata,
+  });
 }
 
 async function ensureMarketplacePricingSettings(db: NonNullable<Awaited<ReturnType<typeof getDb>>>): Promise<PricingSettings> {
@@ -431,6 +460,63 @@ export async function listSuperAdminOrders(limit = 100) {
   }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.createdAt)).limit(limit);
 }
 
+export async function listSuperAdminSupportTickets(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select({
+    ticketCode: supportTickets.ticketCode,
+    category: supportTickets.category,
+    subject: supportTickets.subject,
+    status: supportTickets.status,
+    orderId: supportTickets.orderId,
+    createdAt: supportTickets.createdAt,
+    updatedAt: supportTickets.updatedAt,
+    customerId: users.id,
+    customerName: users.name,
+    customerEmail: users.email,
+    customerUsername: customerProfiles.username,
+    customerCountryCode: customerProfiles.countryCode,
+  }).from(supportTickets)
+    .leftJoin(users, eq(supportTickets.userId, users.id))
+    .leftJoin(customerProfiles, eq(supportTickets.userId, customerProfiles.userId))
+    .orderBy(desc(supportTickets.updatedAt)).limit(limit);
+}
+
+export async function getSuperAdminSupportTicket(ticketCode: string) {
+  const db = requireDb(await getDb());
+  const [ticket] = await db.select({
+    id: supportTickets.id,
+    ticketCode: supportTickets.ticketCode,
+    userId: supportTickets.userId,
+    category: supportTickets.category,
+    subject: supportTickets.subject,
+    status: supportTickets.status,
+    orderId: supportTickets.orderId,
+    createdAt: supportTickets.createdAt,
+    updatedAt: supportTickets.updatedAt,
+    customerName: users.name,
+    customerEmail: users.email,
+  }).from(supportTickets).leftJoin(users, eq(supportTickets.userId, users.id)).where(eq(supportTickets.ticketCode, ticketCode)).limit(1);
+  if (!ticket) throw new Error("Support ticket not found.");
+  const messages = await db.select({ id: supportTicketMessages.id, authorUserId: supportTicketMessages.authorUserId, authorRole: supportTicketMessages.authorRole, body: supportTicketMessages.body, createdAt: supportTicketMessages.createdAt })
+    .from(supportTicketMessages).where(eq(supportTicketMessages.ticketId, ticket.id)).orderBy(supportTicketMessages.createdAt);
+  return { ticket, messages };
+}
+
+export async function replyToSuperAdminSupportTicket(input: { adminUserId: number; ticketCode: string; message: string; status: "processing" | "waiting_for_customer" | "resolved" | "closed" }) {
+  const db = requireDb(await getDb());
+  const message = input.message.trim().slice(0, 5000);
+  if (!message) throw new Error("A support reply is required.");
+  const [ticket] = await db.select().from(supportTickets).where(eq(supportTickets.ticketCode, input.ticketCode)).limit(1);
+  if (!ticket) throw new Error("Support ticket not found.");
+  await db.transaction(async (tx) => {
+    await tx.insert(supportTicketMessages).values({ ticketId: ticket.id, authorUserId: input.adminUserId, authorRole: "admin", body: message });
+    await tx.update(supportTickets).set({ status: input.status }).where(eq(supportTickets.id, ticket.id));
+    await tx.insert(customerNotifications).values({ userId: ticket.userId, category: "support", title: "VAMNUX Support replied", body: `Ticket ${ticket.ticketCode} has a new support response.`, actionUrl: "/account" });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "support_ticket.replied", targetType: "support_ticket", targetId: ticket.ticketCode, summary: `Replied to support ticket ${ticket.ticketCode}`, metadata: { status: input.status } });
+  });
+  return { ticketCode: ticket.ticketCode, status: input.status };
+}
+
 export async function listSuperAdminWalletFundingRequests(limit = 100) {
   const db = requireDb(await getDb());
   return db.select({
@@ -647,8 +733,8 @@ export async function getAccountCommerceSummary(userId: number) {
 /** Returns only the authenticated customer's own operational records for the VAMNUX user dashboard. */
 export async function getCustomerDashboard(userId: number) {
   const db = requireDb(await getDb());
-  await db.insert(customerProfiles).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
-  await db.insert(wallets).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+  await ensureCustomerAccountRows(db, userId);
+  await ensureDraftPolicyPages(db);
   const settings = await ensureMarketplacePricingSettings(db);
   const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.userId, userId)).limit(1);
   const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1);
@@ -696,6 +782,46 @@ export async function getCustomerDashboard(userId: number) {
     createdAt: walletFundingAttempts.createdAt,
     settledAt: walletFundingAttempts.settledAt,
   }).from(walletFundingAttempts).where(eq(walletFundingAttempts.userId, userId)).orderBy(desc(walletFundingAttempts.createdAt)).limit(12);
+  const [notificationPreferences] = await db.select().from(customerNotificationPreferences).where(eq(customerNotificationPreferences.userId, userId)).limit(1);
+  const notifications = await db.select({
+    id: customerNotifications.id,
+    category: customerNotifications.category,
+    title: customerNotifications.title,
+    body: customerNotifications.body,
+    actionUrl: customerNotifications.actionUrl,
+    readAt: customerNotifications.readAt,
+    createdAt: customerNotifications.createdAt,
+  }).from(customerNotifications).where(eq(customerNotifications.userId, userId)).orderBy(desc(customerNotifications.createdAt)).limit(20);
+  const securityEvents = await db.select({
+    id: customerSecurityEvents.id,
+    eventType: customerSecurityEvents.eventType,
+    summary: customerSecurityEvents.summary,
+    createdAt: customerSecurityEvents.createdAt,
+  }).from(customerSecurityEvents).where(eq(customerSecurityEvents.userId, userId)).orderBy(desc(customerSecurityEvents.createdAt)).limit(20);
+  const tickets = await db.select({
+    ticketCode: supportTickets.ticketCode,
+    category: supportTickets.category,
+    subject: supportTickets.subject,
+    status: supportTickets.status,
+    orderId: supportTickets.orderId,
+    createdAt: supportTickets.createdAt,
+    updatedAt: supportTickets.updatedAt,
+  }).from(supportTickets).where(eq(supportTickets.userId, userId)).orderBy(desc(supportTickets.updatedAt)).limit(20);
+  const privacyRequests = await db.select({
+    requestCode: customerPrivacyRequests.requestCode,
+    requestType: customerPrivacyRequests.requestType,
+    status: customerPrivacyRequests.status,
+    note: customerPrivacyRequests.note,
+    createdAt: customerPrivacyRequests.createdAt,
+    updatedAt: customerPrivacyRequests.updatedAt,
+  }).from(customerPrivacyRequests).where(eq(customerPrivacyRequests.userId, userId)).orderBy(desc(customerPrivacyRequests.createdAt)).limit(12);
+  const policyPages = await db.select({
+    slug: siteContentPages.slug,
+    title: siteContentPages.title,
+    status: siteContentPages.status,
+    version: siteContentPages.version,
+    updatedAt: siteContentPages.updatedAt,
+  }).from(siteContentPages).orderBy(siteContentPages.title);
   return {
     profile: profile ?? null,
     wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
@@ -703,6 +829,12 @@ export async function getCustomerDashboard(userId: number) {
     walletEntries: recentWalletEntries,
     fundingRequests,
     savedProducts: savedRows.map((product) => ({ ...product, ...customerPriceForProduct(product, settings) })),
+    notificationPreferences: notificationPreferences ?? null,
+    notifications,
+    securityEvents,
+    tickets,
+    privacyRequests,
+    policyPages,
   };
 }
 
@@ -713,6 +845,119 @@ export async function updateCustomerDashboardPreferences(input: { userId: number
     .onDuplicateKeyUpdate({ set: { preferredCurrency: input.preferredCurrency, countryCode } });
   const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.userId, input.userId)).limit(1);
   return profile;
+}
+
+export async function updateCustomerProfile(input: { userId: number; firstName?: string | null; lastName?: string | null; username?: string | null; phone?: string | null; countryCode?: string | null; registrationSource?: string | null }) {
+  const db = requireDb(await getDb());
+  await ensureCustomerAccountRows(db, input.userId);
+  const username = input.username?.trim().toLowerCase() || null;
+  if (username && (!/^[a-z0-9._-]{3,30}$/.test(username) || /^vamnux(?:[-_.]?admin)?$/.test(username))) throw new Error("Choose a 3–30 character username using letters, numbers, dots, hyphens, or underscores.");
+  if (username) {
+    const [existing] = await db.select({ userId: customerProfiles.userId }).from(customerProfiles).where(eq(customerProfiles.username, username)).limit(1);
+    if (existing && existing.userId !== input.userId) throw new Error("That username is unavailable.");
+  }
+  const updateSet = {
+    firstName: input.firstName?.trim().slice(0, 80) || null,
+    lastName: input.lastName?.trim().slice(0, 80) || null,
+    username,
+    phone: input.phone?.trim().slice(0, 32) || null,
+    countryCode: input.countryCode?.trim().toUpperCase().slice(0, 2) || null,
+    registrationSource: input.registrationSource?.trim().slice(0, 40) || null,
+  };
+  if (updateSet.countryCode && !/^[A-Z]{2}$/.test(updateSet.countryCode)) throw new Error("Use a two-letter country code.");
+  await db.update(customerProfiles).set(updateSet).where(eq(customerProfiles.userId, input.userId));
+  await recordCustomerSecurityEvent({ userId: input.userId, eventType: "profile_updated", summary: "Profile information was updated." });
+  const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.userId, input.userId)).limit(1);
+  return profile;
+}
+
+export async function updateCustomerNotificationPreferences(input: { userId: number; orderUpdates: boolean; paymentUpdates: boolean; walletUpdates: boolean; marketingUpdates: boolean; productAnnouncements: boolean }) {
+  const db = requireDb(await getDb());
+  await ensureCustomerAccountRows(db, input.userId);
+  await db.update(customerNotificationPreferences).set({
+    orderUpdates: input.orderUpdates,
+    paymentUpdates: input.paymentUpdates,
+    walletUpdates: input.walletUpdates,
+    marketingUpdates: input.marketingUpdates,
+    productAnnouncements: input.productAnnouncements,
+  }).where(eq(customerNotificationPreferences.userId, input.userId));
+  const [preferences] = await db.select().from(customerNotificationPreferences).where(eq(customerNotificationPreferences.userId, input.userId)).limit(1);
+  return preferences;
+}
+
+export async function markCustomerNotificationRead(input: { userId: number; notificationId: number }) {
+  const db = requireDb(await getDb());
+  const [notification] = await db.select({ id: customerNotifications.id }).from(customerNotifications).where(and(eq(customerNotifications.id, input.notificationId), eq(customerNotifications.userId, input.userId))).limit(1);
+  if (!notification) throw new Error("Notification not found.");
+  await db.update(customerNotifications).set({ readAt: new Date() }).where(eq(customerNotifications.id, notification.id));
+  return { notificationId: notification.id, read: true } as const;
+}
+
+function createSupportTicketCode() {
+  return `VS${crypto.randomUUID().replace(/-/g, "").slice(0, 18).toUpperCase()}`;
+}
+
+function createPrivacyRequestCode() {
+  return `VP${crypto.randomUUID().replace(/-/g, "").slice(0, 18).toUpperCase()}`;
+}
+
+export async function createCustomerSupportTicket(input: { userId: number; category: "payment" | "order" | "game_top_up" | "gift_card" | "subscription" | "software" | "wallet" | "account" | "refund" | "other"; subject: string; message: string; orderCode?: string }) {
+  const db = requireDb(await getDb());
+  const subject = input.subject.trim().slice(0, 180);
+  const message = input.message.trim().slice(0, 5000);
+  if (!subject || !message) throw new Error("A support subject and message are required.");
+  let orderId: number | null = null;
+  if (input.orderCode) {
+    const [order] = await db.select({ id: orders.id }).from(orders).where(and(eq(orders.orderCode, input.orderCode), eq(orders.userId, input.userId))).limit(1);
+    if (!order) throw new Error("The selected order is not available in your account.");
+    orderId = order.id;
+  }
+  const ticketCode = createSupportTicketCode();
+  return db.transaction(async (tx) => {
+    const [created] = await tx.insert(supportTickets).values({ ticketCode, userId: input.userId, orderId, category: input.category, subject }).$returningId();
+    await tx.insert(supportTicketMessages).values({ ticketId: created.id, authorUserId: input.userId, authorRole: "customer", body: message });
+    await tx.insert(customerNotifications).values({ userId: input.userId, category: "support", title: "Support ticket submitted", body: `Your ticket ${ticketCode} is open for review.`, actionUrl: "/account" });
+    return { ticketCode, status: "open" as const };
+  });
+}
+
+export async function getCustomerSupportTicket(input: { userId: number; ticketCode: string }) {
+  const db = requireDb(await getDb());
+  const [ticket] = await db.select().from(supportTickets).where(and(eq(supportTickets.ticketCode, input.ticketCode), eq(supportTickets.userId, input.userId))).limit(1);
+  if (!ticket) throw new Error("Support ticket not found.");
+  const messages = await db.select({ id: supportTicketMessages.id, authorRole: supportTicketMessages.authorRole, body: supportTicketMessages.body, createdAt: supportTicketMessages.createdAt })
+    .from(supportTicketMessages).where(eq(supportTicketMessages.ticketId, ticket.id)).orderBy(supportTicketMessages.createdAt);
+  return { ticket, messages };
+}
+
+export async function replyToCustomerSupportTicket(input: { userId: number; ticketCode: string; message: string }) {
+  const db = requireDb(await getDb());
+  const message = input.message.trim().slice(0, 5000);
+  if (!message) throw new Error("A reply is required.");
+  const [ticket] = await db.select().from(supportTickets).where(and(eq(supportTickets.ticketCode, input.ticketCode), eq(supportTickets.userId, input.userId))).limit(1);
+  if (!ticket) throw new Error("Support ticket not found.");
+  if (ticket.status === "closed") throw new Error("Closed support tickets cannot receive a reply.");
+  await db.transaction(async (tx) => {
+    await tx.insert(supportTicketMessages).values({ ticketId: ticket.id, authorUserId: input.userId, authorRole: "customer", body: message });
+    await tx.update(supportTickets).set({ status: "open" }).where(eq(supportTickets.id, ticket.id));
+  });
+  return { ticketCode: ticket.ticketCode, status: "open" as const };
+}
+
+export async function createCustomerPrivacyRequest(input: { userId: number; requestType: "data_access" | "data_correction" | "account_deletion"; note?: string }) {
+  const db = requireDb(await getDb());
+  const requestCode = createPrivacyRequestCode();
+  await db.insert(customerPrivacyRequests).values({ requestCode, userId: input.userId, requestType: input.requestType, note: input.note?.trim().slice(0, 500) || null });
+  await db.insert(customerNotifications).values({ userId: input.userId, category: "system", title: "Privacy request submitted", body: `Your privacy request ${requestCode} is queued for review.`, actionUrl: "/account" });
+  return { requestCode, status: "submitted" as const };
+}
+
+export async function getPublicPolicyPage(slug: string) {
+  const db = requireDb(await getDb());
+  await ensureDraftPolicyPages(db);
+  const [page] = await db.select({ slug: siteContentPages.slug, title: siteContentPages.title, body: siteContentPages.body, status: siteContentPages.status, version: siteContentPages.version, updatedAt: siteContentPages.updatedAt })
+    .from(siteContentPages).where(eq(siteContentPages.slug, slug)).limit(1);
+  return page ?? null;
 }
 
 export async function toggleCustomerSavedProduct(input: { userId: number; productId: number }) {

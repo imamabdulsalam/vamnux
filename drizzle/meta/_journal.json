@@ -92,6 +92,13 @@
       "when": 1787248387809,
       "tag": "0012_daily_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1787252136900,
+      "tag": "0013_shallow_starfox",
+      "breakpoints": true
     }
   ]
 }

@@ -20,4 +20,13 @@ describe("customer dashboard preference boundary", () => {
     const caller = appRouter.createCaller({ user: null } as TrpcContext);
     await expect(caller.marketplace.customerDashboard()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
+
+  it("blocks unauthenticated callers before profile, notification, support, privacy, or ticket data can be accessed", async () => {
+    const caller = appRouter.createCaller({ user: null } as TrpcContext);
+    await expect(caller.marketplace.updateCustomerProfile({ firstName: "Test" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.marketplace.updateNotificationPreferences({ orderUpdates: true, paymentUpdates: true, walletUpdates: true, marketingUpdates: false, productAnnouncements: false })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.marketplace.createSupportTicket({ category: "account", subject: "Help needed", message: "Please help with my account." })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.marketplace.createPrivacyRequest({ requestType: "data_access" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.marketplace.getSupportTicket({ ticketCode: "VS123" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
 });

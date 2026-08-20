@@ -7,4 +7,10 @@ describe("Super Admin authorization", () => {
     const caller = appRouter.createCaller({ user: { id: 91, openId: "customer-test", name: "Customer", email: "customer@example.test", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
     await expect(caller.admin.getOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("rejects an authenticated customer before private support tickets can be inspected or replied to", async () => {
+    const caller = appRouter.createCaller({ user: { id: 91, openId: "customer-test", name: "Customer", email: "customer@example.test", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
+    await expect(caller.admin.listSupportTickets()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.replyToSupportTicket({ ticketCode: "VS123", message: "Private reply", status: "processing" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
