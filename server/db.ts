@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, marketplaceCategories, marketplacePricingSettings, orderItems, orders, priceChangeHistory, productAdminAttributes, products, savedProducts, siteContentBlocks, siteContentPages, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -1446,4 +1446,182 @@ export async function createMarketplaceOrder(input: {
   })));
 
   return { orderCode, status: "draft" as const, total: total.toFixed(2), currency: input.currency };
+}
+
+function numeric(value: unknown) { return Number(value ?? 0); }
+
+/** Financial and operating metrics derive only from persisted orders, wallets, and customer records. No pending or draft record is represented as revenue. */
+export async function getSuperAdminFinanceAnalytics() {
+  const db = requireDb(await getDb());
+  const [orderSummary] = await db.select({
+    totalOrders: sql<number>`count(*)`,
+    settledOrders: sql<number>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then 1 else 0 end), 0)`,
+    refundedOrders: sql<number>`coalesce(sum(case when ${orders.paymentStatus} = 'refunded' then 1 else 0 end), 0)`,
+    failedOrders: sql<number>`coalesce(sum(case when ${orders.status} = 'failed' then 1 else 0 end), 0)`,
+    settledRevenue: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`,
+    recordedSupplierCost: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then coalesce(${orders.supplierTotal}, 0) else 0 end), 0)`,
+  }).from(orders);
+  const [walletSummary] = await db.select({
+    totalBalance: sql<string>`coalesce(sum(${wallets.availableBalance}), 0)`,
+    activeWallets: sql<number>`coalesce(sum(case when ${wallets.status} = 'active' then 1 else 0 end), 0)`,
+  }).from(wallets);
+  const [fundingSummary] = await db.select({
+    pendingFunding: sql<number>`coalesce(sum(case when ${walletFundingAttempts.status} = 'pending' then 1 else 0 end), 0)`,
+    settledFunding: sql<string>`coalesce(sum(case when ${walletFundingAttempts.status} = 'settled' then ${walletFundingAttempts.amount} else 0 end), 0)`,
+  }).from(walletFundingAttempts);
+  const [customerSummary] = await db.select({
+    totalCustomers: sql<number>`count(*)`,
+    activeCustomers: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} = 'active' then 1 else 0 end), 0)`,
+    restrictedOrSuspended: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} in ('suspended', 'banned', 'restricted') then 1 else 0 end), 0)`,
+  }).from(customerProfiles);
+  const revenue = numeric(orderSummary?.settledRevenue);
+  const supplierCost = numeric(orderSummary?.recordedSupplierCost);
+  const grossProfit = revenue - supplierCost;
+  return {
+    finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." },
+    orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) },
+    customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended) },
+    wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) },
+  };
+}
+
+export async function listPromotions() {
+  const db = requireDb(await getDb());
+  const rows = await db.select().from(promotions).orderBy(desc(promotions.updatedAt));
+  return rows.map((row) => ({ ...row, discountAmount: numeric(row.discountAmount), minimumOrder: row.minimumOrder === null ? null : numeric(row.minimumOrder), maximumDiscount: row.maximumDiscount === null ? null : numeric(row.maximumDiscount) }));
+}
+
+export async function createPromotion(input: { name: string; code?: string | null; discountType: "percentage" | "fixed_amount"; discountAmount: number; minimumOrder?: number | null; maximumDiscount?: number | null; productId?: number | null; categorySlug?: string | null; startsAt?: Date | null; endsAt?: Date | null; usageLimit?: number | null; perUserLimit?: number | null; status: "draft" | "scheduled" | "active" | "paused" | "archived"; adminUserId: number }) {
+  const name = input.name.trim();
+  const code = input.code?.trim().toUpperCase() || null;
+  if (!name || name.length > 160) throw new Error("Promotion name must contain 1–160 characters");
+  if (code && !/^[A-Z0-9_-]{3,64}$/.test(code)) throw new Error("Promotion code must use 3–64 uppercase letters, numbers, underscores, or hyphens");
+  if (!Number.isFinite(input.discountAmount) || input.discountAmount <= 0 || (input.discountType === "percentage" && input.discountAmount > 100)) throw new Error("Enter a valid positive discount; percentage discounts cannot exceed 100%");
+  if (input.startsAt && input.endsAt && input.endsAt <= input.startsAt) throw new Error("Promotion end time must be after its start time");
+  const db = requireDb(await getDb());
+  const [created] = await db.insert(promotions).values({ name, code, discountType: input.discountType, discountAmount: input.discountAmount.toFixed(2), minimumOrder: input.minimumOrder === null || input.minimumOrder === undefined ? null : input.minimumOrder.toFixed(2), maximumDiscount: input.maximumDiscount === null || input.maximumDiscount === undefined ? null : input.maximumDiscount.toFixed(2), productId: input.productId ?? null, categorySlug: input.categorySlug?.trim() || null, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, usageLimit: input.usageLimit ?? null, perUserLimit: input.perUserLimit ?? null, status: input.status, createdByAdminId: input.adminUserId }).$returningId();
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "promotion.created", targetType: "promotion", targetId: created.id, summary: `Created ${input.status} promotion ${name}`, metadata: { code, discountType: input.discountType, discountAmount: input.discountAmount, status: input.status, operational: false } });
+  return { id: created.id, name, code, status: input.status };
+}
+
+export async function getReferralSettings() {
+  const db = requireDb(await getDb());
+  const [settings] = await db.select().from(referralSettings).where(eq(referralSettings.id, 1)).limit(1);
+  return settings ? { ...settings, percentageReward: numeric(settings.percentageReward), fixedReward: numeric(settings.fixedReward), minimumQualifyingOrder: numeric(settings.minimumQualifyingOrder), maximumReward: settings.maximumReward === null ? null : numeric(settings.maximumReward) } : null;
+}
+
+export async function updateReferralSettings(input: { percentageReward: number; fixedReward: number; minimumQualifyingOrder: number; maximumReward?: number | null; releaseDays: number; status: "disabled" | "configured"; adminUserId: number }) {
+  if ([input.percentageReward, input.fixedReward, input.minimumQualifyingOrder].some((value) => !Number.isFinite(value) || value < 0) || !Number.isInteger(input.releaseDays) || input.releaseDays < 0) throw new Error("Referral values must be non-negative and release days must be a whole number");
+  const db = requireDb(await getDb());
+  const values = { id: 1, percentageReward: input.percentageReward.toFixed(2), fixedReward: input.fixedReward.toFixed(2), minimumQualifyingOrder: input.minimumQualifyingOrder.toFixed(2), maximumReward: input.maximumReward === null || input.maximumReward === undefined ? null : input.maximumReward.toFixed(2), releaseDays: input.releaseDays, status: input.status, updatedByAdminId: input.adminUserId };
+  await db.insert(referralSettings).values(values).onDuplicateKeyUpdate({ set: values });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "referral.settings_updated", targetType: "referral_settings", targetId: 1, summary: `Updated referral policy configuration (${input.status})`, metadata: { operational: false, status: input.status } });
+  return getReferralSettings();
+}
+
+export async function getLoyaltySettings() {
+  const db = requireDb(await getDb());
+  const [settings] = await db.select().from(loyaltySettings).where(eq(loyaltySettings.id, 1)).limit(1);
+  return settings ? { ...settings, pointsPerCurrencyUnit: numeric(settings.pointsPerCurrencyUnit), redemptionValuePerPoint: numeric(settings.redemptionValuePerPoint) } : null;
+}
+
+export async function updateLoyaltySettings(input: { pointsPerCurrencyUnit: number; redemptionValuePerPoint: number; expiryDays?: number | null; status: "disabled" | "configured"; adminUserId: number }) {
+  if (![input.pointsPerCurrencyUnit, input.redemptionValuePerPoint].every((value) => Number.isFinite(value) && value >= 0) || (input.expiryDays !== null && input.expiryDays !== undefined && (!Number.isInteger(input.expiryDays) || input.expiryDays < 0))) throw new Error("Loyalty values must be non-negative; expiry days must be a non-negative whole number");
+  const db = requireDb(await getDb());
+  const values = { id: 1, pointsPerCurrencyUnit: input.pointsPerCurrencyUnit.toFixed(4), redemptionValuePerPoint: input.redemptionValuePerPoint.toFixed(4), expiryDays: input.expiryDays ?? null, status: input.status, updatedByAdminId: input.adminUserId };
+  await db.insert(loyaltySettings).values(values).onDuplicateKeyUpdate({ set: values });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "loyalty.settings_updated", targetType: "loyalty_settings", targetId: 1, summary: `Updated loyalty policy configuration (${input.status})`, metadata: { operational: false, status: input.status } });
+  return getLoyaltySettings();
+}
+
+export async function listResellers() {
+  const db = requireDb(await getDb());
+  const rows = await db.select({ reseller: resellers, user: users, profile: customerProfiles }).from(resellers)
+    .innerJoin(users, eq(resellers.userId, users.id)).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId))
+    .orderBy(desc(resellers.updatedAt));
+  return rows.map(({ reseller, user, profile }) => ({ id: reseller.id, userId: reseller.userId, tier: reseller.tier, discountPercent: numeric(reseller.discountPercent), status: reseller.status, approvedAt: reseller.approvedAt, updatedAt: reseller.updatedAt, customerName: user.name, email: user.email, username: profile?.username ?? null }));
+}
+
+export async function upsertReseller(input: { userId: number; tier: "retail" | "reseller" | "vip_reseller" | "enterprise"; discountPercent: number; status: "pending" | "approved" | "suspended" | "rejected"; adminUserId: number }) {
+  if (!Number.isFinite(input.discountPercent) || input.discountPercent < 0 || input.discountPercent > 100) throw new Error("Reseller discount must be between 0% and 100%");
+  const db = requireDb(await getDb());
+  const [user] = await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!user) throw new Error("Customer account was not found");
+  const [existing] = await db.select({ id: resellers.id, status: resellers.status }).from(resellers).where(eq(resellers.userId, input.userId)).limit(1);
+  const approvedAt = input.status === "approved" ? new Date() : null;
+  const values = { userId: input.userId, tier: input.tier, discountPercent: input.discountPercent.toFixed(2), status: input.status, approvedAt, updatedByAdminId: input.adminUserId };
+  await db.insert(resellers).values(values).onDuplicateKeyUpdate({ set: values });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: existing ? "reseller.updated" : "reseller.created", targetType: "reseller", targetId: input.userId, summary: `${existing ? "Updated" : "Created"} reseller designation for ${user.name || `customer #${input.userId}`}`, metadata: { tier: input.tier, discountPercent: input.discountPercent, status: input.status, operational: false } });
+  return listResellers();
+}
+
+export async function listSiteSettings() {
+  const db = requireDb(await getDb());
+  return db.select().from(siteSettings).orderBy(siteSettings.category, siteSettings.settingKey);
+}
+
+export async function upsertSiteSetting(input: { settingKey: string; category: "general" | "currency" | "payments" | "email" | "notifications" | "orders" | "security"; value: Record<string, unknown>; adminUserId: number }) {
+  const settingKey = input.settingKey.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "");
+  if (!settingKey || settingKey.length > 120) throw new Error("Setting key must contain 1–120 letters, numbers, dots, underscores, or hyphens");
+  const safeText = JSON.stringify(input.value);
+  if (/api[_-]?key|secret|password|private[_-]?key/i.test(safeText)) throw new Error("Secrets and credentials must remain in protected environment configuration, not site settings");
+  const db = requireDb(await getDb());
+  const [existing] = await db.select({ id: siteSettings.id }).from(siteSettings).where(eq(siteSettings.settingKey, settingKey)).limit(1);
+  const values = { settingKey, category: input.category, value: input.value, updatedByAdminId: input.adminUserId };
+  await db.insert(siteSettings).values(values).onDuplicateKeyUpdate({ set: values });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: existing ? "settings.updated" : "settings.created", targetType: "site_setting", targetId: settingKey, summary: `${existing ? "Updated" : "Created"} ${input.category} setting ${settingKey}`, metadata: { category: input.category } });
+  return { settingKey, category: input.category };
+}
+
+export async function listNotificationTemplates() {
+  const db = requireDb(await getDb());
+  return db.select().from(notificationTemplates).orderBy(notificationTemplates.channel, notificationTemplates.eventType);
+}
+
+export async function upsertNotificationTemplate(input: { templateKey: string; channel: "in_app" | "email" | "sms" | "whatsapp"; eventType: string; subject?: string | null; body: string; status: "draft" | "active" | "archived"; adminUserId: number }) {
+  const templateKey = input.templateKey.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "");
+  const eventType = input.eventType.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "");
+  const body = input.body.trim();
+  if (!templateKey || !eventType || !body) throw new Error("Template key, event type, and body are required");
+  const db = requireDb(await getDb());
+  const [existing] = await db.select({ id: notificationTemplates.id }).from(notificationTemplates).where(eq(notificationTemplates.templateKey, templateKey)).limit(1);
+  const values = { templateKey, channel: input.channel, eventType, subject: input.subject?.trim() || null, body, status: input.status, updatedByAdminId: input.adminUserId };
+  await db.insert(notificationTemplates).values(values).onDuplicateKeyUpdate({ set: values });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: existing ? "notification_template.updated" : "notification_template.created", targetType: "notification_template", targetId: templateKey, summary: `${existing ? "Updated" : "Created"} ${input.channel} ${eventType} notification template`, metadata: { channel: input.channel, status: input.status, externalDeliveryEnabled: false } });
+  return { templateKey, channel: input.channel, status: input.status };
+}
+
+export async function listRedactedApiRequestLogs(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select().from(apiRequestLogs).orderBy(desc(apiRequestLogs.createdAt)).limit(Math.min(250, Math.max(1, limit)));
+}
+
+/** Safe supplier webhook receipt list. Raw webhook payloads, signatures, and fulfilment details remain unavailable to the Admin browser. */
+export async function listRedactedSupplierWebhookEvents(limit = 100) {
+  const db = requireDb(await getDb());
+  return db.select({
+    supplierKey: supplierWebhookEvents.supplierKey,
+    eventId: supplierWebhookEvents.eventId,
+    eventType: supplierWebhookEvents.eventType,
+    processingStatus: supplierWebhookEvents.processingStatus,
+    integrityHashRecorded: sql<boolean>`case when ${supplierWebhookEvents.payloadHash} is not null then true else false end`,
+    receivedAt: supplierWebhookEvents.receivedAt,
+    processedAt: supplierWebhookEvents.processedAt,
+  }).from(supplierWebhookEvents).orderBy(desc(supplierWebhookEvents.receivedAt)).limit(Math.min(250, Math.max(1, limit)));
+}
+
+/** Fast owner-only lookup across safe operational identifiers. Search results deliberately omit credentials, digital codes, and fulfilment payloads. */
+export async function globalAdminSearch(query: string) {
+  const db = requireDb(await getDb());
+  const term = query.trim().slice(0, 120);
+  if (term.length < 2) return { customers: [], orders: [], products: [], tickets: [], funding: [] };
+  const pattern = `%${term}%`;
+  const [customers, foundOrders, foundProducts, tickets, funding] = await Promise.all([
+    db.select({ id: users.id, name: users.name, email: users.email, username: customerProfiles.username, accountStatus: customerProfiles.accountStatus }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).where(or(like(users.name, pattern), like(users.email, pattern), like(customerProfiles.username, pattern), like(customerProfiles.phone, pattern))).limit(10),
+    db.select({ orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, total: orders.total, currency: orders.currency, userId: orders.userId, createdAt: orders.createdAt }).from(orders).where(or(like(orders.orderCode, pattern), like(orders.supplierOrderId, pattern))).limit(10),
+    db.select({ id: products.id, name: products.name, slug: products.slug, supplierKey: products.supplierKey, supplierSku: products.supplierSku, status: products.status }).from(products).where(or(like(products.name, pattern), like(products.slug, pattern), like(products.supplierSku, pattern))).limit(10),
+    db.select({ ticketCode: supportTickets.ticketCode, subject: supportTickets.subject, status: supportTickets.status, userId: supportTickets.userId, updatedAt: supportTickets.updatedAt }).from(supportTickets).where(or(like(supportTickets.ticketCode, pattern), like(supportTickets.subject, pattern))).limit(10),
+    db.select({ fundingCode: walletFundingAttempts.fundingCode, providerReference: walletFundingAttempts.providerReference, status: walletFundingAttempts.status, amount: walletFundingAttempts.amount, currency: walletFundingAttempts.currency, userId: walletFundingAttempts.userId, createdAt: walletFundingAttempts.createdAt }).from(walletFundingAttempts).where(or(like(walletFundingAttempts.fundingCode, pattern), like(walletFundingAttempts.providerReference, pattern))).limit(10),
+  ]);
+  return { customers, orders: foundOrders, products: foundProducts, tickets, funding };
 }

@@ -356,6 +356,120 @@ export const supplierSyncRuns = mysqlTable("supplier_sync_runs", {
   statusStartedIndex: index("supplier_sync_runs_status_started_idx").on(table.status, table.startedAt),
 }));
 
+/** Future promotion configuration. Rules remain non-operative until an approved checkout application policy is implemented. */
+export const promotions = mysqlTable("promotions", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 160 }).notNull(),
+  code: varchar("code", { length: 64 }),
+  discountType: mysqlEnum("discountType", ["percentage", "fixed_amount"]).notNull(),
+  discountAmount: decimal("discountAmount", { precision: 12, scale: 2 }).notNull(),
+  minimumOrder: decimal("minimumOrder", { precision: 12, scale: 2 }),
+  maximumDiscount: decimal("maximumDiscount", { precision: 12, scale: 2 }),
+  productId: int("productId"),
+  categorySlug: varchar("categorySlug", { length: 80 }),
+  startsAt: timestamp("startsAt"),
+  endsAt: timestamp("endsAt"),
+  usageLimit: int("usageLimit"),
+  perUserLimit: int("perUserLimit"),
+  status: mysqlEnum("status", ["draft", "scheduled", "active", "paused", "archived"]).default("draft").notNull(),
+  createdByAdminId: int("createdByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  codeUnique: uniqueIndex("promotions_code_unique").on(table.code),
+  statusPeriodIndex: index("promotions_status_period_idx").on(table.status, table.startsAt, table.endsAt),
+  productIndex: index("promotions_product_idx").on(table.productId),
+}));
+
+/** Singleton future referral policy. The setting stores no customer reward and does not create wallet credits by itself. */
+export const referralSettings = mysqlTable("referral_settings", {
+  id: int("id").primaryKey(),
+  percentageReward: decimal("percentageReward", { precision: 7, scale: 2 }).default("0.00").notNull(),
+  fixedReward: decimal("fixedReward", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  minimumQualifyingOrder: decimal("minimumQualifyingOrder", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  maximumReward: decimal("maximumReward", { precision: 12, scale: 2 }),
+  releaseDays: int("releaseDays").default(0).notNull(),
+  status: mysqlEnum("status", ["disabled", "configured"]).default("disabled").notNull(),
+  updatedByAdminId: int("updatedByAdminId"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/** Singleton future loyalty policy. No points ledger is created or awarded until qualifying commerce rules are approved. */
+export const loyaltySettings = mysqlTable("loyalty_settings", {
+  id: int("id").primaryKey(),
+  pointsPerCurrencyUnit: decimal("pointsPerCurrencyUnit", { precision: 12, scale: 4 }).default("0.0000").notNull(),
+  redemptionValuePerPoint: decimal("redemptionValuePerPoint", { precision: 12, scale: 4 }).default("0.0000").notNull(),
+  expiryDays: int("expiryDays"),
+  status: mysqlEnum("status", ["disabled", "configured"]).default("disabled").notNull(),
+  updatedByAdminId: int("updatedByAdminId"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/** Owner-reviewed reseller designation. This does not generate API credentials or apply a pricing discount without future approval. */
+export const resellers = mysqlTable("resellers", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  tier: mysqlEnum("tier", ["retail", "reseller", "vip_reseller", "enterprise"]).default("retail").notNull(),
+  discountPercent: decimal("discountPercent", { precision: 7, scale: 2 }).default("0.00").notNull(),
+  status: mysqlEnum("status", ["pending", "approved", "suspended", "rejected"]).default("pending").notNull(),
+  approvedAt: timestamp("approvedAt"),
+  updatedByAdminId: int("updatedByAdminId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userUnique: uniqueIndex("resellers_user_unique").on(table.userId),
+  statusTierIndex: index("resellers_status_tier_idx").on(table.status, table.tier),
+}));
+
+/** Non-secret marketplace settings. Provider secrets continue to live only in protected environment configuration. */
+export const siteSettings = mysqlTable("site_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  settingKey: varchar("settingKey", { length: 120 }).notNull(),
+  category: mysqlEnum("category", ["general", "currency", "payments", "email", "notifications", "orders", "security"]).notNull(),
+  value: json("value").notNull(),
+  updatedByAdminId: int("updatedByAdminId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  settingKeyUnique: uniqueIndex("site_settings_key_unique").on(table.settingKey),
+  categoryIndex: index("site_settings_category_idx").on(table.category),
+}));
+
+/** Configurable message templates. External delivery remains disabled unless a future provider is explicitly activated. */
+export const notificationTemplates = mysqlTable("notification_templates", {
+  id: int("id").autoincrement().primaryKey(),
+  templateKey: varchar("templateKey", { length: 120 }).notNull(),
+  channel: mysqlEnum("channel", ["in_app", "email", "sms", "whatsapp"]).notNull(),
+  eventType: varchar("eventType", { length: 120 }).notNull(),
+  subject: varchar("subject", { length: 180 }),
+  body: text("body").notNull(),
+  status: mysqlEnum("status", ["draft", "active", "archived"]).default("draft").notNull(),
+  updatedByAdminId: int("updatedByAdminId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  templateKeyUnique: uniqueIndex("notification_templates_key_unique").on(table.templateKey),
+  statusChannelIndex: index("notification_templates_status_channel_idx").on(table.status, table.channel),
+}));
+
+/** Redacted operational metadata for supplier API calls. No request bodies, response payloads, credentials, or fulfilment codes are stored. */
+export const apiRequestLogs = mysqlTable("api_request_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierKey: varchar("supplierKey", { length: 80 }).notNull(),
+  endpoint: varchar("endpoint", { length: 255 }).notNull(),
+  requestId: varchar("requestId", { length: 160 }),
+  httpStatus: int("httpStatus"),
+  responseMs: int("responseMs"),
+  success: boolean("success").notNull(),
+  errorCode: varchar("errorCode", { length: 120 }),
+  orderId: int("orderId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  supplierCreatedIndex: index("api_request_logs_supplier_created_idx").on(table.supplierKey, table.createdAt),
+  requestIdIndex: index("api_request_logs_request_id_idx").on(table.requestId),
+  successCreatedIndex: index("api_request_logs_success_created_idx").on(table.success, table.createdAt),
+}));
+
 /** Store-wide customer display-price policy. Supplier base prices remain unchanged and are never stored here. */
 export const marketplacePricingSettings = mysqlTable("marketplace_pricing_settings", {
   id: int("id").primaryKey(),

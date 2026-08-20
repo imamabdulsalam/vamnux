@@ -22,4 +22,19 @@ describe("Super Admin authorization", () => {
     await expect(caller.admin.listSiteContentBlocks()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listPriceChangeHistory({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  it("rejects an authenticated customer before finance, policy, monitoring, reseller, settings, or global-search data can be accessed", async () => {
+    const caller = appRouter.createCaller({ user: { id: 91, openId: "customer-test", name: "Customer", email: "customer@example.test", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
+    await expect(caller.admin.getFinanceAnalytics()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.listPromotions()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.getReferralSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.getLoyaltySettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.listResellers()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.listSiteSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.listNotificationTemplates()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.listApiRequestLogs({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.listSupplierWebhookEvents({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.recordCsvExport({ exportType: "products", rowCount: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.search({ query: "PUBG" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
