@@ -249,7 +249,7 @@ export default function Home() {
     if (loading) return;
     if (!isAuthenticated) {
       toast.message("Sign in to access VAMNUX", { description: "Use an account to view orders, wallet activity, saved products, and support." });
-      startLogin();
+      setLocation("/login");
       return;
     }
     setLocation("/account");

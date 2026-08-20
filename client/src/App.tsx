@@ -12,6 +12,7 @@ import UserDashboard from "./pages/UserDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import SuperAdmin from "./pages/SuperAdmin";
 import PolicyPage from "./pages/PolicyPage";
+import CustomerAuth from "./pages/CustomerAuth";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/games/:family" component={GameFamilyDetail} />
       <Route path="/products/:slug" component={DigitalProductDetail} />
       <Route path="/account" component={UserDashboard} />
+      <Route path="/login" component={CustomerAuth} />
       <Route path="/policies/:slug" component={PolicyPage} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={SuperAdmin} />

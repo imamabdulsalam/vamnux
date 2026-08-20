@@ -18,7 +18,8 @@ Four public VAMNUX policy pages—Terms, Privacy, Refund, and Cookie—are initi
 
 Supabase Auth, Supabase API, and Resend remain disabled at the owner’s direction. Therefore, VAMNUX has not exposed unavailable email/password registration, email verification, password reset, Google sign-in, TOTP/MFA, session management, or transactional-email features. Manus OAuth remains the active fallback. Future Paystack, Korapay, and crypto funding integrations remain provider-confirmation work; wallet credits still require the current protected Admin settlement process, and supplier orders remain deferred.
 
+VAMNUX now also has a dedicated `/login` account-entry page. It presents the active secure sign-in handoff and describes the wallet/account benefits without claiming that deferred email/password, Google, reset, or MFA flows are active. Existing header account access routes unauthenticated customers to this entry point rather than directly starting a hidden handoff.
+
 ## Verification
 
 The full deterministic suite passed: **58 tests passed** with **5 opt-in FlashTopUp tests skipped**. The production build passed. The pre-existing external FoxReload live-network test remains excluded after its earlier timeout. Desktop visual checks confirmed the marketplace home, the authenticated user dashboard with truthful zero-state account metrics, and the editable-draft policy page. The customer-facing catalog and cart now use text fallbacks rather than emitting an empty image source when a supplier artwork URL is absent.
-
