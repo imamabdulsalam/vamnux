@@ -245,7 +245,7 @@
 - [ ] Implement staged Supabase email/password sign-up, verification, login, logout, password reset, secure sessions, logout-all-devices, security activity, and optional MFA/TOTP without enabling payments or supplier orders.
 - [ ] Prepare disabled-by-default Google OAuth support that requires confirmed Google client credentials and approved redirect URLs before activation.
 - [ ] Connect verified Supabase identities to existing customer profiles and apply owner-enforced customer isolation for profile, orders, wallet, favorites, notifications, support, and security data.
-- [ ] Refine VAMNUX sign-in/sign-up entry actions and add accessible social navigation in the supplied compact-header direction without copying third-party branding or layout.
+- [x] Refine VAMNUX sign-in/sign-up entry actions and add accessible social navigation in the supplied compact-header direction without copying third-party branding or layout.
 - [ ] Validate staged identity flows, account isolation, migration preservation, dashboard access, and storefront continuity, then report remaining provider configuration and security boundaries.
 
 ## Admin Operations Expansion — Remaining Workspaces
