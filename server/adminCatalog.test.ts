@@ -20,6 +20,11 @@ describe("admin-managed VAMNUX catalog safeguards", () => {
     expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, description: "Too short" })).toThrow();
   });
 
+  it("accepts a bounded delivery range and rejects a maximum that precedes the minimum", () => {
+    expect(adminManagedCatalogProductInputSchema.parse({ ...validProduct, deliveryMinimumMinutes: 5, deliveryMaximumMinutes: 60, customerRequirements: "Provide your account ID." })).toMatchObject({ deliveryMinimumMinutes: 5, deliveryMaximumMinutes: 60, customerRequirements: "Provide your account ID." });
+    expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, deliveryMinimumMinutes: 60, deliveryMaximumMinutes: 5 })).toThrow();
+  });
+
   it("requires every authorised source record to retain its commercial agreement reference", () => {
     expect(() => authorizedCatalogSourceInputSchema.parse({ displayName: "Approved partner", sourceType: "supplier", agreementReference: "" })).toThrow();
     expect(() => authorizedCatalogSourceInputSchema.parse({ displayName: "Approved partner", sourceType: "supplier", agreementReference: "AGR-2026-001" })).toThrow();

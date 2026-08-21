@@ -693,6 +693,9 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
       authorisedSourceId: source.id,
       authorisedSource: source.displayName,
       sourceType: source.sourceType,
+      deliveryMinimumMinutes: input.deliveryMinimumMinutes ?? null,
+      deliveryMaximumMinutes: input.deliveryMaximumMinutes ?? null,
+      customerRequirements: input.customerRequirements?.trim() || null,
     },
   }).$returningId();
 

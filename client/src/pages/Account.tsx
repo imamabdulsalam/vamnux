@@ -13,6 +13,9 @@ type ManualCatalogForm = {
   basePrice: string;
   regionLabel: string;
   deliveryType: "digital_code" | "activation_link" | "manual_processing" | "account_access";
+  deliveryMinimumMinutes: string;
+  deliveryMaximumMinutes: string;
+  customerRequirements: string;
   recipientEmailRequired: boolean;
   status: "draft" | "active" | "paused";
 };
@@ -25,6 +28,9 @@ const initialManualCatalogForm: ManualCatalogForm = {
   basePrice: "",
   regionLabel: "",
   deliveryType: "digital_code",
+  deliveryMinimumMinutes: "",
+  deliveryMaximumMinutes: "",
+  customerRequirements: "",
   recipientEmailRequired: false,
   status: "draft",
 };
@@ -99,7 +105,7 @@ function PricingManager() {
   </section>;
 }
 
-function ManualCatalogManager() {
+export function ManualCatalogManager() {
   const utils = trpc.useUtils();
   const [form, setForm] = useState<ManualCatalogForm>(initialManualCatalogForm);
   const [sourceForm, setSourceForm] = useState<CatalogSourceForm>(initialCatalogSourceForm);
@@ -145,11 +151,24 @@ function ManualCatalogManager() {
       toast.error("Create or select an active authorised source before saving this item.");
       return;
     }
+    const deliveryMinimumMinutes = form.deliveryMinimumMinutes.trim() ? Number(form.deliveryMinimumMinutes) : null;
+    const deliveryMaximumMinutes = form.deliveryMaximumMinutes.trim() ? Number(form.deliveryMaximumMinutes) : null;
+    if ((deliveryMinimumMinutes !== null && (!Number.isInteger(deliveryMinimumMinutes) || deliveryMinimumMinutes < 0)) || (deliveryMaximumMinutes !== null && (!Number.isInteger(deliveryMaximumMinutes) || deliveryMaximumMinutes < 0))) {
+      toast.error("Delivery timings must be whole non-negative minutes.");
+      return;
+    }
+    if (deliveryMinimumMinutes !== null && deliveryMaximumMinutes !== null && deliveryMaximumMinutes < deliveryMinimumMinutes) {
+      toast.error("Maximum delivery time must be equal to or greater than the minimum.");
+      return;
+    }
     createProduct.mutate({
       ...form,
       catalogSourceId,
       basePrice,
       regionLabel: form.regionLabel || undefined,
+      deliveryMinimumMinutes,
+      deliveryMaximumMinutes,
+      customerRequirements: form.customerRequirements.trim() || undefined,
     });
   };
 
@@ -182,7 +201,8 @@ function ManualCatalogManager() {
           <div className="grid gap-4 sm:grid-cols-2"><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Product name<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="e.g. Steam Wallet 50 USD" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as ManualCatalogForm["category"] })} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]"><option value="gift_card">Gift card</option><option value="subscription">Subscription</option><option value="software">Software</option><option value="ai_tool">AI tool</option><option value="game_key">Game key</option></select></label></div>
           <label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Customer-facing description<textarea required value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="State the verified product, denomination or plan, region, and delivery terms without unsupported promises." className="mt-2 min-h-24 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label>
           <label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Authorised source<select required value={form.catalogSourceId} onChange={(event) => setForm({ ...form, catalogSourceId: event.target.value })} disabled={sourceQuery.isLoading || activeSources.length === 0} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none disabled:bg-slate-100"><option value="">{sourceQuery.isLoading ? "Loading sources…" : activeSources.length === 0 ? "Add an active source above" : "Select an active source"}</option>{activeSources.map((source) => <option key={source.id} value={source.id}>{source.displayName} · {source.sourceType.replaceAll("_", " ")}</option>)}</select><span className="mt-1 block normal-case font-normal tracking-normal text-slate-500">Only an active source can be attached to a new listing.</span></label>
-          <div className="grid gap-4 sm:grid-cols-3"><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">USD price<input required inputMode="decimal" value={form.basePrice} onChange={(event) => setForm({ ...form, basePrice: event.target.value })} placeholder="0.00" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Region <span className="normal-case tracking-normal">(optional)</span><input value={form.regionLabel} onChange={(event) => setForm({ ...form, regionLabel: event.target.value })} placeholder="Global / country" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Delivery<select value={form.deliveryType} onChange={(event) => setForm({ ...form, deliveryType: event.target.value as ManualCatalogForm["deliveryType"] })} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]"><option value="digital_code">Digital code</option><option value="activation_link">Activation link</option><option value="manual_processing">Manual processing</option><option value="account_access">Account access</option></select></label></div>
+          <div className="grid gap-4 sm:grid-cols-3"><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">USD price<input required inputMode="decimal" value={form.basePrice} onChange={(event) => setForm({ ...form, basePrice: event.target.value })} placeholder="0.00" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Region <span className="normal-case tracking-normal">(optional)</span><input value={form.regionLabel} onChange={(event) => setForm({ ...form, regionLabel: event.target.value })} placeholder="Global / country" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none transition focus:border-[#286dff] focus:ring-2 focus:ring-[#286dff]/15" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Delivery format<select value={form.deliveryType} onChange={(event) => setForm({ ...form, deliveryType: event.target.value as ManualCatalogForm["deliveryType"] })} className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]"><option value="digital_code">Digital code</option><option value="activation_link">Activation link</option><option value="manual_processing">Manual processing</option><option value="account_access">Account access</option></select></label></div>
+          <div className="rounded-lg border border-[#286dff]/20 bg-[#f7f9ff] p-4"><p className="text-xs font-bold tracking-[.1em] text-[#286dff]">DELIVERY & CUSTOMER SETUP</p><p className="mt-1 text-xs leading-5 text-slate-600">Use a realistic delivery range in minutes. Leave both fields blank only when the verified source has no timing guidance.</p><div className="mt-3 grid gap-4 sm:grid-cols-2"><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Minimum delivery <span className="normal-case">(minutes)</span><input inputMode="numeric" value={form.deliveryMinimumMinutes} onChange={(event) => setForm({ ...form, deliveryMinimumMinutes: event.target.value.replace(/[^0-9]/g, "") })} placeholder="e.g. 5" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]" /></label><label className="block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Maximum delivery <span className="normal-case">(minutes)</span><input inputMode="numeric" value={form.deliveryMaximumMinutes} onChange={(event) => setForm({ ...form, deliveryMaximumMinutes: event.target.value.replace(/[^0-9]/g, "") })} placeholder="e.g. 60" className="mt-2 h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]" /></label></div><label className="mt-3 block text-xs font-bold uppercase tracking-[.1em] text-slate-500">Customer requirements <span className="normal-case">(optional)</span><textarea value={form.customerRequirements} maxLength={1000} onChange={(event) => setForm({ ...form, customerRequirements: event.target.value })} placeholder="For example: account ID, player ID, server, region, or other verified instructions." className="mt-2 min-h-20 w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-[#10121a] outline-none focus:border-[#286dff]" /></label></div>
           <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between"><label className="flex items-center gap-3 text-sm text-slate-700"><input type="checkbox" checked={form.recipientEmailRequired} onChange={(event) => setForm({ ...form, recipientEmailRequired: event.target.checked })} className="h-4 w-4 accent-[#286dff]" />Require a recipient email at draft order</label><label className="flex items-center gap-2 text-sm text-slate-700">Initial state<select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as ManualCatalogForm["status"] })} className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm"><option value="draft">Draft</option><option value="active">Live</option><option value="paused">Paused</option></select></label></div>
           <button type="submit" disabled={createProduct.isPending || activeSources.length === 0} className="inline-flex items-center gap-2 rounded-full bg-[#286dff] px-5 py-3 text-xs font-extrabold uppercase tracking-[.1em] text-white transition hover:bg-[#10121a] disabled:cursor-not-allowed disabled:opacity-60"><Plus size={15} />{createProduct.isPending ? "Saving catalog item…" : "Save authorised item"}</button>
         </form>

@@ -269,3 +269,7 @@
 - [x] Add a red supplier-balance Fund Wallet shortcut that opens the recorded funding context without creating a payment, supplier wallet credit, or email notification.
 - [x] Add a Customers suspended-account filter with protected appeal review and direct reinstatement controls, preserving existing suspension authorization and audit rules.
 - [x] Validate analytics progress, supplier funding shortcut, suspended-account operations, authorization, deterministic tests, and production build before publishing.
+- [x] Rebuild Products Publish & Discovery with a compact side-by-side synchronized product list that keeps all selectable listings visible while editing their storefront settings.
+- [x] Add direct protected On/Off visibility controls for individual products, preserving the existing visible, hidden, and coming-soon storefront states and audit trail.
+- [x] Improve the manual product form with distinct delivery minimum, delivery maximum, delivery-unit, and customer-requirement controls, plus guided validation and a recognizable save action.
+- [x] Validate product visibility controls, manual-listing delivery fields, responsive Products workspace density, authorization, tests, and production build before publishing.
