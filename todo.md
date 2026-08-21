@@ -292,3 +292,6 @@
 - [ ] Refine Categories management to show marketplace categories, product counts, and protected visibility controls that prevent a disabled category from appearing in the public marketplace.
 - [ ] Reorganize the Pricing Engine around global markup, category and product overrides, fixed display price, and buffer percentage controls using existing auditable server-side pricing records.
 - [ ] Validate the first Admin Panel redesign increment for owner authorization, customer/supplier data protection, real-data chart accuracy, responsive usability, deterministic tests, and production build.
+- [x] Simplify the visible owner-only Admin navigation to Dashboard, Products, Categories, Pricing Engine, Traffic Sources, Customers, Suppliers, Payment Gateways, Analytics, Exchange Rate, Orders, Wallet Funding, Notifications, Settings > Authentications, Fraud & Risk, Product Sync, Website Health, and Refunds.
+- [x] Preserve existing protected records, audit history, and safe inactive workflows while removing unlisted controls from the visible Admin navigation surface.
+- [x] Validate every simplified Admin navigation destination, owner-only access gate, responsive sidebar behavior, deterministic tests, and production build before publishing.
