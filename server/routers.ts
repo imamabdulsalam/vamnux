@@ -32,6 +32,7 @@ export const appRouter = router({
   }),
   marketplace: router({
     catalog: publicProcedure.query(() => listActiveCatalogProducts()),
+    categories: publicProcedure.query(() => listMarketplaceCategories()),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "refund-policy", "cookie-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
     accountSummary: customerProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
@@ -145,7 +146,7 @@ export const appRouter = router({
     })).mutation(({ ctx, input }) => updateMarketplaceCategory({ ...input, adminUserId: ctx.user.id })),
     reorderMarketplaceCategories: adminProcedure.input(z.object({ categoryIds: z.array(z.number().int().positive()).min(1).max(100) }))
       .mutation(({ ctx, input }) => reorderMarketplaceCategories({ ...input, adminUserId: ctx.user.id })),
-    bulkUpdateMarketplaceCategoryStatus: adminProcedure.input(z.object({ categoryIds: z.array(z.number().int().positive()).min(1).max(100), action: z.enum(["hide", "archive"]) }))
+    bulkUpdateMarketplaceCategoryStatus: adminProcedure.input(z.object({ categoryIds: z.array(z.number().int().positive()).min(1).max(100), action: z.enum(["hide", "archive", "show", "restore"]) }))
       .mutation(({ ctx, input }) => bulkUpdateMarketplaceCategoryStatus({ ...input, adminUserId: ctx.user.id })),
     listAdminProductOperations: adminProcedure.query(() => listAdminProductOperations()),
     updateProductAdminAttributes: adminProcedure.input(z.object({

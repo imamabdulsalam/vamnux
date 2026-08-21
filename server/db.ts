@@ -200,13 +200,16 @@ function requireDb<T>(db: T | null): T {
 export async function listActiveCatalogProducts() {
   const db = await getDb();
   if (!db) return [];
+  await ensureDefaultMarketplaceCategories(db);
   const settings = await ensureMarketplacePricingSettings(db);
   const activeProducts = await db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
+  const visibleCategoryRows = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true)));
+  const visibleCategorySlugs = new Set(visibleCategoryRows.map((category) => category.slug));
   const attributes = await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, newProduct: productAdminAttributes.newProduct, deal: productAdminAttributes.deal })
     .from(productAdminAttributes);
   const attributesByProductId = new Map(attributes.map((attribute) => [attribute.productId, attribute]));
   return activeProducts
-    .filter((product) => attributesByProductId.get(product.id)?.storefrontStatus !== "hidden")
+    .filter((product) => attributesByProductId.get(product.id)?.storefrontStatus !== "hidden" && visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(product.category)))
     .map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null }));
 }
 
@@ -338,6 +341,15 @@ export const DEFAULT_MARKETPLACE_CATEGORIES = [
   { slug: "telegram-stars", name: "Telegram Stars", sortOrder: 7 },
 ] as const;
 
+function marketplaceCategorySlugForProductCategory(category: string) {
+  const normalized = category.trim().toLowerCase().replaceAll("_", "-");
+  if (normalized === "top-up" || normalized === "game-top-up" || normalized === "game-key") return "game-top-up";
+  if (normalized === "gift-card" || normalized === "voucher") return "gift-cards";
+  if (normalized === "subscription") return "subscriptions";
+  if (normalized === "ai-tool") return "ai-tools";
+  return normalized;
+}
+
 /** Ensure the Admin starts with the exact categories already offered in the VAMNUX storefront. */
 async function ensureDefaultMarketplaceCategories(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   const existing = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories);
@@ -352,7 +364,7 @@ export async function listMarketplaceCategories(input: { includeArchived?: boole
   const db = requireDb(await getDb());
   await ensureDefaultMarketplaceCategories(db);
   if (input.includeArchived) return db.select().from(marketplaceCategories).orderBy(marketplaceCategories.sortOrder, marketplaceCategories.name);
-  return db.select().from(marketplaceCategories).where(eq(marketplaceCategories.status, "active")).orderBy(marketplaceCategories.sortOrder, marketplaceCategories.name);
+  return db.select().from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true))).orderBy(marketplaceCategories.sortOrder, marketplaceCategories.name);
 }
 
 export async function createMarketplaceCategory(input: MarketplaceCategoryInput & { adminUserId: number }) {
@@ -426,19 +438,20 @@ export async function reorderMarketplaceCategories(input: { categoryIds: number[
   return { categoryCount: categoryIds.length };
 }
 
-export async function bulkUpdateMarketplaceCategoryStatus(input: { categoryIds: number[]; action: "hide" | "archive"; adminUserId: number }) {
+export async function bulkUpdateMarketplaceCategoryStatus(input: { categoryIds: number[]; action: "hide" | "archive" | "show" | "restore"; adminUserId: number }) {
   const categoryIds = Array.from(new Set(input.categoryIds)).filter((id) => Number.isInteger(id) && id > 0);
   if (!categoryIds.length || categoryIds.length > 100) throw new Error("Select between 1 and 100 categories");
   const db = requireDb(await getDb());
   const categories = await db.select({ id: marketplaceCategories.id, name: marketplaceCategories.name, status: marketplaceCategories.status, visible: marketplaceCategories.visible }).from(marketplaceCategories).where(inArray(marketplaceCategories.id, categoryIds));
   if (categories.length !== categoryIds.length) throw new Error("One or more categories are unavailable");
-  const next = input.action === "archive" ? { visible: false, status: "archived" as const } : { visible: false, status: undefined };
+  const next = input.action === "archive" ? { visible: false, status: "archived" as const } : input.action === "hide" ? { visible: false, status: undefined } : { visible: true, status: "active" as const };
+  const actionLabel = input.action === "archive" ? "Archived" : input.action === "hide" ? "Hid" : input.action === "restore" ? "Restored" : "Showed";
   await db.transaction(async (tx) => {
     for (const category of categories) {
       await tx.update(marketplaceCategories).set(next).where(eq(marketplaceCategories.id, category.id));
-      await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: input.action === "archive" ? "catalog.category_bulk_archived_member" : "catalog.category_bulk_hidden_member", targetType: "marketplace_category", targetId: String(category.id), summary: `${input.action === "archive" ? "Archived" : "Hid"} category ${category.name}`, metadata: { previousStatus: category.status, previousVisible: category.visible } });
+      await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: `catalog.category_bulk_${input.action}_member`, targetType: "marketplace_category", targetId: String(category.id), summary: `${actionLabel} category ${category.name}`, metadata: { previousStatus: category.status, previousVisible: category.visible } });
     }
-    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: input.action === "archive" ? "catalog.category_bulk_archived" : "catalog.category_bulk_hidden", targetType: "marketplace_category_batch", targetId: categoryIds.join(","), summary: `${input.action === "archive" ? "Archived" : "Hid"} ${categories.length} marketplace categories`, metadata: { categoryCount: categories.length, categoryIds } });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: `catalog.category_bulk_${input.action}`, targetType: "marketplace_category_batch", targetId: categoryIds.join(","), summary: `${actionLabel} ${categories.length} marketplace categories`, metadata: { categoryCount: categories.length, categoryIds } });
   });
   return { categoryCount: categories.length, action: input.action };
 }

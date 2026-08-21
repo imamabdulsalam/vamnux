@@ -312,3 +312,7 @@
 - [x] Show customer-visible manual-delivery windows in hours on purchased manual products without making a delivery guarantee.
 - [x] Track real manual orders by pending payment, pending review, in progress, completed, failed, and cancelled states with owner-only audited actions; refunds remain separately safeguarded in Refunds.
 - [x] Validate manual-order state transitions, customer-data protection, responsive layout, deterministic tests, and production build before publishing.
+- [x] Repair Categories selection, Select All, quick view, product drill-down, hide/show, archive, restore, and bulk-action controls.
+- [x] Make hidden and archived marketplace categories unavailable to storefront navigation and category discovery while preserving their associated product records.
+- [x] Add clear archived-category restore control with auditable state changes and no product deletion.
+- [x] Validate category authorization, controls, marketplace filtering, deterministic tests, and production build before publishing.

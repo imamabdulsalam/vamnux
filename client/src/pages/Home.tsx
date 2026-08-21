@@ -94,13 +94,13 @@ const productCategories: ProductCategory[] = ["Top-up", "Voucher", "Subscription
 function isProductCategory(value: unknown): value is ProductCategory { return typeof value === "string" && productCategories.includes(value as ProductCategory); }
 
 const categories = [
-  { label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
-  { label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
-  { label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
-  { label: "Software", icon: Laptop, filter: "Software" as ProductCategory },
-  { label: "AI tools", icon: Sparkles, filter: "AI tools" as ProductCategory },
-  { label: "Steam", icon: Gamepad2, filter: "Steam" as ProductCategory },
-  { label: "Telegram Stars", icon: Send, filter: "Telegram Stars" as ProductCategory },
+  { slug: "game-top-up", label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
+  { slug: "gift-cards", label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
+  { slug: "subscriptions", label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
+  { slug: "software", label: "Software", icon: Laptop, filter: "Software" as ProductCategory },
+  { slug: "ai-tools", label: "AI tools", icon: Sparkles, filter: "AI tools" as ProductCategory },
+  { slug: "steam", label: "Steam", icon: Gamepad2, filter: "Steam" as ProductCategory },
+  { slug: "telegram-stars", label: "Telegram Stars", icon: Send, filter: "Telegram Stars" as ProductCategory },
 ];
 
 const unavailableCategoryDescriptions: Record<Exclude<ProductCategory, "Top-up">, string> = {
@@ -139,6 +139,7 @@ export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
+  const publicCategories = trpc.marketplace.categories.useQuery();
   const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
 
@@ -208,7 +209,12 @@ export default function Home() {
     });
   }, [activeCategory, publicProducts, query]);
 
-  const selectedCategory = categories.find((category) => category.filter === activeCategory);
+  const visibleCategories = useMemo(() => {
+    if (!publicCategories.data) return categories;
+    const visibleSlugs = new Set(publicCategories.data.map((category) => category.slug));
+    return categories.filter((category) => visibleSlugs.has(category.slug));
+  }, [publicCategories.data]);
+  const selectedCategory = visibleCategories.find((category) => category.filter === activeCategory);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
   const gameProducts = useMemo(() => filteredProducts.filter((product) => product.category === "Top-up"), [filteredProducts]);
@@ -230,7 +236,7 @@ export default function Home() {
     const curatedTopUpNames = new Set(productFamilies.map((family) => family.name.toLowerCase()));
     return interleaveTopUpFamilies(sortForRecognition(filteredProducts.filter((product) => product.category !== "Top-up" || curatedTopUpNames.has(product.name.toLowerCase()))));
   }, [filteredProducts, productFamilies]);
-  const catalogQuickLinks = useMemo(() => new Map(categories.map(({ filter }) => [filter, categoryQuickLinks(publicProducts, filter, 6)])), [publicProducts]);
+  const catalogQuickLinks = useMemo(() => new Map(visibleCategories.map(({ filter }) => [filter, categoryQuickLinks(publicProducts, filter, 6)])), [publicProducts, visibleCategories]);
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
@@ -329,7 +335,7 @@ export default function Home() {
           </div>
         </div>
         <nav className="commerce-categories compact-category-nav" aria-label="Marketplace categories">
-          {categories.map(({ label, icon: Icon, filter }) => {
+          {visibleCategories.map(({ label, icon: Icon, filter }) => {
             const links = catalogQuickLinks.get(filter) ?? [];
             const isOpen = openMegaCategory === filter;
             return <div className="compact-category-menu" key={filter} onMouseEnter={() => setOpenMegaCategory(filter)}>
@@ -379,7 +385,7 @@ export default function Home() {
       <section id="categories" className="global-category-row" aria-label="Product categories">
         <div className="global-section-label">EXPLORE / WHAT ARE YOU LOOKING FOR?</div>
         <div className="category-list">
-          {categories.map(({ label, icon: Icon, filter }) => (
+          {visibleCategories.map(({ label, icon: Icon, filter }) => (
             <button key={label} onClick={() => chooseCategory(filter)} className="category-button exchange-ticket">
               <Icon size={22} strokeWidth={1.8} />
               <span>{label}</span>

@@ -21,6 +21,7 @@ describe("Super Admin authorization", () => {
     await expect(caller.admin.updateMarketplaceCategory({ id: 1, slug: "games", name: "Games", sortOrder: 0, visible: false, featured: false, status: "active" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.reorderMarketplaceCategories({ categoryIds: [1, 2] })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.bulkUpdateMarketplaceCategoryStatus({ categoryIds: [1, 2], action: "hide" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.bulkUpdateMarketplaceCategoryStatus({ categoryIds: [1, 2], action: "restore" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listExchangeRates()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listSiteContentBlocks()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listPriceChangeHistory({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
