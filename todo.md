@@ -352,3 +352,6 @@
 - [x] Reorganize the dashboard navigation for Dashboard, Categories, Wallet, Favorites, Order History, Referral, Account Settings, and Support with real Profile, Notifications, Security, Settings, and Privacy destinations.
 - [x] Preserve customer account isolation, current Manus OAuth, wallet-only purchasing, truthful inactive payment/referral/rewards states, and existing protected support/security flows.
 - [x] Validate redesigned dashboard controls, real-data empty states, desktop/mobile layout, deterministic tests, production build, and authenticated visual review before publishing.
+
+- [x] Change only the User Dashboard colours to the supplied blue-to-violet grid-gradient palette, preserving all dashboard layout, copy, navigation, records, and interactions.
+- [x] Validate the revised User Dashboard palette for contrast, responsive rendering, unchanged controls, deterministic tests, and production build before publishing.

@@ -7,3 +7,5 @@
 ## User Dashboard Verification Notes
 
 Mobile visual review of the authenticated account dashboard confirmed that the compact navigation, personalized welcome, wallet balance, real order and ticket metrics, recent-order empty state, quick actions, and fixed account navigation are readable at a 390-pixel viewport. The personalized welcome heading was adjusted to a high-contrast light treatment against the VAMNUX account background; the account screen continues to show actual zero-balance and zero-order records rather than sample activity.
+
+The subsequent colour-only review confirmed the requested blue-to-violet grid-gradient palette across the authenticated desktop dashboard. All existing dashboard structure, labels, metrics, actions, and navigation remained unchanged; light text and outlines preserve readable contrast on the darker indigo and violet surfaces.
