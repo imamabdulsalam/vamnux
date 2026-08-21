@@ -520,6 +520,40 @@ export async function updateProductAdminAttributes(input: {
   return { productId: product.id };
 }
 
+export async function bulkUpdateProductStorefrontVisibility(input: { productIds: number[]; storefrontStatus: "visible" | "hidden"; adminUserId: number }) {
+  const productIds = Array.from(new Set(input.productIds)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!productIds.length || productIds.length > 100) throw new Error("Select between 1 and 100 products");
+  const db = requireDb(await getDb());
+  const selected = await db.select({ product: products, attributes: productAdminAttributes }).from(products).leftJoin(productAdminAttributes, eq(productAdminAttributes.productId, products.id)).where(inArray(products.id, productIds));
+  if (selected.length !== productIds.length) throw new Error("One or more selected products are unavailable");
+  await db.transaction(async (tx) => {
+    for (const { product, attributes } of selected) {
+      const values = { productId: product.id, storefrontStatus: input.storefrontStatus, featured: attributes?.featured ?? false, trending: attributes?.trending ?? false, bestSeller: attributes?.bestSeller ?? false, newProduct: attributes?.newProduct ?? false, deal: attributes?.deal ?? false, seoTitle: attributes?.seoTitle ?? null, seoDescription: attributes?.seoDescription ?? null, internalNote: attributes?.internalNote ?? null, updatedByAdminId: input.adminUserId };
+      await tx.insert(productAdminAttributes).values(values).onDuplicateKeyUpdate({ set: values });
+      await tx.insert(priceChangeHistory).values({ productId: product.id, adminUserId: input.adminUserId, changeType: "product_status", oldValue: JSON.stringify({ storefrontStatus: attributes?.storefrontStatus ?? "visible" }), newValue: JSON.stringify({ storefrontStatus: input.storefrontStatus }), reason: "Bulk storefront visibility update in Super Admin" });
+      await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "catalog.product_bulk_visibility_member", targetType: "product", targetId: String(product.id), summary: `Set storefront visibility for ${product.name} to ${input.storefrontStatus}`, metadata: { storefrontStatus: input.storefrontStatus } });
+    }
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "catalog.product_bulk_visibility", targetType: "product_batch", targetId: productIds.join(","), summary: `Set ${selected.length} product listings to ${input.storefrontStatus}`, metadata: { productCount: selected.length, storefrontStatus: input.storefrontStatus } });
+  });
+  return { productCount: selected.length, storefrontStatus: input.storefrontStatus };
+}
+
+export async function bulkArchiveAdminManagedCatalogProducts(input: { productIds: number[]; adminUserId: number }) {
+  const productIds = Array.from(new Set(input.productIds)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!productIds.length || productIds.length > 100) throw new Error("Select between 1 and 100 Admin-managed products");
+  const db = requireDb(await getDb());
+  const selected = await db.select({ id: products.id, name: products.name, supplierKey: products.supplierKey, status: products.status }).from(products).where(inArray(products.id, productIds));
+  if (selected.length !== productIds.length || selected.some((product) => product.supplierKey !== ADMIN_MANAGED_SUPPLIER_KEY)) throw new Error("Archive is available only for Admin-managed product listings");
+  await db.transaction(async (tx) => {
+    for (const product of selected) {
+      await tx.update(products).set({ status: "archived", supplierEligible: false }).where(eq(products.id, product.id));
+      await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "catalog.product_bulk_archived_member", targetType: "product", targetId: String(product.id), summary: `Archived Admin-managed product ${product.name}`, metadata: { previousStatus: product.status } });
+    }
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "catalog.product_bulk_archived", targetType: "product_batch", targetId: productIds.join(","), summary: `Archived ${selected.length} Admin-managed product listings`, metadata: { productCount: selected.length } });
+  });
+  return { productCount: selected.length };
+}
+
 export async function listSiteContentBlocks() {
   const db = requireDb(await getDb());
   return db.select().from(siteContentBlocks).orderBy(siteContentBlocks.blockType, siteContentBlocks.sortOrder);

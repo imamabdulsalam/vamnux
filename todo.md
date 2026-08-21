@@ -273,3 +273,6 @@
 - [x] Add direct protected On/Off visibility controls for individual products, preserving the existing visible, hidden, and coming-soon storefront states and audit trail.
 - [x] Improve the manual product form with distinct delivery minimum, delivery maximum, delivery-unit, and customer-requirement controls, plus guided validation and a recognizable save action.
 - [x] Validate product visibility controls, manual-listing delivery fields, responsive Products workspace density, authorization, tests, and production build before publishing.
+- [x] Add a catalog-list search field and individual Edit control for every VAMNUX Admin product listing.
+- [x] Add product-row selection controls and protected bulk actions for storefront visibility, authorized listing archive/disable, and selected-product percentage markup.
+- [x] Validate product search, selected-action boundaries, supplier-data isolation, authorization, deterministic tests, and production build before publishing.
