@@ -295,3 +295,11 @@
 - [x] Simplify the visible owner-only Admin navigation to Dashboard, Products, Categories, Pricing Engine, Traffic Sources, Customers, Suppliers, Payment Gateways, Analytics, Exchange Rate, Orders, Wallet Funding, Notifications, Settings > Authentications, Fraud & Risk, Product Sync, Website Health, and Refunds.
 - [x] Preserve existing protected records, audit history, and safe inactive workflows while removing unlisted controls from the visible Admin navigation surface.
 - [x] Validate every simplified Admin navigation destination, owner-only access gate, responsive sidebar behavior, deterministic tests, and production build before publishing.
+- [ ] Audit Dashboard, Products, Categories, and Pricing Engine against every confirmed operator requirement and identify any missing button, data projection, or truthful unavailable state.
+- [ ] Add any missing protected operator actions for supplier-synchronised product visibility, manual listing creation, product presentation, category visibility, product/category pricing overrides, and exchange-rate buffer configuration.
+- [ ] Add protected category product counts and category-to-product drill-down controls without exposing Admin-only supplier data to customers.
+- [ ] Validate each confirmed Admin control, real-data metric, unavailable state, responsive action layout, authorization boundary, deterministic tests, and production build before publishing.
+- [x] Add a compact Products action bar with immediate Add manual product, protected supplier sync, marketplace visibility, pricing, edit, and source-cost controls.
+- [x] Remove unused Products workspace space by grouping catalog management, private supplier data, and manual listing controls into clear operator sections.
+- [ ] Add Categories product-count and product drill-down controls alongside direct marketplace visibility controls for each managed category.
+- [ ] Validate Products and Categories action controls, data isolation, responsive compact layout, tests, and production build before publishing.
