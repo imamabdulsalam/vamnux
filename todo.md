@@ -346,3 +346,9 @@
 - [x] Implement functional Company, Support, catalog-category, Legal, Blog, Reseller, Affiliate, and payment-readiness destinations using real current VAMNUX capabilities and explicit unavailable boundaries where external providers or Admin configuration are still required.
 - [x] Rewire every footer item to a real information page, catalog view, protected customer flow, or an appropriate configured social URL when supplied.
 - [x] Validate every footer route, page content boundary, form/action, accessibility state, responsive layout, tests, build, and visual presentation before publishing.
+
+- [x] Redesign the authenticated VAMNUX User Dashboard as a compact, mobile-friendly account control center inspired by the supplied dashboard organization without copying its branding or layout.
+- [x] Add a personalized welcome, real wallet balance, total orders, completed orders, support-ticket count, recent activity, and contextual quick actions without fabricating customer balances, orders, rewards, or referrals.
+- [x] Reorganize the dashboard navigation for Dashboard, Categories, Wallet, Favorites, Order History, Referral, Account Settings, and Support with real Profile, Notifications, Security, Settings, and Privacy destinations.
+- [x] Preserve customer account isolation, current Manus OAuth, wallet-only purchasing, truthful inactive payment/referral/rewards states, and existing protected support/security flows.
+- [x] Validate redesigned dashboard controls, real-data empty states, desktop/mobile layout, deterministic tests, production build, and authenticated visual review before publishing.
