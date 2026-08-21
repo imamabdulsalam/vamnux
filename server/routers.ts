@@ -58,6 +58,7 @@ export const appRouter = router({
       orderUpdates: z.boolean(),
       paymentUpdates: z.boolean(),
       walletUpdates: z.boolean(),
+      securityAlerts: z.boolean().optional(),
       marketingUpdates: z.boolean(),
       productAnnouncements: z.boolean(),
     })).mutation(({ ctx, input }) => updateCustomerNotificationPreferences({ userId: ctx.user.id, ...input })),

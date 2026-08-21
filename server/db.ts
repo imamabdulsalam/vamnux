@@ -1532,7 +1532,7 @@ export async function updateCustomerProfile(input: { userId: number; firstName?:
   return profile;
 }
 
-export async function updateCustomerNotificationPreferences(input: { userId: number; orderUpdates: boolean; paymentUpdates: boolean; walletUpdates: boolean; marketingUpdates: boolean; productAnnouncements: boolean }) {
+export async function updateCustomerNotificationPreferences(input: { userId: number; orderUpdates: boolean; paymentUpdates: boolean; walletUpdates: boolean; marketingUpdates: boolean; productAnnouncements: boolean; securityAlerts?: boolean }) {
   const db = requireDb(await getDb());
   await ensureCustomerAccountRows(db, input.userId);
   await db.update(customerNotificationPreferences).set({
@@ -1541,8 +1541,10 @@ export async function updateCustomerNotificationPreferences(input: { userId: num
     walletUpdates: input.walletUpdates,
     marketingUpdates: input.marketingUpdates,
     productAnnouncements: input.productAnnouncements,
+    ...(input.securityAlerts === undefined ? {} : { securityAlerts: input.securityAlerts }),
   }).where(eq(customerNotificationPreferences.userId, input.userId));
   const [preferences] = await db.select().from(customerNotificationPreferences).where(eq(customerNotificationPreferences.userId, input.userId)).limit(1);
+  if (input.securityAlerts !== undefined) await recordCustomerSecurityEvent({ userId: input.userId, eventType: "security_alert_preference_updated", summary: `Security alerts were ${input.securityAlerts ? "enabled" : "disabled"}.` });
   return preferences;
 }
 

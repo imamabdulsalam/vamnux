@@ -322,3 +322,8 @@
 - [x] Securely store owner-uploaded manual-product imagery through the VAMNUX storage workflow and validate external image links without exposing storage credentials.
 - [x] Add a guided review step and keep personally fulfilled product management separate from supplier APIs, wallet funding, and supplier settlement.
 - [ ] Validate manual-product setup authorization, file and input handling, responsive operations UI, deterministic tests, production build, and visual review before publishing.
+
+- [x] Rebuild Settings · Authentication as a complete owner account and Admin sign-in security workspace.
+- [x] Add owner-authorized profile editing, security activity context, recovery and session readiness, verification preferences, and explicit authentication protection settings without exposing credentials or security secrets.
+- [x] Present email, phone, and authenticator enrollment truthfully, activating no verification factor until its secure delivery or enrollment flow is configured and enforced.
+- [ ] Validate security-setting authorization, owner-data minimization, audit behavior, tests, build, and authenticated visual review before publishing.
