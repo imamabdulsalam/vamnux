@@ -340,3 +340,9 @@
 - [x] Replace the compact storefront footer with the requested structured VAMNUX Company, Products, Support, Legal, social, and payment-method footer.
 - [x] Connect footer links to available VAMNUX routes, catalog filters, and legal pages while providing clear truthful states for unavailable external payment and social destinations.
 - [x] Validate footer accessibility, routing, desktop/mobile layout, deterministic tests, production build, and visual presentation before publishing.
+
+- [x] Turn the detailed approved footer specification into useful VAMNUX public-information destinations instead of unavailable-action notices.
+- [x] Build shared VAMNUX public-information page foundations with header, footer, breadcrumbs, responsive sections, authentic content, and back-to-top affordances.
+- [x] Implement functional Company, Support, catalog-category, Legal, Blog, Reseller, Affiliate, and payment-readiness destinations using real current VAMNUX capabilities and explicit unavailable boundaries where external providers or Admin configuration are still required.
+- [x] Rewire every footer item to a real information page, catalog view, protected customer flow, or an appropriate configured social URL when supplied.
+- [x] Validate every footer route, page content boundary, form/action, accessibility state, responsive layout, tests, build, and visual presentation before publishing.
