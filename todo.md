@@ -306,3 +306,9 @@
 - [x] Remove the excessive vertical gap between Products workspace panels so the next operator control is visible without unnecessary scrolling.
 - [x] Render a compact Categories product association view showing each managed category, its real product count and product names, plus a protected marketplace visibility toggle.
 - [x] Validate Products spacing, category visibility and associations, responsive density, authorization, tests, and production build before publishing.
+- [x] Add a Traffic Sources workspace with stored visitor/acquisition analytics by source, country, and 1-day, 7-day, 14-day, 30-day, and 3-month windows, with truthful no-data states where tracking records are unavailable.
+- [x] Expand the Customers workspace with owner-only wallet balance, spending, order count, last purchase, transaction history access, and secure sign-in metadata while preserving current suspension and reinstatement safeguards.
+- [x] Expand Suppliers with per-supplier product counts, protected supplier-cost and markup visibility, supplier website context, and truthfully recorded wallet-balance monitoring without exposing credentials.
+- [x] Add configurable low-supplier-balance alert readiness at the $5 threshold, visibly flagging recorded low balances and keeping email delivery fail-closed until a verified sender and balance source are configured.
+- [x] Build a Payment Gateways readiness workspace showing requested future funding and payout methods with accurate not-integrated status, without enabling checkout, payouts, or automatic wallet credit.
+- [x] Validate the expanded Admin operational workspaces for owner authorization, customer-data minimization, responsive use, deterministic tests, and production build before publishing.

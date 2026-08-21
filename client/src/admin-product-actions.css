@@ -50,6 +50,11 @@
 .admin-category-editor input:focus,.admin-category-editor select:focus,.admin-category-editor textarea:focus { border-color:#b8ff43; }
 .admin-category-editor .admin-check { display:flex; align-items:center; gap:7px; }
 .admin-category-editor .admin-check input { width:auto; }
+
+.admin-supplier-grid label { display:grid; gap:6px; color:#b8c3d4; font-size:9px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+.admin-supplier-grid input { width:100%; min-height:39px; border:1px solid rgba(255,255,255,.17); background:#0b0e16; color:#fff; padding:0 10px; font-size:11px; outline:0; }
+.admin-supplier-grid input:focus { border-color:#b8ff43; }
+.admin-supplier-grid .admin-product-preview .admin-status { display:inline-flex; }
 @media (max-width: 760px) {
   .admin-product-action-bar { align-items: stretch; flex-direction: column; }
   .admin-product-action-bar > div:last-child { justify-content: stretch; }

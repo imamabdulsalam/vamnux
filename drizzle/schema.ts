@@ -570,6 +570,22 @@ export const commerceIntegrations = mysqlTable("commerce_integrations", {
   typeStatusIndex: index("commerce_integrations_type_status_idx").on(table.integrationType, table.syncStatus),
 }));
 
+/** A manually recorded or future authenticated supplier-wallet observation. Provider credentials and live balance payloads are never stored here. */
+export const supplierBalanceObservations = mysqlTable("supplier_balance_observations", {
+  id: int("id").autoincrement().primaryKey(),
+  integrationId: int("integrationId").notNull(),
+  balance: decimal("balance", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+  source: mysqlEnum("source", ["manual", "authenticated_receipt"]).default("manual").notNull(),
+  observedAt: timestamp("observedAt").defaultNow().notNull(),
+  recordedByAdminId: int("recordedByAdminId").notNull(),
+  note: varchar("note", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  integrationObservedIndex: index("supplier_balance_observations_integration_observed_idx").on(table.integrationId, table.observedAt),
+  lowBalanceIndex: index("supplier_balance_observations_balance_idx").on(table.balance, table.currency),
+}));
+
 /** An auditable commercial source for products entered by a VAMNUX administrator. It stores references, never API credentials. */
 export const authorizedCatalogSources = mysqlTable("authorized_catalog_sources", {
   id: int("id").autoincrement().primaryKey(),

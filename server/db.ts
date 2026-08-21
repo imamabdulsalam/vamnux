@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, nativeAuthRateLimits, nativeCredentials, nativeSessions, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, nativeAuthRateLimits, nativeCredentials, nativeSessions, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AdminManagedCatalogProductUpdateInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -954,6 +954,25 @@ export async function listCommerceIntegrations() {
   }).from(commerceIntegrations).orderBy(desc(commerceIntegrations.updatedAt));
 }
 
+/** Registration-source records are customer acquisition metadata, not visitor analytics. Raw visitors require a separately configured analytics provider. */
+export async function getSuperAdminTrafficSources(range: { start: Date; end: Date }) {
+  const db = requireDb(await getDb());
+  const inRange = and(gte(customerProfiles.createdAt, range.start), lte(customerProfiles.createdAt, range.end));
+  const [newAccounts] = await db.select({ count: sql<number>`count(*)` }).from(customerProfiles).where(inRange);
+  const [sourceRows, countryRows] = await Promise.all([
+    db.select({ source: customerProfiles.registrationSource, accounts: sql<number>`count(*)` }).from(customerProfiles).where(inRange).groupBy(customerProfiles.registrationSource).orderBy(desc(sql`count(*)`)),
+    db.select({ countryCode: customerProfiles.countryCode, accounts: sql<number>`count(*)` }).from(customerProfiles).where(inRange).groupBy(customerProfiles.countryCode).orderBy(desc(sql`count(*)`)),
+  ]);
+  return {
+    period: range,
+    newAccounts: numericValue(newAccounts?.count),
+    visitors: null as number | null,
+    trackingStatus: "not_configured" as const,
+    sources: sourceRows.map((row) => ({ source: row.source || "Not provided", accounts: numericValue(row.accounts) })),
+    countries: countryRows.map((row) => ({ countryCode: row.countryCode || "Not provided", accounts: numericValue(row.accounts) })),
+  };
+}
+
 const numericValue = (value: unknown) => Number(value ?? 0);
 
 export async function getSuperAdminOverview() {
@@ -1005,7 +1024,77 @@ export async function listSuperAdminCustomers(limit = 100) {
     suspensionReason: customerProfiles.suspensionReason,
     suspendedAt: customerProfiles.suspendedAt,
     suspendedUntil: customerProfiles.suspendedUntil,
-  }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).orderBy(desc(users.createdAt)).limit(limit);
+    walletBalance: sql<string>`coalesce(max(${wallets.availableBalance}), 0)`,
+    walletCurrency: sql<string>`coalesce(max(${wallets.currency}), 'USD')`,
+    totalOrders: sql<number>`count(distinct ${orders.id})`,
+    totalSpent: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`,
+    lastPurchaseAt: sql<Date | null>`max(case when ${orders.paymentStatus} = 'paid' then ${orders.createdAt} else null end)`,
+  }).from(users)
+    .leftJoin(customerProfiles, eq(users.id, customerProfiles.userId))
+    .leftJoin(wallets, eq(users.id, wallets.userId))
+    .leftJoin(orders, eq(users.id, orders.userId))
+    .where(eq(users.role, "user"))
+    .groupBy(users.id, users.name, users.email, users.loginMethod, users.role, users.createdAt, users.lastSignedIn, customerProfiles.preferredCurrency, customerProfiles.countryCode, customerProfiles.accountStatus, customerProfiles.suspensionReason, customerProfiles.suspendedAt, customerProfiles.suspendedUntil)
+    .orderBy(desc(users.createdAt)).limit(limit);
+}
+
+/** Owner-only operational history; passwords, tokens, provider references, fulfilment inputs, and digital codes are deliberately excluded. */
+export async function getSuperAdminCustomerOperations(userId: number) {
+  const db = requireDb(await getDb());
+  const [customer] = await db.select({
+    id: users.id, name: users.name, email: users.email, loginMethod: users.loginMethod, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn,
+    preferredCurrency: customerProfiles.preferredCurrency, countryCode: customerProfiles.countryCode, accountStatus: customerProfiles.accountStatus,
+    walletBalance: wallets.availableBalance, walletCurrency: wallets.currency, walletStatus: wallets.status,
+  }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).leftJoin(wallets, eq(users.id, wallets.userId)).where(and(eq(users.id, userId), eq(users.role, "user"))).limit(1);
+  if (!customer) throw new Error("Customer account was not found");
+  const [ordersForCustomer, transactions] = await Promise.all([
+    db.select({ orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, total: orders.total, currency: orders.currency, createdAt: orders.createdAt })
+      .from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt)).limit(100),
+    customer.walletBalance === null ? Promise.resolve([]) : db.select({ direction: walletEntries.direction, entryType: walletEntries.entryType, amount: walletEntries.amount, currency: walletEntries.currency, status: walletEntries.status, reference: walletEntries.reference, createdAt: walletEntries.createdAt })
+      .from(walletEntries).innerJoin(wallets, eq(walletEntries.walletId, wallets.id)).where(eq(wallets.userId, userId)).orderBy(desc(walletEntries.createdAt)).limit(100),
+  ]);
+  return { customer, orders: ordersForCustomer, transactions };
+}
+
+export async function listSuperAdminSupplierMonitoring() {
+  const db = requireDb(await getDb());
+  const supplierRows = await db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName, apiBaseUrl: commerceIntegrations.apiBaseUrl, syncStatus: commerceIntegrations.syncStatus, lastSyncAt: commerceIntegrations.lastSyncAt, lastError: commerceIntegrations.lastError })
+    .from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier")).orderBy(desc(commerceIntegrations.updatedAt));
+  return Promise.all(supplierRows.map(async (supplier) => {
+    const supplierKey = supplier.providerName.toLowerCase().replaceAll(/[^a-z0-9]+/g, "");
+    const [[count], [balance]] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.supplierKey, supplierKey)),
+      db.select({ balance: supplierBalanceObservations.balance, currency: supplierBalanceObservations.currency, observedAt: supplierBalanceObservations.observedAt, source: supplierBalanceObservations.source, note: supplierBalanceObservations.note })
+        .from(supplierBalanceObservations).where(eq(supplierBalanceObservations.integrationId, supplier.id)).orderBy(desc(supplierBalanceObservations.observedAt)).limit(1),
+    ]);
+    const balanceValue = balance ? numericValue(balance.balance) : null;
+    return {
+      ...supplier,
+      productCount: numericValue(count?.count),
+      balance: balanceValue,
+      balanceCurrency: balance?.currency ?? null,
+      balanceObservedAt: balance?.observedAt ?? null,
+      balanceSource: balance?.source ?? null,
+      balanceNote: balance?.note ?? null,
+      belowAlertThreshold: balanceValue !== null && balance?.currency === "USD" && balanceValue <= 5,
+    };
+  }));
+}
+
+export async function recordSupplierBalanceObservation(input: { integrationId: number; balance: number; currency: string; note?: string; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [supplier] = await db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName }).from(commerceIntegrations)
+    .where(and(eq(commerceIntegrations.id, input.integrationId), eq(commerceIntegrations.integrationType, "supplier"))).limit(1);
+  if (!supplier) throw new Error("Supplier connector was not found");
+  if (!Number.isFinite(input.balance) || input.balance < 0 || input.balance > 1_000_000) throw new Error("Enter a supplier balance between 0 and 1,000,000");
+  const currency = input.currency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Supplier balance currency must be a three-letter code");
+  const note = input.note?.trim().slice(0, 500) || null;
+  await db.transaction(async (tx) => {
+    await tx.insert(supplierBalanceObservations).values({ integrationId: supplier.id, balance: input.balance.toFixed(2), currency, source: "manual", observedAt: new Date(), recordedByAdminId: input.adminUserId, note });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier.balance_recorded", targetType: "supplier", targetId: String(supplier.id), summary: `Recorded supplier balance observation for ${supplier.providerName}`, metadata: { balance: input.balance, currency, source: "manual", lowBalance: currency === "USD" && input.balance <= 5 } });
+  });
+  return { integrationId: supplier.id, providerName: supplier.providerName, balance: input.balance, currency };
 }
 
 type SuspensionUnit = "days" | "months" | "years" | "permanent";

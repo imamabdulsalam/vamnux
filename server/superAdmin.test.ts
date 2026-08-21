@@ -55,6 +55,10 @@ describe("Super Admin authorization", () => {
     await expect(caller.admin.listNotificationTemplates()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listApiRequestLogs({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listSupplierWebhookEvents({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.getTrafficSources({ start: new Date("2026-08-01T00:00:00.000Z"), end: new Date("2026-08-20T00:00:00.000Z") })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.getCustomerOperations({ userId: 91 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.listSupplierMonitoring()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.recordSupplierBalance({ integrationId: 1, balance: 5, currency: "USD" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.recordCsvExport({ exportType: "products", rowCount: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.search({ query: "PUBG" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
