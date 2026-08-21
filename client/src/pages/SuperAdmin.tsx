@@ -369,6 +369,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
         createList("Orders", "No orders are recorded.", data.orders.map((order) => ({ primary: `#${order.orderCode} · ${money(Number(order.total), order.currency)}`, secondary: `${label(order.status)} · ${label(order.paymentStatus)} · ${new Date(order.createdAt).toLocaleString()}` }))),
         createList("Wallet transactions", "No wallet transactions are recorded.", data.transactions.map((transaction) => ({ primary: `${label(transaction.entryType)} · ${transaction.direction} · ${money(transaction.amount, transaction.currency)}`, secondary: `${label(transaction.status)} · ${new Date(transaction.createdAt).toLocaleString()}` }))),
         createList("Login & security activity", "No safe login activity is recorded.", data.securityEvents.map((event) => ({ primary: event.summary, secondary: `${event.eventType} · ${new Date(event.createdAt).toLocaleString()}` }))),
+        createList("Support tickets", "No support tickets are recorded.", data.tickets.map((ticket) => ({ primary: `${ticket.ticketCode} · ${ticket.subject}`, secondary: `${label(ticket.category)} · ${label(ticket.status)} · ${new Date(ticket.updatedAt).toLocaleString()}` }))),
       ); detail.append(detailsGrid);
     };
     allButton.addEventListener("click", () => { showingSuspended = false; renderRows(); }); suspendedButton.addEventListener("click", () => { showingSuspended = true; renderRows(); }); searchInput.addEventListener("input", renderRows);

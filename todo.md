@@ -213,7 +213,7 @@
 - [ ] Build staged Supabase email/password registration, email verification, generic-error login/reset, Google OAuth, secure session, logout-all, and optional customer MFA/TOTP flows without removing Manus OAuth.
 - [ ] Enforce required Terms/Privacy acceptance and independently recorded optional marketing consent, then prepare editable clearly labelled draft Terms, Privacy, Refund, and Cookie policy pages.
 - [ ] Expand the real-data Phase 1 customer dashboard for profile, security, notifications, support tickets, orders/order details, transactions, favorites, and wallet-only quick actions, preserving truthful empty states.
-- [ ] Connect appropriate customer identity, activity, wallet, order, and support views to Super Admin with server-side authorization and audit logging, never exposing passwords, secrets, or card data.
+- [x] Connect appropriate customer identity, activity, wallet, order, and support views to Super Admin with server-side authorization and audit logging, never exposing passwords, secrets, or card data.
 - [ ] Test registration, verification, login, password reset, Google, MFA, session invalidation, user migration, account isolation, and existing storefront continuity before any Manus OAuth retirement is proposed.
 - [x] Document the deferred Supabase and Resend activation gate, preserve the existing Manus OAuth fallback, and complete only customer-account improvements that do not require external authentication or email credentials.
 - [x] Add non-destructive profile metadata, consent records, security events, notification preferences, support tickets/messages, and editable policy-content records linked to existing Manus-authenticated users.
@@ -306,3 +306,5 @@
 - [x] Add clear protected customer detail controls while excluding passwords, tokens, and credential material from all Admin views.
 - [x] Repair audited suspension, duration selection for days/months/years/permanent restrictions, appeal review, and reinstatement actions for non-Admin accounts.
 - [x] Validate customer-data protection, customer-control actions, responsive layout, deterministic tests, and production build before publishing.
+- [x] Add safe per-customer support-ticket status and account-activity context to the protected Admin customer detail view without exposing private message bodies.
+- [x] Validate the completed Customer control-center data boundaries, authorization, tests, and production build before publishing.
