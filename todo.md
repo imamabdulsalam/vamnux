@@ -360,3 +360,5 @@
 - [x] Make funding readiness clear in the User Dashboard without creating a wallet credit, payment confirmation, or provider checkout before a verified gateway integration exists.
 - [x] Prepare a verified payment-provider automatic-credit contract that can credit a wallet only after a signed, idempotent provider confirmation; do not simulate successful payment or payment-gateway activation.
 - [x] Validate customer authorization, $3 minimum enforcement, saved-rate calculation, readiness copy, deterministic tests, production build, and responsive funding presentation before publishing.
+
+- [x] Verify the owner-connected GitHub export and synchronize the latest published VAMNUX project version when direct repository access is available.
