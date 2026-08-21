@@ -286,3 +286,7 @@
 - [x] Add a prominent Products workspace action that opens the guided manual-product setup without losing the current catalog-management context.
 - [x] Expand the manual product form with recognizable name, description, category, platform, fulfillment type, region, price, image, delivery, and customer-requirement inputs under approved-source safeguards.
 - [x] Validate manual listing metadata, source authorization, draft-first behavior, deterministic tests, and production build before publishing.
+- [x] Populate and prioritise the existing storefront category taxonomy in the Categories workspace: Game top-up, Gift cards, Subscriptions, Software, AI tools, Steam, and Telegram Stars.
+- [x] Make category product drill-down, visibility, edit, hide, and safe archive actions the primary Categories controls, with no empty create-first experience.
+- [x] Move optional new-category creation and manual-product entry to compact secondary controls after the existing category operations.
+- [x] Validate existing category rendering, product drill-downs, operations, responsive layout, tests, and production build before publishing.

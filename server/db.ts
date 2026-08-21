@@ -327,9 +327,29 @@ function normaliseCategorySlug(value: string) {
   return slug;
 }
 
+export const DEFAULT_MARKETPLACE_CATEGORIES = [
+  { slug: "game-top-up", name: "Game top-up", sortOrder: 1 },
+  { slug: "gift-cards", name: "Gift cards", sortOrder: 2 },
+  { slug: "subscriptions", name: "Subscriptions", sortOrder: 3 },
+  { slug: "software", name: "Software", sortOrder: 4 },
+  { slug: "ai-tools", name: "AI tools", sortOrder: 5 },
+  { slug: "steam", name: "Steam", sortOrder: 6 },
+  { slug: "telegram-stars", name: "Telegram Stars", sortOrder: 7 },
+] as const;
+
+/** Ensure the Admin starts with the exact categories already offered in the VAMNUX storefront. */
+async function ensureDefaultMarketplaceCategories(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  const existing = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories);
+  const existingSlugs = new Set(existing.map((category) => category.slug));
+  const missing = DEFAULT_MARKETPLACE_CATEGORIES.filter((category) => !existingSlugs.has(category.slug));
+  if (!missing.length) return;
+  await db.insert(marketplaceCategories).values(missing.map((category) => ({ ...category, visible: true, featured: false, status: "active" as const })));
+}
+
 /** VAMNUX-controlled navigation categories. No supplier or inventory records are created by these operations. */
 export async function listMarketplaceCategories(input: { includeArchived?: boolean } = {}) {
   const db = requireDb(await getDb());
+  await ensureDefaultMarketplaceCategories(db);
   if (input.includeArchived) return db.select().from(marketplaceCategories).orderBy(marketplaceCategories.sortOrder, marketplaceCategories.name);
   return db.select().from(marketplaceCategories).where(eq(marketplaceCategories.status, "active")).orderBy(marketplaceCategories.sortOrder, marketplaceCategories.name);
 }
