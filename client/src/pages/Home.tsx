@@ -137,7 +137,7 @@ export default function Home() {
   // startLogin() during render (no href={startLogin()}) — it mints a one-time
   // nonce cookie and must run only at the moment of navigation.
   const { user, loading, isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
   const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
@@ -160,6 +160,15 @@ export default function Home() {
     },
     onError: (orderError) => toast.error(orderError.message || "We could not create your draft order."),
   });
+
+  useEffect(() => {
+    const queryString = location.includes("?") ? location.slice(location.indexOf("?") + 1) : "";
+    const marketplaceQuery = new URLSearchParams(queryString);
+    const category = marketplaceQuery.get("category");
+    const keyword = marketplaceQuery.get("q");
+    if (category === "All" || isProductCategory(category)) setActiveCategory(category);
+    if (keyword !== null) setQuery(keyword.slice(0, 120));
+  }, [location]);
 
   const carouselSlides = useMemo(() => {
     const heroBlocks = (publishedContentBlocks.data ?? []).filter((block) => block.blockType === "hero_slide");

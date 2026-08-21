@@ -266,3 +266,7 @@
 - [ ] Connect verified Supabase identities to existing customer profiles and apply owner-enforced customer isolation for profile, orders, wallet, favorites, notifications, support, and security data.
 - [ ] Refine VAMNUX sign-in/sign-up entry actions and add accessible social navigation in the supplied compact-header direction without copying third-party branding or layout.
 - [ ] Validate staged identity flows, account isolation, migration preservation, dashboard access, and storefront continuity, then report remaining provider configuration and security boundaries.
+- [x] Expand User Dashboard navigation for overview, orders, wallet, catalog, transactions, favorites, buy-again, rewards, referrals, subscriptions, notifications, support, profile, security, settings, and privacy using real data or clearly inactive states.
+- [x] Add destination-correct VAMNUX catalog category shortcuts for game top-ups, gift cards, subscriptions, software, AI tools, Steam, Telegram Stars, and current marketplace categories.
+- [x] Refine the VAMNUX dashboard overview with a moderate responsive welcome message, balance, order/reward summaries, and useful quick actions without simulating rewards, purchases, or payments.
+- [x] Validate the expanded dashboard for customer data isolation, mobile and desktop typography, navigation correctness, truthful inactive states, deterministic tests, and production build.
