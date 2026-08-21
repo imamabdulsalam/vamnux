@@ -298,3 +298,7 @@
 - [x] Add a functional manual-rate refresh action and a transparent calculator that uses only saved active rates.
 - [x] Preserve the rule that currencies without saved rates remain unavailable and are not auto-updated or fabricated.
 - [x] Validate Exchange Rate controls, data boundaries, responsive presentation, deterministic tests, and production build before publishing.
+- [x] Redesign Suppliers as a compact overview of configured supplier name, website, sync status, product count, and safe operating readiness.
+- [x] Preserve Admin-only supplier product pricing and VAMNUX markup access without exposing supplier credentials or data to customers.
+- [x] Clarify recorded supplier wallet balances, red at-or-below-$5 status, funding preparation controls, and the current transactional-email alert limitation.
+- [x] Validate supplier-data isolation, balance readiness controls, responsive layout, deterministic tests, and production build before publishing.

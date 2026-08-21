@@ -77,7 +77,7 @@ function AdminAccessGate() {
 function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: string; onSignOut: () => void; onReturn: () => void }) {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    return requestedTab === "rates" || requestedTab === "traffic" ? requestedTab : "overview";
+    return requestedTab === "rates" || requestedTab === "traffic" || requestedTab === "suppliers" ? requestedTab : "overview";
   });
   const overview = trpc.admin.getOverview.useQuery();
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery();
@@ -286,6 +286,62 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     refresh();
     return () => { tools.remove(); panel.querySelectorAll("[data-category-select], [data-category-quick-view], [data-category-drag]").forEach((element) => element.remove()); rows.forEach((row) => { row.draggable = false; delete row.dataset.categoryId; }); document.querySelectorAll(".admin-category-quick-overlay").forEach((overlay) => overlay.remove()); };
   }, [activeTab, marketplaceCategories.data, productOperations.data, bulkUpdateCategories, reorderCategories]);
+  useEffect(() => {
+    if (activeTab !== "suppliers") return;
+    const panel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.textContent?.includes("Read-only catalog operations"));
+    const header = panel?.querySelector<HTMLElement>(":scope > header");
+    if (!panel || !header) return;
+    panel.querySelector("[data-supplier-overview]")?.remove();
+    const overview = document.createElement("section");
+    overview.dataset.supplierOverview = "true";
+    overview.className = "admin-supplier-overview";
+    const overviewHead = document.createElement("div"); overviewHead.className = "admin-supplier-overview-head";
+    const title = document.createElement("div");
+    const kicker = document.createElement("span"); kicker.textContent = "CONFIGURED SUPPLIERS";
+    const heading = document.createElement("strong"); heading.textContent = "Supplier overview";
+    const note = document.createElement("small"); note.textContent = "Prices, markup context, and balance observations remain visible only in this owner-only workspace. Supplier credentials are excluded.";
+    title.append(kicker, heading, note);
+    const emailStatus = document.createElement("span"); emailStatus.className = "admin-status muted"; emailStatus.textContent = "Email alerts inactive";
+    overviewHead.append(title, emailStatus);
+    const tableWrap = document.createElement("div"); tableWrap.className = "admin-table-wrap";
+    const table = document.createElement("table"); table.className = "admin-supplier-overview-table";
+    table.innerHTML = "<thead><tr><th>Supplier</th><th>Website</th><th>Products</th><th>Recorded wallet</th><th>Status</th><th>Last activity</th><th>Admin actions</th></tr></thead>";
+    const body = document.createElement("tbody");
+    const keyFor = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const supplierIntegrations = (integrations.data ?? []).filter((integration) => integration.integrationType === "supplier");
+    const rows = supplierIntegrations.map((supplier) => {
+      const integration = (integrations.data ?? []).find((item) => item.id === supplier.id);
+      const balance = (supplierBalances.data ?? []).find((item) => item.id === supplier.id);
+      const supplierKey = keyFor(supplier.providerName);
+      const products = (productOperations.data ?? []).filter((product) => keyFor(product.supplierKey || "") === supplierKey);
+      return { supplier, integration, balance, products };
+    });
+    if (!rows.length) {
+      const row = document.createElement("tr"); row.innerHTML = '<td colspan="7">No configured supplier integrations are available.</td>'; body.append(row);
+    }
+    rows.forEach(({ supplier, integration, balance, products }) => {
+      const row = document.createElement("tr");
+      const host = integration?.apiBaseUrl ? (() => { try { return new URL(integration.apiBaseUrl).hostname; } catch { return "Configured endpoint"; } })() : "Not recorded";
+      const observed = balance?.observedAt ? new Date(balance.observedAt).toLocaleString() : "No observation";
+      const walletLabel = balance?.balance === null || balance?.balance === undefined ? "Unavailable" : money(balance.balance, balance.currency || "USD");
+      row.innerHTML = `<td><strong>${supplier.providerName}</strong><small>Supplier connector</small></td><td>${host}</td><td>${products.length} mapped</td><td><strong class="${balance?.lowBalance ? "supplier-balance-low" : ""}">${walletLabel}</strong><small>${observed}</small></td><td><span class="${balance?.lowBalance ? "admin-status danger" : statusClass(supplier.syncStatus)}">${balance?.lowBalance ? "Low balance" : supplier.syncStatus}</span></td><td>${supplier.lastSyncAt ? new Date(supplier.lastSyncAt).toLocaleString() : "No sync recorded"}</td>`;
+      const actions = document.createElement("td"); actions.className = "admin-supplier-overview-actions";
+      const prices = document.createElement("button"); prices.type = "button"; prices.className = "admin-secondary-action"; prices.textContent = "Products & prices";
+      prices.addEventListener("click", () => {
+        const overlay = document.createElement("div"); overlay.className = "admin-category-quick-overlay";
+        const modal = document.createElement("section"); modal.className = "admin-category-quick-modal admin-supplier-price-modal";
+        const productRows = products.map((product) => { const base = Number(product.basePrice); const display = Number(product.displayPrice); const markup = base > 0 ? `${(((display / base) - 1) * 100).toFixed(2)}%` : "—"; return `<li><strong>${product.name}</strong><span>Supplier price ${money(base, product.baseCurrency)} · VAMNUX price ${money(display, product.baseCurrency)} · markup ${markup}</span></li>`; }).join("");
+        modal.innerHTML = `<button type="button" aria-label="Close supplier pricing">×</button><p>ADMIN-ONLY SUPPLIER PRICING</p><h3>${supplier.providerName}</h3><small>${products.length} stored mapped products. These records do not disclose supplier credentials or transmit any supplier request.</small><ul>${productRows || "<li><span>No mapped products are currently stored for this supplier.</span></li>"}</ul>`;
+        overlay.append(modal); document.body.append(overlay);
+        overlay.addEventListener("click", (event) => { if (event.target === overlay || event.target === modal.querySelector("button")) overlay.remove(); });
+      });
+      actions.append(prices);
+      if (balance?.lowBalance) { const fund = document.createElement("button"); fund.type = "button"; fund.className = "admin-danger-action"; fund.textContent = "Fund wallet"; fund.addEventListener("click", () => { setSupplierFundingIntentId(supplier.id); setActiveTab("funding"); }); actions.append(fund); }
+      row.append(actions); body.append(row);
+    });
+    table.append(body); tableWrap.append(table); overview.append(overviewHead, tableWrap); header.after(overview);
+    return () => { overview.remove(); document.querySelectorAll(".admin-category-quick-overlay").forEach((overlay) => overlay.remove()); };
+  }, [activeTab, integrations.data, supplierBalances.data, productOperations.data]);
   useEffect(() => {
     if (activeTab !== "rates") return;
     const panel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.textContent?.includes("USD base conversion readiness"));
