@@ -1,9 +1,10 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
+import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDeliveryMinutesFromMetadata, type ManualDeliveryStatus } from "../shared/manualDelivery";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 
@@ -1019,6 +1020,46 @@ export async function listSuperAdminOrders(limit = 100) {
   }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.createdAt)).limit(limit);
 }
 
+/** Owner-only queue for personally fulfilled VAMNUX catalog items. Supplier/API records are not queried or changed here. */
+export async function listSuperAdminManualDeliveryTasks(limit = 200) {
+  const db = requireDb(await getDb());
+  const rows = await db.select({
+    id: manualDeliveryTasks.id, status: manualDeliveryTasks.status,
+    deliveryMinimumMinutes: manualDeliveryTasks.deliveryMinimumMinutes, deliveryMaximumMinutes: manualDeliveryTasks.deliveryMaximumMinutes,
+    customerStatusNote: manualDeliveryTasks.customerStatusNote, internalNote: manualDeliveryTasks.internalNote,
+    startedAt: manualDeliveryTasks.startedAt, completedAt: manualDeliveryTasks.completedAt, failedAt: manualDeliveryTasks.failedAt,
+    createdAt: manualDeliveryTasks.createdAt, updatedAt: manualDeliveryTasks.updatedAt,
+    orderId: orders.id, orderCode: orders.orderCode, orderStatus: orders.status, paymentStatus: orders.paymentStatus, currency: orders.currency, orderTotal: orders.total,
+    productName: orderItems.productName, quantity: orderItems.quantity,
+    customerId: users.id, customerName: users.name, customerEmail: users.email, customerCountryCode: customerProfiles.countryCode,
+  }).from(manualDeliveryTasks)
+    .innerJoin(orders, eq(manualDeliveryTasks.orderId, orders.id))
+    .innerJoin(orderItems, eq(manualDeliveryTasks.orderItemId, orderItems.id))
+    .leftJoin(users, eq(manualDeliveryTasks.userId, users.id))
+    .leftJoin(customerProfiles, eq(manualDeliveryTasks.userId, customerProfiles.userId))
+    .orderBy(desc(manualDeliveryTasks.updatedAt)).limit(limit);
+  return rows.map((row) => ({ ...row, deliveryWindow: formatManualDeliveryWindow(row.deliveryMinimumMinutes, row.deliveryMaximumMinutes) }));
+}
+
+export async function updateSuperAdminManualDeliveryTask(input: { taskId: number; status: ManualDeliveryStatus; customerStatusNote?: string | null; internalNote?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [task] = await db.select({ id: manualDeliveryTasks.id, status: manualDeliveryTasks.status, orderId: manualDeliveryTasks.orderId, productId: manualDeliveryTasks.productId, orderCode: orders.orderCode, paymentStatus: orders.paymentStatus, productName: orderItems.productName })
+    .from(manualDeliveryTasks).innerJoin(orders, eq(manualDeliveryTasks.orderId, orders.id)).innerJoin(orderItems, eq(manualDeliveryTasks.orderItemId, orderItems.id))
+    .where(eq(manualDeliveryTasks.id, input.taskId)).limit(1);
+  if (!task) throw new Error("Manual delivery task was not found");
+  const currentStatus = task.status as ManualDeliveryStatus;
+  if (currentStatus !== input.status && !isManualDeliveryTransitionAllowed(currentStatus, input.status)) throw new Error(`Manual delivery cannot move from ${currentStatus.replaceAll("_", " ")} to ${input.status.replaceAll("_", " ")}.`);
+  if (currentStatus === "pending_payment" && input.status === "pending_review" && task.paymentStatus !== "paid") throw new Error("A manual delivery task can enter review only after its VAMNUX payment status is recorded as paid.");
+  const now = new Date();
+  const customerStatusNote = input.customerStatusNote?.trim().slice(0, 500) || null;
+  const internalNote = input.internalNote?.trim().slice(0, 1000) || null;
+  await db.transaction(async (tx) => {
+    await tx.update(manualDeliveryTasks).set({ status: input.status, customerStatusNote, internalNote, updatedByAdminId: input.adminUserId, startedAt: input.status === "in_progress" ? now : undefined, completedAt: input.status === "completed" ? now : undefined, failedAt: input.status === "failed" ? now : undefined }).where(eq(manualDeliveryTasks.id, task.id));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "manual_delivery.task_updated", targetType: "manual_delivery_task", targetId: String(task.id), summary: `Changed manual delivery ${task.orderCode} · ${task.productName} from ${currentStatus.replaceAll("_", " ")} to ${input.status.replaceAll("_", " ")}`, metadata: { orderId: task.orderId, productId: task.productId, previousStatus: currentStatus, nextStatus: input.status, customerStatusNote } });
+  });
+  return { taskId: task.id, status: input.status };
+}
+
 /** Cancellation is limited to unfunded, unsent drafts; it cannot reverse a payment, supplier action, or delivery. */
 export async function cancelSuperAdminDraftOrder(input: { orderId: number; adminUserId: number; reason: string }) {
   const db = requireDb(await getDb());
@@ -1030,6 +1071,7 @@ export async function cancelSuperAdminDraftOrder(input: { orderId: number; admin
   if (reason.length < 3) throw new Error("Provide a clear review reason before cancelling an order.");
   await db.transaction(async (tx) => {
     await tx.update(orders).set({ status: "cancelled" }).where(eq(orders.id, order.id));
+    await tx.update(manualDeliveryTasks).set({ status: "cancelled", customerStatusNote: "Order cancelled before payment or delivery.", updatedByAdminId: input.adminUserId }).where(and(eq(manualDeliveryTasks.orderId, order.id), eq(manualDeliveryTasks.status, "pending_payment")));
     await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "order.cancelled_before_processing", targetType: "order", targetId: String(order.id), summary: `Cancelled unfunded unsent order ${order.orderCode}`, metadata: { reason } });
   });
   return { id: order.id, status: "cancelled" as const };
@@ -1298,10 +1340,12 @@ export async function getAccountCommerceSummary(userId: number) {
     createdAt: orders.createdAt,
   }).from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt)).limit(10);
 
+  const manualTasks = await db.select({ orderCode: orders.orderCode, status: manualDeliveryTasks.status, deliveryMinimumMinutes: manualDeliveryTasks.deliveryMinimumMinutes, deliveryMaximumMinutes: manualDeliveryTasks.deliveryMaximumMinutes, customerStatusNote: manualDeliveryTasks.customerStatusNote, updatedAt: manualDeliveryTasks.updatedAt }).from(manualDeliveryTasks).innerJoin(orders, eq(manualDeliveryTasks.orderId, orders.id)).where(eq(manualDeliveryTasks.userId, userId)).orderBy(desc(manualDeliveryTasks.updatedAt)).limit(20);
   return {
     profile: profile ?? null,
     wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
     orders: recentOrders,
+    manualDeliveryTasks: manualTasks.map((task) => ({ ...task, deliveryWindow: formatManualDeliveryWindow(task.deliveryMinimumMinutes, task.deliveryMaximumMinutes) })),
   };
 }
 
@@ -1320,6 +1364,7 @@ export async function getCustomerOrderDetail(input: { userId: number; orderCode:
   }).from(orders).where(and(eq(orders.orderCode, input.orderCode), eq(orders.userId, input.userId))).limit(1);
   if (!order) throw new Error("Order not found in your account.");
   const items = await db.select({
+    id: orderItems.id,
     productName: orderItems.productName,
     quantity: orderItems.quantity,
     unitPrice: orderItems.unitPrice,
@@ -1327,7 +1372,8 @@ export async function getCustomerOrderDetail(input: { userId: number; orderCode:
     deliveryType: orderItems.deliveryType,
   }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id))
     .where(and(eq(orders.orderCode, input.orderCode), eq(orders.userId, input.userId)));
-  return { order, items };
+  const manualTasks = await db.select({ orderItemId: manualDeliveryTasks.orderItemId, status: manualDeliveryTasks.status, deliveryMinimumMinutes: manualDeliveryTasks.deliveryMinimumMinutes, deliveryMaximumMinutes: manualDeliveryTasks.deliveryMaximumMinutes, customerStatusNote: manualDeliveryTasks.customerStatusNote, updatedAt: manualDeliveryTasks.updatedAt }).from(manualDeliveryTasks).innerJoin(orders, eq(manualDeliveryTasks.orderId, orders.id)).where(and(eq(orders.orderCode, input.orderCode), eq(manualDeliveryTasks.userId, input.userId)));
+  return { order, items: items.map((item) => { const task = manualTasks.find((candidate) => candidate.orderItemId === item.id); return { ...item, manualDelivery: task ? { ...task, deliveryWindow: formatManualDeliveryWindow(task.deliveryMinimumMinutes, task.deliveryMaximumMinutes) } : null }; }) };
 }
 
 /** Returns only the authenticated customer's own operational records for the VAMNUX user dashboard. */
@@ -1347,6 +1393,7 @@ export async function getCustomerDashboard(userId: number) {
     total: orders.total,
     createdAt: orders.createdAt,
   }).from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt)).limit(12);
+  const manualDeliveryTaskRows = await db.select({ orderCode: orders.orderCode, status: manualDeliveryTasks.status, deliveryMinimumMinutes: manualDeliveryTasks.deliveryMinimumMinutes, deliveryMaximumMinutes: manualDeliveryTasks.deliveryMaximumMinutes, customerStatusNote: manualDeliveryTasks.customerStatusNote, updatedAt: manualDeliveryTasks.updatedAt }).from(manualDeliveryTasks).innerJoin(orders, eq(manualDeliveryTasks.orderId, orders.id)).where(eq(manualDeliveryTasks.userId, userId)).orderBy(desc(manualDeliveryTasks.updatedAt)).limit(20);
   const recentWalletEntries = wallet
     ? await db.select({
       id: walletEntries.id,
@@ -1426,6 +1473,7 @@ export async function getCustomerDashboard(userId: number) {
     profile: profile ?? null,
     wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
     orders: recentOrders,
+    manualDeliveryTasks: manualDeliveryTaskRows.map((task) => ({ ...task, deliveryWindow: formatManualDeliveryWindow(task.deliveryMinimumMinutes, task.deliveryMaximumMinutes) })),
     walletEntries: recentWalletEntries,
     fundingRequests,
     savedProducts: savedRows.map((product) => ({ ...product, ...customerPriceForProduct(product, settings) })),
@@ -1684,7 +1732,7 @@ export async function createMarketplaceOrder(input: {
     fulfillmentDetails: input.fulfillmentDetails,
   }).$returningId();
 
-  await db.insert(orderItems).values(orderLines.map((line) => ({
+  const createdItems = await db.insert(orderItems).values(orderLines.map((line) => ({
     orderId: created.id,
     productId: line.product.id,
     productName: line.product.name,
@@ -1694,7 +1742,15 @@ export async function createMarketplaceOrder(input: {
     regionLabel: line.product.regionLabel,
     deliveryType: line.product.deliveryType,
     fulfillmentDetails: input.fulfillmentDetails,
-  })));
+  }))).$returningId();
+  const manualTaskRows = orderLines.flatMap((line, index) => {
+    if (line.product.supplierKey !== ADMIN_MANAGED_SUPPLIER_KEY) return [];
+    const item = createdItems[index];
+    if (!item) return [];
+    const delivery = manualDeliveryMinutesFromMetadata(line.product.metadata);
+    return [{ orderId: created.id, orderItemId: item.id, userId: input.userId, productId: line.product.id, status: "pending_payment" as const, deliveryMinimumMinutes: delivery.minimumMinutes, deliveryMaximumMinutes: delivery.maximumMinutes, customerStatusNote: delivery.minimumMinutes || delivery.maximumMinutes ? `Personal VAMNUX delivery is planned within ${formatManualDeliveryWindow(delivery.minimumMinutes, delivery.maximumMinutes)} after payment review.` : "Personal VAMNUX delivery timing will be confirmed after payment review." }];
+  });
+  if (manualTaskRows.length) await db.insert(manualDeliveryTasks).values(manualTaskRows);
 
   return { orderCode, status: "draft" as const, total: total.toFixed(2), currency: input.currency };
 }

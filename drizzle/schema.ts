@@ -650,6 +650,30 @@ export const orderItems = mysqlTable("order_items", {
   orderItemIndex: index("order_items_order_idx").on(table.orderId),
 }));
 
+/** Owner-delivered tasks created only for real Admin-managed order items. They never trigger supplier fulfilment or payment movement. */
+export const manualDeliveryTasks = mysqlTable("manual_delivery_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  orderItemId: int("orderItemId").notNull(),
+  userId: int("userId").notNull(),
+  productId: int("productId").notNull(),
+  status: mysqlEnum("status", ["pending_payment", "pending_review", "in_progress", "completed", "failed", "cancelled"]).default("pending_payment").notNull(),
+  deliveryMinimumMinutes: int("deliveryMinimumMinutes"),
+  deliveryMaximumMinutes: int("deliveryMaximumMinutes"),
+  customerStatusNote: varchar("customerStatusNote", { length: 500 }),
+  internalNote: varchar("internalNote", { length: 1000 }),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  failedAt: timestamp("failedAt"),
+  updatedByAdminId: int("updatedByAdminId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  orderItemUnique: uniqueIndex("manual_delivery_tasks_order_item_unique").on(table.orderItemId),
+  orderStatusIndex: index("manual_delivery_tasks_order_status_idx").on(table.orderId, table.status),
+  customerStatusIndex: index("manual_delivery_tasks_customer_status_idx").on(table.userId, table.status),
+}));
+
 export type Product = typeof products.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;

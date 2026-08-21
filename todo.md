@@ -308,3 +308,7 @@
 - [x] Validate customer-data protection, customer-control actions, responsive layout, deterministic tests, and production build before publishing.
 - [x] Add safe per-customer support-ticket status and account-activity context to the protected Admin customer detail view without exposing private message bodies.
 - [x] Validate the completed Customer control-center data boundaries, authorization, tests, and production build before publishing.
+- [x] Add a separate Admin Manual Delivery Operations workspace for products personally fulfilled by the VAMNUX owner, isolated from API supplier inventory.
+- [x] Show customer-visible manual-delivery windows in hours on purchased manual products without making a delivery guarantee.
+- [x] Track real manual orders by pending payment, pending review, in progress, completed, failed, and cancelled states with owner-only audited actions; refunds remain separately safeguarded in Refunds.
+- [x] Validate manual-order state transitions, customer-data protection, responsive layout, deterministic tests, and production build before publishing.
