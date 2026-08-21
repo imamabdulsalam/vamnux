@@ -1,102 +1,29 @@
 import { COOKIE_NAME } from "@shared/const";
-import { parse as parseCookie } from "cookie";
 import { z } from "zod";
-import { adminManagedCatalogProductInputSchema, adminManagedCatalogProductUpdateInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
-import { canRunSupplierCatalogSync, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminCustomerOperations, getSuperAdminFinanceAnalytics, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSuperAdminTrafficSources, getSupplierSyncStatus, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminSupplierMonitoring, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSupplierBalanceObservation, recordSuperAdminAuditEvent, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, toggleCustomerSavedProduct, updateAdminManagedCatalogProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
+import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
+import { canRunSupplierCatalogSync, cancelSuperAdminDraftOrder, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminFinanceAnalytics, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminSupplierBalances, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSuperAdminAuditEvent, recordSuperAdminSupplierBalance, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
-import { sdk } from "./_core/sdk";
-import { authenticateNativeCustomer, createNativeSession, prepareNativeEmailVerification, prepareNativePasswordReset, registerNativeCustomer, resetNativePasswordWithToken, revokeAllNativeSessions, revokeNativeSession, verifyNativeEmailToken } from "./db";
-import { validateNativePassword } from "./nativeAuthCrypto";
-import { isTransactionalEmailConfigured, passwordResetEmail, sendVamnuxAccountEmail, verificationEmail } from "./transactionalEmail";
-import { ENV } from "./_core/env";
-import { getCustomerAccountAccessState, reinstateCustomerAccount, suspendCustomerAccount } from "./db";
-import { getWalletFundingQuote } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    adminAccess: publicProcedure.query(({ ctx }) => ({ allowed: Boolean(ctx.user?.role === "admin" && ENV.adminEmail && ctx.user.email?.trim().toLowerCase() === ENV.adminEmail) })),
-    nativeRegister: publicProcedure.input(z.object({
-      firstName: z.string().trim().min(1).max(80),
-      lastName: z.string().trim().min(1).max(80),
-      countryCode: z.string().trim().length(2).toUpperCase(),
-      email: z.string().trim().email().max(320),
-      registrationSource: z.enum(["Google", "Facebook", "Instagram", "TikTok", "X", "YouTube", "WhatsApp", "Friend", "Referral", "Advertisement", "Other"]).nullable().optional(),
-      phone: z.string().trim().max(32).nullable().optional(),
-      password: z.string().min(12).max(256),
-      confirmPassword: z.string().min(12).max(256),
-      termsAccepted: z.literal(true),
-      marketingConsent: z.boolean().default(false),
-    }).refine((input) => input.password === input.confirmPassword, { message: "Passwords do not match.", path: ["confirmPassword"] })).mutation(async ({ ctx, input }) => {
-      const user = await registerNativeCustomer(input);
-      const expiresInMs = 30 * 24 * 60 * 60 * 1000;
-      const token = await sdk.createSessionToken(user.openId, { expiresInMs, name: user.name || "VAMNUX customer" });
-      await createNativeSession({ userId: user.id, sessionToken: token, expiresAt: new Date(Date.now() + expiresInMs) });
-      ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: expiresInMs });
-      if (isTransactionalEmailConfigured()) {
-        const verification = await prepareNativeEmailVerification(user.id);
-        if (verification) await sendVamnuxAccountEmail(verificationEmail(verification));
-      }
-      return { success: true, emailStatus: "unverified" as const, emailDeliveryAvailable: isTransactionalEmailConfigured() };
-    }),
-    nativeSignIn: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(256) })).mutation(async ({ ctx, input }) => {
-      const user = await authenticateNativeCustomer(input);
-      const access = await getCustomerAccountAccessState(user.id);
-      if (!access.allowed) throw new Error("We could not sign in with those details.");
-      const expiresInMs = 30 * 24 * 60 * 60 * 1000;
-      const token = await sdk.createSessionToken(user.openId, { expiresInMs, name: user.name || "VAMNUX customer" });
-      await createNativeSession({ userId: user.id, sessionToken: token, expiresAt: new Date(Date.now() + expiresInMs) });
-      ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: expiresInMs });
-      return { success: true, emailStatus: "unverified" as const };
-    }),
-    forgotPassword: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ input }) => {
-      if (!isTransactionalEmailConfigured()) return { success: true, deliveryAvailable: false };
-      const reset = await prepareNativePasswordReset(input.email);
-      if (reset) await sendVamnuxAccountEmail(passwordResetEmail(reset));
-      return { success: true, deliveryAvailable: true };
-    }),
-    resetPassword: publicProcedure.input(z.object({ token: z.string().min(32).max(256), password: z.string().min(12).max(256), confirmPassword: z.string().min(12).max(256) }).refine((input) => input.password === input.confirmPassword, { message: "Passwords do not match.", path: ["confirmPassword"] })).mutation(async ({ input }) => {
-      const passwordCheck = validateNativePassword(input.password);
-      if (!passwordCheck.valid) throw new Error("Choose a password that meets the VAMNUX security requirements.");
-      const success = await resetNativePasswordWithToken({ token: input.token, password: input.password });
-      return { success };
-    }),
-    verifyEmail: publicProcedure.input(z.object({ token: z.string().min(32).max(256) })).mutation(({ input }) => verifyNativeEmailToken(input.token).then((verified) => ({ verified }))),
-    resendVerification: protectedProcedure.mutation(async ({ ctx }) => {
-      if (!ctx.user.openId.startsWith("native_")) throw new Error("Email verification is available for VAMNUX password accounts only.");
-      if (!isTransactionalEmailConfigured()) return { deliveryAvailable: false, sent: false };
-      const verification = await prepareNativeEmailVerification(ctx.user.id);
-      if (!verification) return { deliveryAvailable: true, sent: false };
-      const result = await sendVamnuxAccountEmail(verificationEmail(verification));
-      return { deliveryAvailable: true, sent: result.delivered };
-    }),
-    logout: publicProcedure.mutation(async ({ ctx }) => {
-      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME];
-      if (ctx.user?.openId.startsWith("native_") && sessionToken) await revokeNativeSession({ userId: ctx.user.id, sessionToken });
+    logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return {
         success: true,
       } as const;
     }),
-    logoutAllNativeSessions: protectedProcedure.mutation(async ({ ctx }) => {
-      if (!ctx.user.openId.startsWith("native_")) throw new Error("This control is available for VAMNUX password accounts only.");
-      await revokeAllNativeSessions(ctx.user.id);
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return { success: true } as const;
-    }),
   }),
   marketplace: router({
     catalog: publicProcedure.query(() => listActiveCatalogProducts()),
-    walletFundingQuote: protectedProcedure.input(z.object({ currency: z.enum(["USD", "EUR", "GBP", "NGN"]) })).query(({ input }) => getWalletFundingQuote(input.currency)),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "refund-policy", "cookie-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
     accountSummary: protectedProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
@@ -157,20 +84,9 @@ export const appRouter = router({
     getOverview: adminProcedure.query(() => getSuperAdminOverview()),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
-    getCustomerOperations: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerOperations(input.userId)),
-    getTrafficSources: adminProcedure.input(z.object({ start: z.coerce.date(), end: z.coerce.date() }).refine((input) => input.start <= input.end, { message: "Traffic source start time must be before end time" })).query(({ input }) => getSuperAdminTrafficSources(input)),
-    suspendCustomer: adminProcedure.input(z.object({
-      userId: z.number().int().positive(),
-      reason: z.string().trim().min(3).max(500),
-      unit: z.enum(["days", "months", "years", "permanent"]),
-      duration: z.number().int().positive().optional(),
-    }).superRefine((input, ctx) => {
-      if (input.unit === "permanent" && input.duration !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A permanent suspension does not use a duration" });
-      if (input.unit !== "permanent" && input.duration === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A temporary suspension duration is required" });
-    })).mutation(({ ctx, input }) => suspendCustomerAccount({ adminUserId: ctx.user.id, ...input })),
-    reinstateCustomer: adminProcedure.input(z.object({ userId: z.number().int().positive(), note: z.string().trim().max(500).optional() }))
-      .mutation(({ ctx, input }) => reinstateCustomerAccount({ adminUserId: ctx.user.id, ...input })),
     listOrders: adminProcedure.query(() => listSuperAdminOrders()),
+    cancelDraftOrder: adminProcedure.input(z.object({ orderId: z.number().int().positive(), reason: z.string().trim().min(3).max(500) }))
+      .mutation(({ ctx, input }) => cancelSuperAdminDraftOrder({ ...input, adminUserId: ctx.user.id })),
     listSupportTickets: adminProcedure.query(() => listSuperAdminSupportTickets()),
     getSupportTicket: adminProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32) })).query(({ input }) => getSuperAdminSupportTicket(input.ticketCode)),
     replyToSupportTicket: adminProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32), message: z.string().trim().min(3).max(5000), status: z.enum(["processing", "waiting_for_customer", "resolved", "closed"]) }))
@@ -203,7 +119,7 @@ export const appRouter = router({
     })).mutation(({ ctx, input }) => updateMarketplaceCategory({ ...input, adminUserId: ctx.user.id })),
     listAdminProductOperations: adminProcedure.query(() => listAdminProductOperations()),
     updateProductAdminAttributes: adminProcedure.input(z.object({
-      productId: z.number().int().positive(), storefrontStatus: z.enum(["visible", "hidden", "coming_soon"]), featured: z.boolean(), trending: z.boolean(), bestSeller: z.boolean(), newProduct: z.boolean(), deal: z.boolean(), displayNameOverride: z.string().trim().max(255).nullable().optional(), descriptionOverride: z.string().trim().max(5000).nullable().optional(), deliveryEstimateOverride: z.string().trim().max(160).nullable().optional(), customerRequirementsOverride: z.string().trim().max(2000).nullable().optional(), seoTitle: z.string().trim().max(180).nullable().optional(), seoDescription: z.string().trim().max(300).nullable().optional(), internalNote: z.string().trim().max(5000).nullable().optional(),
+      productId: z.number().int().positive(), storefrontStatus: z.enum(["visible", "hidden", "coming_soon"]), featured: z.boolean(), trending: z.boolean(), bestSeller: z.boolean(), newProduct: z.boolean(), deal: z.boolean(), seoTitle: z.string().trim().max(180).nullable().optional(), seoDescription: z.string().trim().max(300).nullable().optional(), internalNote: z.string().trim().max(5000).nullable().optional(),
     })).mutation(({ ctx, input }) => updateProductAdminAttributes({ ...input, adminUserId: ctx.user.id })),
     listExchangeRates: adminProcedure.query(() => listExchangeRates()),
     upsertExchangeRate: adminProcedure.input(z.object({ baseCurrency: z.string().trim().length(3), quoteCurrency: z.string().trim().length(3), rate: z.number().positive().max(10_000_000), bufferPercent: z.number().min(0).max(100), active: z.boolean() }))
@@ -239,17 +155,15 @@ export const appRouter = router({
       return { exportType: input.exportType, rowCount: input.rowCount };
     }),
     listCommerceIntegrations: adminProcedure.query(() => listCommerceIntegrations()),
-    listSupplierMonitoring: adminProcedure.query(() => listSuperAdminSupplierMonitoring()),
+    listSupplierBalances: adminProcedure.query(() => listSuperAdminSupplierBalances()),
     recordSupplierBalance: adminProcedure.input(z.object({ integrationId: z.number().int().positive(), balance: z.number().min(0).max(1_000_000), currency: z.string().trim().length(3), note: z.string().trim().max(500).optional() }))
-      .mutation(({ ctx, input }) => recordSupplierBalanceObservation({ ...input, adminUserId: ctx.user.id })),
+      .mutation(({ ctx, input }) => recordSuperAdminSupplierBalance({ ...input, adminUserId: ctx.user.id })),
     listAdminManagedCatalog: adminProcedure.query(() => listAdminManagedCatalogProducts()),
     listAuthorizedCatalogSources: adminProcedure.query(() => listAuthorizedCatalogSources()),
     createAuthorizedCatalogSource: adminProcedure.input(authorizedCatalogSourceInputSchema)
       .mutation(({ input }) => createAuthorizedCatalogSource(input)),
     createAdminManagedCatalogProduct: adminProcedure.input(adminManagedCatalogProductInputSchema)
-      .mutation(({ ctx, input }) => createAdminManagedCatalogProduct({ ...input, adminUserId: ctx.user.id })),
-    updateAdminManagedCatalogProduct: adminProcedure.input(adminManagedCatalogProductUpdateInputSchema)
-      .mutation(({ ctx, input }) => updateAdminManagedCatalogProduct({ ...input, adminUserId: ctx.user.id })),
+      .mutation(({ input }) => createAdminManagedCatalogProduct(input)),
     setAdminManagedCatalogProductStatus: adminProcedure.input(z.object({
       productId: z.number().int().positive(),
       status: z.enum(["active", "paused", "archived"]),

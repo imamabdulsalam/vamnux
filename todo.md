@@ -239,76 +239,25 @@
 - [x] Validate the completed frontend refinement across desktop and mobile views while preserving Manus OAuth account isolation and truthful inactive-commerce states.
 - [x] Replace only the global storefront and User Dashboard typography with a clean rounded modern font system inspired by the supplied reference, preserving every non-typographic interface and behavior.
 - [x] Validate the typography-only update at desktop and mobile sizes without changing layout, colors, content, data, routes, authentication, or commerce behavior.
-- [x] Redesign the protected VAMNUX User Dashboard as a compact dark operational workspace with a VAMNUX-specific sidebar, top bar, overview actions, and real order-status summaries inspired by the supplied reference without copying its branding or third-party content.
-- [x] Preserve existing real customer data, account isolation, wallet-only purchase rules, support/security access, and truthful zero/empty states throughout the dashboard redesign.
-- [x] Validate the VAMNUX User Dashboard redesign across desktop and mobile views with deterministic authorization coverage and no active payment, supplier order, or fulfilment behavior.
-- [x] Inspect the active Manus OAuth identity flow, current user/profile schema, session model, and credential-handling capabilities before offering any VAMNUX email/password account creation.
-- [ ] Design a secure VAMNUX create-account flow for first name, last name, country, email, referral source, optional phone, terms/privacy consent, password guidance, email verification, and account-linking safeguards without duplicating or overwriting current users.
-- [ ] Configure an approved external identity and transactional-email provider before activating password registration, reset, verification, or Google sign-in; do not store plaintext credentials, fabricate accounts, or present nonfunctional authentication forms.
-- [ ] Implement and validate the approved secure registration experience, password-strength guidance, generic-error handling, account isolation, and responsive UI only after provider configuration is available.
-- [x] Design a staged native VAMNUX authentication model with Argon2id password hashing, opaque hashed verification/reset tokens, server-issued session revocation controls, rate limiting, audit events, and preserved Manus OAuth identity links.
-- [ ] Configure transactional email for verification and recovery through a secure server-side provider credential, with approved sender domain, test recipient, and production redirect configuration.
-- [ ] Add non-destructive native credential, verification, password-reset, session, and rate-limit persistence models without modifying existing Manus OAuth users, customer profiles, wallets, orders, supplier data, or Admin access.
-- [ ] Implement secure VAMNUX registration, email verification, generic-error sign-in, password reset, logout-all sessions, and explicit existing-account linking before offering live password fields to customers.
-- [ ] Build and validate the create-account form, password-strength guidance, terms/privacy consent, optional marketing consent, verification screen, sign-in, reset, and account-recovery interfaces against the completed native-authentication backend.
-- [x] Implement the approved no-email native VAMNUX registration and sign-in path with secure password hashing, generic-error responses, account isolation, and clear unverified-email status.
-- [x] Keep email verification and password recovery explicitly unavailable until the owner configures a transactional-email sender; do not claim delivery, verification, or recovery is active.
 - [x] Inspect and document the current Manus OAuth, user, customer-profile, identity-link, session, dashboard, and authorization architecture before any Supabase migration work.
 - [x] Design a non-destructive Supabase Auth mapping that preserves existing VAMNUX records, retains Manus OAuth as a verified fallback, and specifies password-reset treatment for users with no transferable passwords.
 - [ ] Configure required Supabase server and public client environment values securely, stopping for actual provider credentials and dashboard configuration rather than fabricating them.
 - [ ] Implement staged Supabase email/password sign-up, verification, login, logout, password reset, secure sessions, logout-all-devices, security activity, and optional MFA/TOTP without enabling payments or supplier orders.
 - [ ] Prepare disabled-by-default Google OAuth support that requires confirmed Google client credentials and approved redirect URLs before activation.
-- [ ] Configure a secure transactional-email sender for VAMNUX verification and password-recovery messages without exposing provider credentials to the browser.
-- [x] Add expiring hashed email-verification and password-reset token workflows that preserve existing native users and Manus OAuth accounts.
-- [x] Add user-friendly email-verification, Forgot password, and password-reset screens with generic request feedback, strong-password guidance, and secure session revocation.
-- [ ] Test email-delivery configuration, token expiry and single-use behavior, account isolation, verification state, password recovery, and production build before publishing.
-- [x] Keep verification and password-reset sending fail-closed when no verified sender credential is configured; never claim that a recovery email was delivered or surface recovery tokens to users.
 - [ ] Connect verified Supabase identities to existing customer profiles and apply owner-enforced customer isolation for profile, orders, wallet, favorites, notifications, support, and security data.
 - [ ] Refine VAMNUX sign-in/sign-up entry actions and add accessible social navigation in the supplied compact-header direction without copying third-party branding or layout.
 - [ ] Validate staged identity flows, account isolation, migration preservation, dashboard access, and storefront continuity, then report remaining provider configuration and security boundaries.
-- [x] Expand User Dashboard navigation for overview, orders, wallet, catalog, transactions, favorites, buy-again, rewards, referrals, subscriptions, notifications, support, profile, security, settings, and privacy using real data or clearly inactive states.
-- [x] Add destination-correct VAMNUX catalog category shortcuts for game top-ups, gift cards, subscriptions, software, AI tools, Steam, Telegram Stars, and current marketplace categories.
-- [x] Refine the VAMNUX dashboard overview with a moderate responsive welcome message, balance, order/reward summaries, and useful quick actions without simulating rewards, purchases, or payments.
-- [x] Validate the expanded dashboard for customer data isolation, mobile and desktop typography, navigation correctness, truthful inactive states, deterministic tests, and production build.
-- [x] Audit and consolidate the existing VAMNUX Super Admin dashboard, orders, catalog, supplier/API, pricing, finance, customer, support, content, notifications, risk, system, audit, and settings modules against the requested control list.
-- [x] Enforce owner-only Admin Panel eligibility for the specified administrative email without granting access solely from unverified client-side input or altering unrelated customer roles.
-- [x] Organize real-data Admin Panel workspaces for revenue, profit, orders, products, categories, suppliers, pricing, exchange rates, customers, wallet, payment/refund readiness, analytics, promotions, referrals, rewards, support, content, notifications, fraud/risk, system health, audit logs, and settings with truthful inactive states.
-- [x] Validate Super Admin authorization, data isolation, export safeguards, responsive usability, deterministic tests, and production build before publishing.
-- [x] Verify the newly registered specified email account and assign its server-side VAMNUX Admin role without changing unrelated user roles.
-- [x] Add real-data Admin Dashboard charts for revenue, profit, and order trends, with clear zero/unavailable states when no qualifying records exist.
-- [x] Extend Admin Products with controlled manual-listing create, edit, disable, and safe archive/delete behavior without altering supplier-backed catalog data.
-- [x] Store and show manual-product customer delivery-time instructions without making unverified fulfilment or delivery guarantees.
-- [x] Validate owner-only authorization, finance-chart accuracy, manual-product lifecycle controls, tests, responsive presentation, and production build before publishing.
-- [x] Expand Super Admin Customers to show each account’s real sign-in identity and current access state, excluding passwords, session tokens, and sensitive credential data.
-- [x] Add owner-audited customer suspension, time-bound expiry, permanent suspension, reinstatement, and active-session revocation controls that preserve account and order history.
-- [x] Show Admin-only product source, supplier cost, configured markup, and customer display price details without exposing supplier credentials or source costs to storefront users.
-- [x] Refine VAMNUX Admin and customer-facing typography for readable moderate sizing on mobile, Windows, and macOS layouts.
-- [x] Enforce a minimum $5 wallet-funding request amount and display an Admin-configured USD/NGN estimate without representing it as a provider-confirmed payment quote.
-- [ ] Prepare automatic wallet credit only for independently verified payment-provider callbacks with idempotency, signature validation, and immutable ledger safeguards; keep it inactive until a payment provider is configured and verified.
-- [ ] Validate customer access isolation, suspension lifecycle, Admin-only financial visibility, funding safeguards, responsive typography, tests, and production build before publishing.
-- [ ] Reorganize the owner-only VAMNUX Admin Panel shell into the requested dark operational hierarchy without copying third-party branding or generating synthetic business metrics.
-- [x] Redesign the Admin Dashboard to show real active-user, order-status, estimated-revenue, estimated-profit, and supplier-wallet data with clear unavailable states where a supplier balance is not stored.
-- [x] Refine Products management so supplier-synchronised products and manual listings both support private source/cost/markup visibility, storefront visibility controls, full editable product fields, delivery ranges, and requirements.
-- [ ] Refine Categories management to show marketplace categories, product counts, and protected visibility controls that prevent a disabled category from appearing in the public marketplace.
-- [ ] Reorganize the Pricing Engine around global markup, category and product overrides, fixed display price, and buffer percentage controls using existing auditable server-side pricing records.
-- [ ] Validate the first Admin Panel redesign increment for owner authorization, customer/supplier data protection, real-data chart accuracy, responsive usability, deterministic tests, and production build.
-- [x] Simplify the visible owner-only Admin navigation to Dashboard, Products, Categories, Pricing Engine, Traffic Sources, Customers, Suppliers, Payment Gateways, Analytics, Exchange Rate, Orders, Wallet Funding, Notifications, Settings > Authentications, Fraud & Risk, Product Sync, Website Health, and Refunds.
-- [x] Preserve existing protected records, audit history, and safe inactive workflows while removing unlisted controls from the visible Admin navigation surface.
-- [x] Validate every simplified Admin navigation destination, owner-only access gate, responsive sidebar behavior, deterministic tests, and production build before publishing.
-- [ ] Audit Dashboard, Products, Categories, and Pricing Engine against every confirmed operator requirement and identify any missing button, data projection, or truthful unavailable state.
-- [ ] Add any missing protected operator actions for supplier-synchronised product visibility, manual listing creation, product presentation, category visibility, product/category pricing overrides, and exchange-rate buffer configuration.
-- [ ] Add protected category product counts and category-to-product drill-down controls without exposing Admin-only supplier data to customers.
-- [ ] Validate each confirmed Admin control, real-data metric, unavailable state, responsive action layout, authorization boundary, deterministic tests, and production build before publishing.
-- [x] Add a compact Products action bar with immediate Add manual product, protected supplier sync, marketplace visibility, pricing, edit, and source-cost controls.
-- [x] Remove unused Products workspace space by grouping catalog management, private supplier data, and manual listing controls into clear operator sections.
-- [x] Add Categories product-count and product drill-down controls alongside direct marketplace visibility controls for each managed category.
-- [x] Validate Products and Categories action controls, data isolation, responsive compact layout, tests, and production build before publishing.
-- [x] Remove the excessive vertical gap between Products workspace panels so the next operator control is visible without unnecessary scrolling.
-- [x] Render a compact Categories product association view showing each managed category, its real product count and product names, plus a protected marketplace visibility toggle.
-- [x] Validate Products spacing, category visibility and associations, responsive density, authorization, tests, and production build before publishing.
-- [x] Add a Traffic Sources workspace with stored visitor/acquisition analytics by source, country, and 1-day, 7-day, 14-day, 30-day, and 3-month windows, with truthful no-data states where tracking records are unavailable.
-- [x] Expand the Customers workspace with owner-only wallet balance, spending, order count, last purchase, transaction history access, and secure sign-in metadata while preserving current suspension and reinstatement safeguards.
-- [x] Expand Suppliers with per-supplier product counts, protected supplier-cost and markup visibility, supplier website context, and truthfully recorded wallet-balance monitoring without exposing credentials.
-- [x] Add configurable low-supplier-balance alert readiness at the $5 threshold, visibly flagging recorded low balances and keeping email delivery fail-closed until a verified sender and balance source are configured.
-- [x] Build a Payment Gateways readiness workspace showing requested future funding and payout methods with accurate not-integrated status, without enabling checkout, payouts, or automatic wallet credit.
-- [x] Validate the expanded Admin operational workspaces for owner authorization, customer-data minimization, responsive use, deterministic tests, and production build before publishing.
+
+## Admin Operations Expansion — Remaining Workspaces
+
+- [x] Expand Analytics with Google-performance readiness, record-backed sales performance, and explicit order/revenue/profit goals without fabricating rankings or conversions.
+- [x] Refine Exchange Rate with editable USD/NGN rate and buffer controls, derived cross-currency display calculations, and clear manual-rate boundaries for EUR, GBP, and other supported storefront currencies.
+- [x] Expand Orders with compact VAMNUX `#` six-digit display IDs, stored customer/order/supplier identifiers, purchase and available delivery timestamps, plus safe review-only cancellation and delivery-delay readiness states.
+- [x] Surface recorded supplier wallet balances and the red $5 threshold consistently in Wallet Funding, while keeping email delivery and live supplier balance retrieval inactive until configured.
+- [x] Build an owner-only operational Notifications inbox for real new orders, low recorded supplier balances, support tickets, wallet-funding requests, and other stored events without inventing alerts.
+- [x] Build Settings · Authentication account-security readiness for profile changes and verification/MFA/re-authentication options, retaining inactive states until an approved email, authenticator, and phone verification service is configured.
+- [x] Expand Fraud & Risk with rule-based operational signals from stored records and non-accusatory resolution guidance, without creating unsupported risk scores or allegations.
+- [x] Prepare Product Sync interval and newly synchronized product controls using managed scheduling design, without activating recurring supplier sync before a deployed, authenticated, idempotent callback is approved.
+- [x] Expand Website Health with record-backed service checks, safe remediation guidance, and no fabricated runtime or provider-health claims.
+- [x] Expand Refunds with failed/refunded-order analytics and safe inactive refund processing boundaries.
+- [x] Validate the remaining Admin operational expansion for owner authorization, data minimization, safe workflow boundaries, deterministic tests, and production build before publishing.

@@ -1,14 +1,11 @@
-import { and, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, nativeAuthRateLimits, nativeCredentials, nativeSessions, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
-import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AdminManagedCatalogProductUpdateInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
-import { hashNativePassword, verifyNativePassword } from "./nativeAuthCrypto";
-import { nativeAuthTokens } from "../drizzle/schema";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -197,177 +194,6 @@ export async function getUserByOpenId(openId: string) {
 function requireDb<T>(db: T | null): T {
   if (!db) throw new Error("Marketplace database is not available");
   return db;
-}
-
-const NATIVE_AUTH_WINDOW_MS = 15 * 60 * 1000;
-const NATIVE_AUTH_MAX_ATTEMPTS = 8;
-
-function normalizeNativeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
-
-function nativeOpaqueHash(value: string) {
-  return createHash("sha256").update(`${ENV.cookieSecret}:${value}`).digest("hex");
-}
-
-function nativeActionTokenHash(value: string) {
-  return createHmac("sha256", ENV.cookieSecret).update(value).digest("hex");
-}
-
-async function consumeNativeAuthAttempt(input: { email: string; action: "register" | "sign_in" | "forgot_password" | "resend_verification" | "verify_email" }) {
-  const db = requireDb(await getDb());
-  const bucketHash = nativeOpaqueHash(normalizeNativeEmail(input.email));
-  const now = new Date();
-  const [existing] = await db.select().from(nativeAuthRateLimits).where(and(eq(nativeAuthRateLimits.bucketHash, bucketHash), eq(nativeAuthRateLimits.action, input.action))).limit(1);
-  if (!existing || existing.windowExpiresAt <= now) {
-    await db.insert(nativeAuthRateLimits).values({ bucketHash, action: input.action, attemptCount: 1, windowExpiresAt: new Date(now.getTime() + NATIVE_AUTH_WINDOW_MS), lastAttemptAt: now }).onDuplicateKeyUpdate({ set: { attemptCount: 1, windowExpiresAt: new Date(now.getTime() + NATIVE_AUTH_WINDOW_MS), lastAttemptAt: now } });
-    return true;
-  }
-  if (existing.attemptCount >= NATIVE_AUTH_MAX_ATTEMPTS) return false;
-  await db.update(nativeAuthRateLimits).set({ attemptCount: existing.attemptCount + 1, lastAttemptAt: now }).where(eq(nativeAuthRateLimits.id, existing.id));
-  return true;
-}
-
-export async function registerNativeCustomer(input: { firstName: string; lastName: string; countryCode: string; email: string; registrationSource?: string | null; phone?: string | null; password: string; marketingConsent: boolean }) {
-  const db = requireDb(await getDb());
-  const email = normalizeNativeEmail(input.email);
-  if (!(await consumeNativeAuthAttempt({ email, action: "register" }))) throw new Error("Please wait before trying again.");
-
-  const [existingCredential] = await db.select({ id: nativeCredentials.id }).from(nativeCredentials).where(eq(nativeCredentials.email, email)).limit(1);
-  if (existingCredential) throw new Error("We could not create an account with those details. Try signing in or use a different email address.");
-
-  const openId = `native_${randomUUID().replaceAll("-", "")}`;
-  const passwordHash = await hashNativePassword(input.password);
-  const name = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
-  try {
-    await db.insert(users).values({ openId, name, email, loginMethod: "native_email", role: "user", lastSignedIn: new Date() });
-    const [user] = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-    if (!user) throw new Error("Unable to initialize account.");
-    await ensureCustomerAccountRows(db, user.id);
-    await db.update(customerProfiles).set({ firstName: input.firstName.trim(), lastName: input.lastName.trim(), countryCode: input.countryCode.trim().toUpperCase(), phone: input.phone?.trim() || null, registrationSource: input.registrationSource?.trim() || null, accountStatus: "pending_email_verification" }).where(eq(customerProfiles.userId, user.id));
-    await db.insert(nativeCredentials).values({ userId: user.id, email, passwordHash });
-    await db.insert(customerIdentityLinks).values({ userId: user.id, provider: "native_email", providerSubject: openId, providerEmail: email }).onDuplicateKeyUpdate({ set: { providerEmail: email, lastAuthenticatedAt: new Date() } });
-    await db.insert(customerConsents).values([
-      { userId: user.id, consentType: "terms_privacy", policyVersion: "draft-1", granted: true },
-      { userId: user.id, consentType: "marketing", policyVersion: "draft-1", granted: input.marketingConsent },
-    ]);
-    await recordCustomerSecurityEvent({ userId: user.id, eventType: "native_registration", summary: "A native VAMNUX password account was created. Email verification is pending." });
-    return user;
-  } catch (error) {
-    const [created] = await db.select({ id: users.id }).from(users).where(eq(users.openId, openId)).limit(1);
-    if (created) await db.delete(users).where(eq(users.id, created.id));
-    throw error;
-  }
-}
-
-export async function authenticateNativeCustomer(input: { email: string; password: string }) {
-  const db = requireDb(await getDb());
-  const email = normalizeNativeEmail(input.email);
-  if (!(await consumeNativeAuthAttempt({ email, action: "sign_in" }))) throw new Error("Unable to sign in with those details.");
-  const [record] = await db.select({ credential: nativeCredentials, user: users }).from(nativeCredentials).innerJoin(users, eq(nativeCredentials.userId, users.id)).where(eq(nativeCredentials.email, email)).limit(1);
-  if (!record || record.credential.credentialStatus !== "active" || !(await verifyNativePassword(record.credential.passwordHash, input.password))) {
-    throw new Error("Unable to sign in with those details.");
-  }
-  await db.update(nativeCredentials).set({ updatedAt: new Date() }).where(eq(nativeCredentials.id, record.credential.id));
-  await recordCustomerSecurityEvent({ userId: record.user.id, eventType: "native_sign_in", summary: "A VAMNUX password account signed in." });
-  return record.user;
-}
-
-export async function createNativeSession(input: { userId: number; sessionToken: string; expiresAt: Date }) {
-  const db = requireDb(await getDb());
-  await db.insert(nativeSessions).values({ userId: input.userId, sessionHash: nativeOpaqueHash(input.sessionToken), expiresAt: input.expiresAt });
-}
-
-export async function isNativeSessionActive(input: { userId: number; sessionToken: string }) {
-  const db = requireDb(await getDb());
-  const [session] = await db.select({ id: nativeSessions.id }).from(nativeSessions).where(and(eq(nativeSessions.userId, input.userId), eq(nativeSessions.sessionHash, nativeOpaqueHash(input.sessionToken)), isNull(nativeSessions.revokedAt), gte(nativeSessions.expiresAt, new Date()))).limit(1);
-  if (!session) return false;
-  await db.update(nativeSessions).set({ lastSeenAt: new Date() }).where(eq(nativeSessions.id, session.id));
-  return true;
-}
-
-export async function revokeNativeSession(input: { userId: number; sessionToken: string }) {
-  const db = requireDb(await getDb());
-  await db.update(nativeSessions).set({ revokedAt: new Date() }).where(and(eq(nativeSessions.userId, input.userId), eq(nativeSessions.sessionHash, nativeOpaqueHash(input.sessionToken)), isNull(nativeSessions.revokedAt)));
-}
-
-export async function revokeAllNativeSessions(userId: number) {
-  const db = requireDb(await getDb());
-  await db.update(nativeSessions).set({ revokedAt: new Date() }).where(and(eq(nativeSessions.userId, userId), isNull(nativeSessions.revokedAt)));
-}
-
-type NativeTokenType = "email_verification" | "password_reset";
-
-function createNativeActionToken() {
-  return randomBytes(32).toString("base64url");
-}
-
-async function issueNativeActionToken(input: { userId: number; tokenType: NativeTokenType; expiresInMs: number }) {
-  const db = requireDb(await getDb());
-  const token = createNativeActionToken();
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + input.expiresInMs);
-  await db.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.userId, input.userId), eq(nativeAuthTokens.tokenType, input.tokenType), isNull(nativeAuthTokens.usedAt)));
-  await db.insert(nativeAuthTokens).values({ userId: input.userId, tokenHash: nativeActionTokenHash(token), tokenType: input.tokenType, expiresAt });
-  return { token, expiresAt };
-}
-
-async function findUsableNativeActionToken(input: { token: string; tokenType: NativeTokenType }) {
-  const db = requireDb(await getDb());
-  const [record] = await db.select().from(nativeAuthTokens).where(and(eq(nativeAuthTokens.tokenHash, nativeActionTokenHash(input.token)), eq(nativeAuthTokens.tokenType, input.tokenType), isNull(nativeAuthTokens.usedAt), gte(nativeAuthTokens.expiresAt, new Date()))).limit(1);
-  return record ?? null;
-}
-
-export async function prepareNativeEmailVerification(userId: number) {
-  const db = requireDb(await getDb());
-  const [record] = await db.select({ user: users, credential: nativeCredentials, profile: customerProfiles }).from(nativeCredentials).innerJoin(users, eq(nativeCredentials.userId, users.id)).leftJoin(customerProfiles, eq(customerProfiles.userId, users.id)).where(eq(nativeCredentials.userId, userId)).limit(1);
-  if (!record || record.credential.emailVerifiedAt) return null;
-  const token = await issueNativeActionToken({ userId, tokenType: "email_verification", expiresInMs: 24 * 60 * 60 * 1000 });
-  return { email: record.credential.email, firstName: record.profile?.firstName ?? record.user.name, ...token };
-}
-
-export async function prepareNativePasswordReset(emailAddress: string) {
-  const email = normalizeNativeEmail(emailAddress);
-  if (!(await consumeNativeAuthAttempt({ email, action: "forgot_password" }))) return null;
-  const db = requireDb(await getDb());
-  const [record] = await db.select({ user: users, credential: nativeCredentials, profile: customerProfiles }).from(nativeCredentials).innerJoin(users, eq(nativeCredentials.userId, users.id)).leftJoin(customerProfiles, eq(customerProfiles.userId, users.id)).where(and(eq(nativeCredentials.email, email), eq(nativeCredentials.credentialStatus, "active"))).limit(1);
-  if (!record) return null;
-  const token = await issueNativeActionToken({ userId: record.user.id, tokenType: "password_reset", expiresInMs: 60 * 60 * 1000 });
-  await recordCustomerSecurityEvent({ userId: record.user.id, eventType: "password_reset_requested", summary: "A VAMNUX password reset was requested." });
-  return { email: record.credential.email, firstName: record.profile?.firstName ?? record.user.name, ...token };
-}
-
-export async function verifyNativeEmailToken(token: string) {
-  const record = await findUsableNativeActionToken({ token, tokenType: "email_verification" });
-  if (!record) return false;
-  const db = requireDb(await getDb());
-  const now = new Date();
-  await db.transaction(async (tx) => {
-    const [tokenUse] = await tx.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.id, record.id), isNull(nativeAuthTokens.usedAt)));
-    if (tokenUse.affectedRows !== 1) throw new Error("This email-verification link is no longer available.");
-    await tx.update(nativeCredentials).set({ emailVerifiedAt: now }).where(eq(nativeCredentials.userId, record.userId));
-    await tx.update(customerIdentityLinks).set({ emailVerifiedAt: now }).where(and(eq(customerIdentityLinks.userId, record.userId), eq(customerIdentityLinks.provider, "native_email")));
-    await tx.update(customerProfiles).set({ accountStatus: "active" }).where(and(eq(customerProfiles.userId, record.userId), eq(customerProfiles.accountStatus, "pending_email_verification")));
-  });
-  await recordCustomerSecurityEvent({ userId: record.userId, eventType: "email_verified", summary: "The VAMNUX account email address was verified." });
-  return true;
-}
-
-export async function resetNativePasswordWithToken(input: { token: string; password: string }) {
-  const record = await findUsableNativeActionToken({ token: input.token, tokenType: "password_reset" });
-  if (!record) return false;
-  const db = requireDb(await getDb());
-  const passwordHash = await hashNativePassword(input.password);
-  const now = new Date();
-  await db.transaction(async (tx) => {
-    const [tokenUse] = await tx.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.id, record.id), isNull(nativeAuthTokens.usedAt)));
-    if (tokenUse.affectedRows !== 1) throw new Error("This password-reset link is no longer available.");
-    await tx.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.userId, record.userId), eq(nativeAuthTokens.tokenType, "password_reset"), isNull(nativeAuthTokens.usedAt)));
-    await tx.update(nativeCredentials).set({ passwordHash, passwordChangedAt: now }).where(eq(nativeCredentials.userId, record.userId));
-    await tx.update(nativeSessions).set({ revokedAt: now }).where(and(eq(nativeSessions.userId, record.userId), isNull(nativeSessions.revokedAt)));
-  });
-  await recordCustomerSecurityEvent({ userId: record.userId, eventType: "password_reset_completed", summary: "The VAMNUX password was reset and prior password sessions were signed out." });
-  return true;
 }
 
 export async function listActiveCatalogProducts() {
@@ -593,32 +419,20 @@ export async function upsertExchangeRate(input: { baseCurrency: string; quoteCur
 export async function listAdminProductOperations() {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
-  const rows = await db.select({ product: products, attributes: productAdminAttributes, sourceName: authorizedCatalogSources.displayName, sourceType: authorizedCatalogSources.sourceType }).from(products)
+  const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
     .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
-    .leftJoin(authorizedCatalogSources, eq(products.catalogSourceId, authorizedCatalogSources.id))
     .orderBy(desc(products.updatedAt));
-  return rows.map(({ product, attributes, sourceName, sourceType }) => {
+  return rows.map(({ product, attributes }) => {
     const price = customerPriceForProduct(product, settings);
     return {
       id: product.id,
       name: product.name,
       slug: product.slug,
       supplierKey: product.supplierKey,
-      sourceName: sourceName ?? (product.supplierKey ? product.supplierKey : "Admin managed"),
-      sourceType: sourceType ?? "manual",
       category: product.category,
-      description: product.description,
-      regionLabel: product.regionLabel,
-      deliveryEstimate: product.deliveryEstimate,
-      deliveryType: product.deliveryType,
       productStatus: product.status,
       supplierEligible: product.supplierEligible,
       basePrice: Number(product.basePrice),
-      supplierPrice: product.supplierPrice === null ? null : Number(product.supplierPrice),
-      supplierCurrency: product.supplierCurrency,
-      markupPercentOverride: product.markupPercentOverride === null ? null : Number(product.markupPercentOverride),
-      displayPriceOverride: product.displayPriceOverride === null ? null : Number(product.displayPriceOverride),
-      defaultMarkupPercent: settings.defaultMarkupPercent,
       baseCurrency: product.baseCurrency,
       displayPrice: price.customerPrice,
       priceRule: price.priceRule,
@@ -628,10 +442,6 @@ export async function listAdminProductOperations() {
       bestSeller: attributes?.bestSeller ?? false,
       newProduct: attributes?.newProduct ?? false,
       deal: attributes?.deal ?? false,
-      displayNameOverride: attributes?.displayNameOverride ?? null,
-      descriptionOverride: attributes?.descriptionOverride ?? null,
-      deliveryEstimateOverride: attributes?.deliveryEstimateOverride ?? null,
-      customerRequirementsOverride: attributes?.customerRequirementsOverride ?? null,
       seoTitle: attributes?.seoTitle ?? null,
       seoDescription: attributes?.seoDescription ?? null,
       internalNote: attributes?.internalNote ?? null,
@@ -648,10 +458,6 @@ export async function updateProductAdminAttributes(input: {
   bestSeller: boolean;
   newProduct: boolean;
   deal: boolean;
-  displayNameOverride?: string | null;
-  descriptionOverride?: string | null;
-  deliveryEstimateOverride?: string | null;
-  customerRequirementsOverride?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
   internalNote?: string | null;
@@ -669,10 +475,6 @@ export async function updateProductAdminAttributes(input: {
     bestSeller: input.bestSeller,
     newProduct: input.newProduct,
     deal: input.deal,
-    displayNameOverride: input.displayNameOverride?.trim() || null,
-    descriptionOverride: input.descriptionOverride?.trim() || null,
-    deliveryEstimateOverride: input.deliveryEstimateOverride?.trim() || null,
-    customerRequirementsOverride: input.customerRequirementsOverride?.trim() || null,
     seoTitle: input.seoTitle?.trim() || null,
     seoDescription: input.seoDescription?.trim() || null,
     internalNote: input.internalNote?.trim() || null,
@@ -683,8 +485,8 @@ export async function updateProductAdminAttributes(input: {
     productId: product.id,
     adminUserId: input.adminUserId,
     changeType: "product_status",
-    oldValue: existing ? JSON.stringify({ storefrontStatus: existing.storefrontStatus, featured: existing.featured, trending: existing.trending, bestSeller: existing.bestSeller, newProduct: existing.newProduct, deal: existing.deal, displayNameOverride: existing.displayNameOverride }) : null,
-    newValue: JSON.stringify({ storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal, displayNameOverride: input.displayNameOverride?.trim() || null }),
+    oldValue: existing ? JSON.stringify({ storefrontStatus: existing.storefrontStatus, featured: existing.featured, trending: existing.trending, bestSeller: existing.bestSeller, newProduct: existing.newProduct, deal: existing.deal }) : null,
+    newValue: JSON.stringify({ storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal }),
     reason: "Product storefront presentation updated in Super Admin",
   });
   await appendAdminAuditEvent(db, {
@@ -693,7 +495,7 @@ export async function updateProductAdminAttributes(input: {
     targetType: "product",
     targetId: product.id,
     summary: `Updated storefront presentation for ${product.name}`,
-    metadata: { storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal, displayNameOverride: input.displayNameOverride?.trim() || null, hasDescriptionOverride: Boolean(input.descriptionOverride?.trim()), hasDeliveryOverride: Boolean(input.deliveryEstimateOverride?.trim()) },
+    metadata: { storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal },
   });
   return { productId: product.id };
 }
@@ -784,14 +586,7 @@ export async function listAdminManagedCatalogProducts() {
     basePrice: products.basePrice,
     baseCurrency: products.baseCurrency,
     regionLabel: products.regionLabel,
-    deliveryEstimate: products.deliveryEstimate,
-    deliveryMinMinutes: products.deliveryMinMinutes,
-    deliveryMaxMinutes: products.deliveryMaxMinutes,
-    customerRequirements: products.customerRequirements,
     deliveryType: products.deliveryType,
-    description: products.description,
-    inputRequirements: products.inputRequirements,
-    catalogSourceId: products.catalogSourceId,
     status: products.status,
     updatedAt: products.updatedAt,
     sourceName: authorizedCatalogSources.displayName,
@@ -846,7 +641,7 @@ export async function createAuthorizedCatalogSource(input: AuthorizedCatalogSour
   return { id: created.id, displayName, status: "active" as const };
 }
 
-export async function createAdminManagedCatalogProduct(input: AdminManagedCatalogProductInput & { adminUserId: number }) {
+export async function createAdminManagedCatalogProduct(input: AdminManagedCatalogProductInput) {
   const db = requireDb(await getDb());
   const slug = createAdminManagedCatalogSlug(input.category, input.name);
   const [existing] = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
@@ -868,10 +663,6 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
     supplierEligible: input.status === "active",
     catalogSourceId: source.id,
     regionLabel: input.regionLabel || null,
-    deliveryEstimate: input.deliveryEstimate,
-    deliveryMinMinutes: input.deliveryMinMinutes ?? null,
-    deliveryMaxMinutes: input.deliveryMaxMinutes ?? null,
-    customerRequirements: input.customerRequirements || null,
     deliveryType: input.deliveryType,
     requiresPlayerId: false,
     requiresServerId: false,
@@ -884,34 +675,8 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
       sourceType: source.sourceType,
     },
   }).$returningId();
-  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_created", targetType: "product", targetId: created.id, summary: `Created manual catalog item ${input.name}`, metadata: { category: input.category, status: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate, deliveryMinMinutes: input.deliveryMinMinutes ?? null, deliveryMaxMinutes: input.deliveryMaxMinutes ?? null, catalogSourceId: source.id } });
-  return { id: created.id, name: input.name, status: input.status, slug };
-}
 
-/** Edits only VAMNUX-managed listings; supplier-synchronised catalog records remain immutable to this workflow. */
-export async function updateAdminManagedCatalogProduct(input: AdminManagedCatalogProductUpdateInput & { adminUserId: number }) {
-  const db = requireDb(await getDb());
-  const [product] = await db.select().from(products).where(and(eq(products.id, input.productId), eq(products.supplierKey, ADMIN_MANAGED_SUPPLIER_KEY))).limit(1);
-  if (!product) throw new Error("Admin-managed catalog item was not found");
-  const [conflicting] = await db.select({ id: products.id }).from(products).where(and(eq(products.slug, createAdminManagedCatalogSlug(input.category, input.name)), ne(products.id, product.id))).limit(1);
-  if (conflicting) throw new Error("Another catalog item already uses that category and name");
-  await db.update(products).set({
-    name: input.name,
-    category: input.category,
-    description: input.description,
-    basePrice: input.basePrice.toFixed(2),
-    regionLabel: input.regionLabel || null,
-    deliveryEstimate: input.deliveryEstimate,
-    deliveryMinMinutes: input.deliveryMinMinutes ?? null,
-    deliveryMaxMinutes: input.deliveryMaxMinutes ?? null,
-    customerRequirements: input.customerRequirements || null,
-    deliveryType: input.deliveryType,
-    inputRequirements: createRecipientEmailRequirement(input.recipientEmailRequired),
-    status: input.status,
-    supplierEligible: input.status === "active",
-  }).where(eq(products.id, product.id));
-  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_updated", targetType: "product", targetId: product.id, summary: `Updated manual catalog item ${input.name}`, metadata: { previousStatus: product.status, nextStatus: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate, deliveryMinMinutes: input.deliveryMinMinutes ?? null, deliveryMaxMinutes: input.deliveryMaxMinutes ?? null } });
-  return { productId: product.id, name: input.name, status: input.status };
+  return { id: created.id, name: input.name, status: input.status, slug };
 }
 
 export async function setAdminManagedCatalogProductStatus(input: { productId: number; status: "active" | "paused" | "archived"; adminUserId: number }) {
@@ -954,23 +719,31 @@ export async function listCommerceIntegrations() {
   }).from(commerceIntegrations).orderBy(desc(commerceIntegrations.updatedAt));
 }
 
-/** Registration-source records are customer acquisition metadata, not visitor analytics. Raw visitors require a separately configured analytics provider. */
-export async function getSuperAdminTrafficSources(range: { start: Date; end: Date }) {
+export async function listSuperAdminSupplierBalances() {
   const db = requireDb(await getDb());
-  const inRange = and(gte(customerProfiles.createdAt, range.start), lte(customerProfiles.createdAt, range.end));
-  const [newAccounts] = await db.select({ count: sql<number>`count(*)` }).from(customerProfiles).where(inRange);
-  const [sourceRows, countryRows] = await Promise.all([
-    db.select({ source: customerProfiles.registrationSource, accounts: sql<number>`count(*)` }).from(customerProfiles).where(inRange).groupBy(customerProfiles.registrationSource).orderBy(desc(sql`count(*)`)),
-    db.select({ countryCode: customerProfiles.countryCode, accounts: sql<number>`count(*)` }).from(customerProfiles).where(inRange).groupBy(customerProfiles.countryCode).orderBy(desc(sql`count(*)`)),
-  ]);
-  return {
-    period: range,
-    newAccounts: numericValue(newAccounts?.count),
-    visitors: null as number | null,
-    trackingStatus: "not_configured" as const,
-    sources: sourceRows.map((row) => ({ source: row.source || "Not provided", accounts: numericValue(row.accounts) })),
-    countries: countryRows.map((row) => ({ countryCode: row.countryCode || "Not provided", accounts: numericValue(row.accounts) })),
-  };
+  const suppliers = await db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName, syncStatus: commerceIntegrations.syncStatus, lastSyncAt: commerceIntegrations.lastSyncAt })
+    .from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier")).orderBy(commerceIntegrations.providerName);
+  return Promise.all(suppliers.map(async (supplier) => {
+    const [latest] = await db.select({ balance: supplierBalanceObservations.balance, currency: supplierBalanceObservations.currency, source: supplierBalanceObservations.source, observedAt: supplierBalanceObservations.observedAt, note: supplierBalanceObservations.note })
+      .from(supplierBalanceObservations).where(eq(supplierBalanceObservations.integrationId, supplier.id)).orderBy(desc(supplierBalanceObservations.observedAt)).limit(1);
+    const balance = latest ? numericValue(latest.balance) : null;
+    return { ...supplier, balance, currency: latest?.currency ?? null, source: latest?.source ?? null, observedAt: latest?.observedAt ?? null, note: latest?.note ?? null, lowBalance: balance !== null && latest?.currency === "USD" && balance <= 5 };
+  }));
+}
+
+export async function recordSuperAdminSupplierBalance(input: { integrationId: number; balance: number; currency: string; note?: string; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [supplier] = await db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName }).from(commerceIntegrations).where(and(eq(commerceIntegrations.id, input.integrationId), eq(commerceIntegrations.integrationType, "supplier"))).limit(1);
+  if (!supplier) throw new Error("Supplier connector was not found");
+  if (!Number.isFinite(input.balance) || input.balance < 0 || input.balance > 1_000_000) throw new Error("Enter a balance between 0 and 1,000,000");
+  const currency = input.currency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Use a three-letter balance currency");
+  const note = input.note?.trim().slice(0, 500) || null;
+  await db.transaction(async (tx) => {
+    await tx.insert(supplierBalanceObservations).values({ integrationId: supplier.id, balance: input.balance.toFixed(2), currency, source: "manual", recordedByAdminId: input.adminUserId, note });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier.balance_recorded", targetType: "supplier", targetId: String(supplier.id), summary: `Recorded balance observation for ${supplier.providerName}`, metadata: { balance: input.balance, currency, source: "manual", lowBalance: currency === "USD" && input.balance <= 5 } });
+  });
+  return { integrationId: supplier.id, balance: input.balance, currency };
 }
 
 const numericValue = (value: unknown) => Number(value ?? 0);
@@ -1014,166 +787,19 @@ export async function listSuperAdminCustomers(limit = 100) {
     id: users.id,
     name: users.name,
     email: users.email,
-    loginMethod: users.loginMethod,
     role: users.role,
     createdAt: users.createdAt,
     lastSignedIn: users.lastSignedIn,
     preferredCurrency: customerProfiles.preferredCurrency,
     countryCode: customerProfiles.countryCode,
-    accountStatus: customerProfiles.accountStatus,
-    suspensionReason: customerProfiles.suspensionReason,
-    suspendedAt: customerProfiles.suspendedAt,
-    suspendedUntil: customerProfiles.suspendedUntil,
-    walletBalance: sql<string>`coalesce(max(${wallets.availableBalance}), 0)`,
-    walletCurrency: sql<string>`coalesce(max(${wallets.currency}), 'USD')`,
-    totalOrders: sql<number>`count(distinct ${orders.id})`,
-    totalSpent: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`,
-    lastPurchaseAt: sql<Date | null>`max(case when ${orders.paymentStatus} = 'paid' then ${orders.createdAt} else null end)`,
-  }).from(users)
-    .leftJoin(customerProfiles, eq(users.id, customerProfiles.userId))
-    .leftJoin(wallets, eq(users.id, wallets.userId))
-    .leftJoin(orders, eq(users.id, orders.userId))
-    .where(eq(users.role, "user"))
-    .groupBy(users.id, users.name, users.email, users.loginMethod, users.role, users.createdAt, users.lastSignedIn, customerProfiles.preferredCurrency, customerProfiles.countryCode, customerProfiles.accountStatus, customerProfiles.suspensionReason, customerProfiles.suspendedAt, customerProfiles.suspendedUntil)
-    .orderBy(desc(users.createdAt)).limit(limit);
-}
-
-/** Owner-only operational history; passwords, tokens, provider references, fulfilment inputs, and digital codes are deliberately excluded. */
-export async function getSuperAdminCustomerOperations(userId: number) {
-  const db = requireDb(await getDb());
-  const [customer] = await db.select({
-    id: users.id, name: users.name, email: users.email, loginMethod: users.loginMethod, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn,
-    preferredCurrency: customerProfiles.preferredCurrency, countryCode: customerProfiles.countryCode, accountStatus: customerProfiles.accountStatus,
-    walletBalance: wallets.availableBalance, walletCurrency: wallets.currency, walletStatus: wallets.status,
-  }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).leftJoin(wallets, eq(users.id, wallets.userId)).where(and(eq(users.id, userId), eq(users.role, "user"))).limit(1);
-  if (!customer) throw new Error("Customer account was not found");
-  const [ordersForCustomer, transactions] = await Promise.all([
-    db.select({ orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, total: orders.total, currency: orders.currency, createdAt: orders.createdAt })
-      .from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt)).limit(100),
-    customer.walletBalance === null ? Promise.resolve([]) : db.select({ direction: walletEntries.direction, entryType: walletEntries.entryType, amount: walletEntries.amount, currency: walletEntries.currency, status: walletEntries.status, reference: walletEntries.reference, createdAt: walletEntries.createdAt })
-      .from(walletEntries).innerJoin(wallets, eq(walletEntries.walletId, wallets.id)).where(eq(wallets.userId, userId)).orderBy(desc(walletEntries.createdAt)).limit(100),
-  ]);
-  return { customer, orders: ordersForCustomer, transactions };
-}
-
-export async function listSuperAdminSupplierMonitoring() {
-  const db = requireDb(await getDb());
-  const supplierRows = await db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName, apiBaseUrl: commerceIntegrations.apiBaseUrl, syncStatus: commerceIntegrations.syncStatus, lastSyncAt: commerceIntegrations.lastSyncAt, lastError: commerceIntegrations.lastError })
-    .from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier")).orderBy(desc(commerceIntegrations.updatedAt));
-  return Promise.all(supplierRows.map(async (supplier) => {
-    const supplierKey = supplier.providerName.toLowerCase().replaceAll(/[^a-z0-9]+/g, "");
-    const [[count], [balance]] = await Promise.all([
-      db.select({ count: sql<number>`count(*)` }).from(products).where(eq(products.supplierKey, supplierKey)),
-      db.select({ balance: supplierBalanceObservations.balance, currency: supplierBalanceObservations.currency, observedAt: supplierBalanceObservations.observedAt, source: supplierBalanceObservations.source, note: supplierBalanceObservations.note })
-        .from(supplierBalanceObservations).where(eq(supplierBalanceObservations.integrationId, supplier.id)).orderBy(desc(supplierBalanceObservations.observedAt)).limit(1),
-    ]);
-    const balanceValue = balance ? numericValue(balance.balance) : null;
-    return {
-      ...supplier,
-      productCount: numericValue(count?.count),
-      balance: balanceValue,
-      balanceCurrency: balance?.currency ?? null,
-      balanceObservedAt: balance?.observedAt ?? null,
-      balanceSource: balance?.source ?? null,
-      balanceNote: balance?.note ?? null,
-      belowAlertThreshold: balanceValue !== null && balance?.currency === "USD" && balanceValue <= 5,
-    };
-  }));
-}
-
-export async function recordSupplierBalanceObservation(input: { integrationId: number; balance: number; currency: string; note?: string; adminUserId: number }) {
-  const db = requireDb(await getDb());
-  const [supplier] = await db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName }).from(commerceIntegrations)
-    .where(and(eq(commerceIntegrations.id, input.integrationId), eq(commerceIntegrations.integrationType, "supplier"))).limit(1);
-  if (!supplier) throw new Error("Supplier connector was not found");
-  if (!Number.isFinite(input.balance) || input.balance < 0 || input.balance > 1_000_000) throw new Error("Enter a supplier balance between 0 and 1,000,000");
-  const currency = input.currency.trim().toUpperCase();
-  if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Supplier balance currency must be a three-letter code");
-  const note = input.note?.trim().slice(0, 500) || null;
-  await db.transaction(async (tx) => {
-    await tx.insert(supplierBalanceObservations).values({ integrationId: supplier.id, balance: input.balance.toFixed(2), currency, source: "manual", observedAt: new Date(), recordedByAdminId: input.adminUserId, note });
-    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier.balance_recorded", targetType: "supplier", targetId: String(supplier.id), summary: `Recorded supplier balance observation for ${supplier.providerName}`, metadata: { balance: input.balance, currency, source: "manual", lowBalance: currency === "USD" && input.balance <= 5 } });
-  });
-  return { integrationId: supplier.id, providerName: supplier.providerName, balance: input.balance, currency };
-}
-
-type SuspensionUnit = "days" | "months" | "years" | "permanent";
-
-function calculateSuspensionExpiry(unit: SuspensionUnit, duration: number | undefined) {
-  if (unit === "permanent") return null;
-  if (!Number.isInteger(duration) || !duration || duration < 1) throw new Error("A positive suspension duration is required");
-  const expiry = new Date();
-  if (unit === "days") {
-    if (duration > 3650) throw new Error("Suspension duration cannot exceed 3,650 days");
-    expiry.setUTCDate(expiry.getUTCDate() + duration);
-  } else if (unit === "months") {
-    if (duration > 120) throw new Error("Suspension duration cannot exceed 120 months");
-    expiry.setUTCMonth(expiry.getUTCMonth() + duration);
-  } else {
-    if (duration > 10) throw new Error("Suspension duration cannot exceed 10 years");
-    expiry.setUTCFullYear(expiry.getUTCFullYear() + duration);
-  }
-  return expiry;
-}
-
-/** Enforces active account state across all authenticated entry points without revealing profile data to other customers. */
-export async function getCustomerAccountAccessState(userId: number) {
-  const db = requireDb(await getDb());
-  await db.insert(customerProfiles).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
-  const [profile] = await db.select({ accountStatus: customerProfiles.accountStatus, suspendedUntil: customerProfiles.suspendedUntil })
-    .from(customerProfiles).where(eq(customerProfiles.userId, userId)).limit(1);
-  if (profile?.accountStatus === "suspended" && profile.suspendedUntil && profile.suspendedUntil.getTime() <= Date.now()) {
-    await db.transaction(async (tx) => {
-      await tx.update(customerProfiles).set({ accountStatus: "active", suspensionReason: null, suspendedAt: null, suspendedUntil: null, suspendedByAdminId: null }).where(eq(customerProfiles.userId, userId));
-      await tx.insert(customerSecurityEvents).values({ userId, eventType: "account_suspension_expired", summary: "Your VAMNUX account restriction period ended automatically." });
-      await tx.insert(customerNotifications).values({ userId, category: "security", title: "Account access restored", body: "Your VAMNUX account restriction period has ended.", actionUrl: "/account" });
-    });
-    return { allowed: true, status: "active" as const };
-  }
-  if (profile?.accountStatus === "suspended" || profile?.accountStatus === "banned") return { allowed: false, status: profile.accountStatus };
-  return { allowed: true, status: profile?.accountStatus ?? "active" };
-}
-
-export async function suspendCustomerAccount(input: { adminUserId: number; userId: number; reason: string; unit: SuspensionUnit; duration?: number }) {
-  const db = requireDb(await getDb());
-  if (input.adminUserId === input.userId) throw new Error("You cannot suspend your own Admin account");
-  const reason = input.reason.trim();
-  if (reason.length < 3 || reason.length > 500) throw new Error("Provide a suspension reason between 3 and 500 characters");
-  const [target] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
-  if (!target) throw new Error("Customer account was not found");
-  if (target.role === "admin") throw new Error("Admin accounts cannot be suspended from this customer control");
-  const expiry = calculateSuspensionExpiry(input.unit, input.duration);
-  const now = new Date();
-  await db.transaction(async (tx) => {
-    await tx.insert(customerProfiles).values({ userId: target.id }).onDuplicateKeyUpdate({ set: { userId: target.id } });
-    await tx.update(customerProfiles).set({ accountStatus: "suspended", suspensionReason: reason, suspendedAt: now, suspendedUntil: expiry, suspendedByAdminId: input.adminUserId }).where(eq(customerProfiles.userId, target.id));
-    await tx.update(nativeSessions).set({ revokedAt: now }).where(and(eq(nativeSessions.userId, target.id), isNull(nativeSessions.revokedAt)));
-    await tx.insert(customerSecurityEvents).values({ userId: target.id, eventType: "account_suspended", summary: expiry ? "Your VAMNUX account access has been temporarily restricted." : "Your VAMNUX account access has been restricted." });
-    await tx.insert(customerNotifications).values({ userId: target.id, category: "security", title: "Account access restricted", body: expiry ? `Your account has been suspended until ${expiry.toISOString()}.` : "Your account has been suspended until further notice.", actionUrl: "/account" });
-    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer.suspended", targetType: "customer", targetId: String(target.id), summary: `Suspended customer ${target.email || target.name || `#${target.id}`}`, metadata: { unit: input.unit, duration: input.duration ?? null, suspendedUntil: expiry?.toISOString() ?? null, reason } });
-  });
-  return { userId: target.id, status: "suspended" as const, suspendedUntil: expiry };
-}
-
-export async function reinstateCustomerAccount(input: { adminUserId: number; userId: number; note?: string }) {
-  const db = requireDb(await getDb());
-  const [target] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
-  if (!target) throw new Error("Customer account was not found");
-  if (target.role === "admin") throw new Error("Admin accounts are not managed through this customer control");
-  const note = input.note?.trim().slice(0, 500) || null;
-  await db.transaction(async (tx) => {
-    await tx.insert(customerProfiles).values({ userId: target.id }).onDuplicateKeyUpdate({ set: { userId: target.id } });
-    await tx.update(customerProfiles).set({ accountStatus: "active", suspensionReason: null, suspendedAt: null, suspendedUntil: null, suspendedByAdminId: null }).where(eq(customerProfiles.userId, target.id));
-    await tx.insert(customerSecurityEvents).values({ userId: target.id, eventType: "account_reinstated", summary: "Your VAMNUX account access has been restored by an administrator." });
-    await tx.insert(customerNotifications).values({ userId: target.id, category: "security", title: "Account access restored", body: "Your VAMNUX account has been reinstated. Please sign in again if needed.", actionUrl: "/account" });
-    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer.reinstated", targetType: "customer", targetId: String(target.id), summary: `Reinstated customer ${target.email || target.name || `#${target.id}`}`, metadata: { note } });
-  });
-  return { userId: target.id, status: "active" as const };
+    registrationSource: customerProfiles.registrationSource,
+  }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).orderBy(desc(users.createdAt)).limit(limit);
 }
 
 export async function listSuperAdminOrders(limit = 100) {
   const db = requireDb(await getDb());
   return db.select({
+    id: orders.id,
     orderCode: orders.orderCode,
     status: orders.status,
     paymentStatus: orders.paymentStatus,
@@ -1181,10 +807,29 @@ export async function listSuperAdminOrders(limit = 100) {
     currency: orders.currency,
     total: orders.total,
     createdAt: orders.createdAt,
+    updatedAt: orders.updatedAt,
+    supplierOrderId: orders.supplierOrderId,
+    supplierIntegrationId: orders.supplierIntegrationId,
     customerId: users.id,
     customerName: users.name,
     customerEmail: users.email,
   }).from(orders).leftJoin(users, eq(orders.userId, users.id)).orderBy(desc(orders.createdAt)).limit(limit);
+}
+
+/** Cancellation is limited to unfunded, unsent drafts; it cannot reverse a payment, supplier action, or delivery. */
+export async function cancelSuperAdminDraftOrder(input: { orderId: number; adminUserId: number; reason: string }) {
+  const db = requireDb(await getDb());
+  const [order] = await db.select({ id: orders.id, orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, walletEntryId: orders.walletEntryId })
+    .from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  if (!order) throw new Error("Order was not found");
+  if (!(order.status === "draft" || order.status === "pending_payment") || order.paymentStatus !== "unpaid" || order.supplierStatus !== "not_sent" || order.walletEntryId !== null) throw new Error("Only unfunded, unsent draft orders can be cancelled here. This control cannot reverse a payment, supplier action, or delivery.");
+  const reason = input.reason.trim().slice(0, 500);
+  if (reason.length < 3) throw new Error("Provide a clear review reason before cancelling an order.");
+  await db.transaction(async (tx) => {
+    await tx.update(orders).set({ status: "cancelled" }).where(eq(orders.id, order.id));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "order.cancelled_before_processing", targetType: "order", targetId: String(order.id), summary: `Cancelled unfunded unsent order ${order.orderCode}`, metadata: { reason } });
+  });
+  return { id: order.id, status: "cancelled" as const };
 }
 
 export async function listSuperAdminSupportTickets(limit = 100) {
@@ -1731,26 +1376,13 @@ function createWalletFundingCode() {
   return `WF${crypto.randomUUID().replace(/-/g, "").slice(0, 18).toUpperCase()}`;
 }
 
-export async function getWalletFundingQuote(currency: "USD" | "EUR" | "GBP" | "NGN") {
-  const db = requireDb(await getDb());
-  if (currency === "USD") return { currency, minimumAmount: 5, minimumUsd: 5, configuredRate: 1, quoteAvailable: true, note: "Minimum wallet funding is $5.00 USD." };
-  if (currency !== "NGN") return { currency, minimumAmount: null, minimumUsd: 5, configuredRate: null, quoteAvailable: false, note: "Wallet funding currently requires a USD or Admin-configured NGN wallet currency." };
-  const [rate] = await db.select().from(exchangeRates).where(and(eq(exchangeRates.baseCurrency, "USD"), eq(exchangeRates.quoteCurrency, "NGN"), eq(exchangeRates.active, true))).limit(1);
-  if (!rate) return { currency, minimumAmount: null, minimumUsd: 5, configuredRate: null, quoteAvailable: false, note: "An Admin-configured USD/NGN rate is required before NGN wallet funding can be requested." };
-  const configuredRate = Number(rate.rate) * (1 + Number(rate.bufferPercent) / 100);
-  return { currency, minimumAmount: Number((5 * configuredRate).toFixed(2)), minimumUsd: 5, configuredRate, quoteAvailable: true, note: "Estimate based on the current Admin-configured VAMNUX USD/NGN rate; a payment provider confirmation is still required before any wallet credit." };
-}
-
 export async function createCustomerWalletFundingRequest(input: { userId: number; amount: number; currency: "USD" | "EUR" | "GBP" | "NGN"; customerNote?: string }) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a valid wallet top-up amount");
+  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a wallet top-up amount between 0.01 and 1,000,000");
   const db = requireDb(await getDb());
   await db.insert(wallets).values({ userId: input.userId, currency: input.currency }).onDuplicateKeyUpdate({ set: { userId: input.userId } });
   const [wallet] = await db.select({ id: wallets.id, status: wallets.status, currency: wallets.currency }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
   if (!wallet || wallet.status !== "active") throw new Error("This wallet is not available for a top-up request");
   if (wallet.currency !== input.currency) throw new Error(`Use your active ${wallet.currency} wallet currency for this top-up request`);
-  const quote = await getWalletFundingQuote(input.currency);
-  if (!quote.quoteAvailable || quote.minimumAmount === null) throw new Error(quote.note);
-  if (input.amount < quote.minimumAmount) throw new Error(`Minimum wallet funding is ${quote.minimumAmount.toFixed(2)} ${input.currency}, equivalent to $5.00 USD at the configured rate.`);
   const fundingCode = createWalletFundingCode();
   await db.insert(walletFundingAttempts).values({
     fundingCode,
@@ -1761,9 +1393,9 @@ export async function createCustomerWalletFundingRequest(input: { userId: number
     amount: input.amount.toFixed(2),
     currency: input.currency,
     status: "pending",
-    metadata: { requestKind: "manual_admin_review", customerNote: input.customerNote?.trim().slice(0, 500) || null, minimumUsd: quote.minimumUsd, configuredRate: quote.configuredRate, quoteNote: quote.note },
+    metadata: { requestKind: "manual_admin_review", customerNote: input.customerNote?.trim().slice(0, 500) || null },
   });
-  return { fundingCode, status: "pending" as const, amount: input.amount.toFixed(2), currency: input.currency, quoteNote: quote.note };
+  return { fundingCode, status: "pending" as const, amount: input.amount.toFixed(2), currency: input.currency };
 }
 
 export async function reviewCustomerWalletFundingRequest(input: { adminUserId: number; fundingCode: string; action: "settle" | "reject"; verificationReference?: string; reviewNote?: string }) {
@@ -1876,18 +1508,12 @@ export async function getSuperAdminFinanceAnalytics(range?: { start?: Date; end?
   const [customerSummary] = await db.select({ totalCustomers: sql<number>`count(*)`, activeCustomers: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} = 'active' then 1 else 0 end), 0)`, restrictedOrSuspended: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} in ('suspended', 'banned', 'restricted') then 1 else 0 end), 0)` }).from(customerProfiles);
   const [newCustomerSummary] = await db.select({ newCustomers: sql<number>`count(*)` }).from(customerProfiles).where(between(customerProfiles.createdAt));
   const paidOrderWhere = and(eq(orders.paymentStatus, "paid"), between(orders.createdAt));
-  const trendRows = await db.select({
-    date: sql<string>`date(${orders.createdAt})`,
-    orders: sql<number>`count(*)`,
-    revenue: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`,
-    supplierCost: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then coalesce(${orders.supplierTotal}, 0) else 0 end), 0)`,
-  }).from(orders).where(between(orders.createdAt)).groupBy(sql`date(${orders.createdAt})`).orderBy(sql`date(${orders.createdAt})`);
   const [productPerformance, categoryPerformance] = await Promise.all([
     db.select({ productId: orderItems.productId, productName: orderItems.productName, units: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`, revenue: sql<string>`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).where(paidOrderWhere).groupBy(orderItems.productId, orderItems.productName).orderBy(desc(sql`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)`)).limit(20),
     db.select({ category: products.category, units: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`, revenue: sql<string>`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).innerJoin(products, eq(orderItems.productId, products.id)).where(paidOrderWhere).groupBy(products.category).orderBy(desc(sql`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)`)).limit(20),
   ]);
   const revenue = numeric(orderSummary?.settledRevenue); const supplierCost = numeric(orderSummary?.recordedSupplierCost); const grossProfit = revenue - supplierCost;
-  return { finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid within the selected period. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." }, orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) }, customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended), newInPeriod: numeric(newCustomerSummary?.newCustomers) }, wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) }, performance: { topProducts: productPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })), topCategories: categoryPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })) }, trends: trendRows.map((row) => ({ date: row.date, orders: numeric(row.orders), revenue: numeric(row.revenue), grossProfit: numeric(row.revenue) - numeric(row.supplierCost) })), period: { start: range?.start ?? null, end: range?.end ?? null } };
+  return { finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid within the selected period. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." }, orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) }, customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended), newInPeriod: numeric(newCustomerSummary?.newCustomers) }, wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) }, performance: { topProducts: productPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })), topCategories: categoryPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })) }, period: { start: range?.start ?? null, end: range?.end ?? null } };
 }
 
 export async function listPromotions() {

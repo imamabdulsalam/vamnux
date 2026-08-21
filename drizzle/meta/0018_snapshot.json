@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "26833695-639b-411b-bbf8-0061d35aedfb",
+  "id": "54b02838-497d-48e1-952e-f3cd1c7c144a",
   "prevId": "76056066-ee01-4900-96da-fca24a5d9f4b",
   "tables": {
     "admin_audit_events": {
@@ -533,7 +533,7 @@
         },
         "provider": {
           "name": "provider",
-          "type": "enum('manus_oauth','supabase','native_email')",
+          "type": "enum('manus_oauth','supabase')",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
@@ -1452,291 +1452,6 @@
       "compositePrimaryKeys": {
         "marketplace_pricing_settings_id": {
           "name": "marketplace_pricing_settings_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "native_auth_rate_limits": {
-      "name": "native_auth_rate_limits",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "bucketHash": {
-          "name": "bucketHash",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "action": {
-          "name": "action",
-          "type": "enum('register','sign_in')",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "attemptCount": {
-          "name": "attemptCount",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "windowExpiresAt": {
-          "name": "windowExpiresAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "lastAttemptAt": {
-          "name": "lastAttemptAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(now())"
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(now())"
-        },
-        "updatedAt": {
-          "name": "updatedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "onUpdate": true,
-          "default": "(now())"
-        }
-      },
-      "indexes": {
-        "native_auth_rate_limit_bucket_action_unique": {
-          "name": "native_auth_rate_limit_bucket_action_unique",
-          "columns": [
-            "bucketHash",
-            "action"
-          ],
-          "isUnique": true
-        },
-        "native_auth_rate_limit_expiry_idx": {
-          "name": "native_auth_rate_limit_expiry_idx",
-          "columns": [
-            "windowExpiresAt"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "native_auth_rate_limits_id": {
-          "name": "native_auth_rate_limits_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "native_credentials": {
-      "name": "native_credentials",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "userId": {
-          "name": "userId",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "email": {
-          "name": "email",
-          "type": "varchar(320)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "passwordHash": {
-          "name": "passwordHash",
-          "type": "varchar(1024)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "emailVerifiedAt": {
-          "name": "emailVerifiedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "credentialStatus": {
-          "name": "credentialStatus",
-          "type": "enum('active','locked','disabled')",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'active'"
-        },
-        "passwordChangedAt": {
-          "name": "passwordChangedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(now())"
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(now())"
-        },
-        "updatedAt": {
-          "name": "updatedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "onUpdate": true,
-          "default": "(now())"
-        }
-      },
-      "indexes": {
-        "native_credentials_user_unique": {
-          "name": "native_credentials_user_unique",
-          "columns": [
-            "userId"
-          ],
-          "isUnique": true
-        },
-        "native_credentials_email_unique": {
-          "name": "native_credentials_email_unique",
-          "columns": [
-            "email"
-          ],
-          "isUnique": true
-        },
-        "native_credentials_status_idx": {
-          "name": "native_credentials_status_idx",
-          "columns": [
-            "credentialStatus"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "native_credentials_id": {
-          "name": "native_credentials_id",
-          "columns": [
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "checkConstraint": {}
-    },
-    "native_sessions": {
-      "name": "native_sessions",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "userId": {
-          "name": "userId",
-          "type": "int",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "sessionHash": {
-          "name": "sessionHash",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "expiresAt": {
-          "name": "expiresAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "revokedAt": {
-          "name": "revokedAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "lastSeenAt": {
-          "name": "lastSeenAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(now())"
-        },
-        "createdAt": {
-          "name": "createdAt",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "(now())"
-        }
-      },
-      "indexes": {
-        "native_sessions_hash_unique": {
-          "name": "native_sessions_hash_unique",
-          "columns": [
-            "sessionHash"
-          ],
-          "isUnique": true
-        },
-        "native_sessions_user_expiry_idx": {
-          "name": "native_sessions_user_expiry_idx",
-          "columns": [
-            "userId",
-            "expiresAt"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "native_sessions_id": {
-          "name": "native_sessions_id",
           "columns": [
             "id"
           ]
@@ -3365,6 +3080,107 @@
       "compositePrimaryKeys": {
         "site_settings_id": {
           "name": "site_settings_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "supplier_balance_observations": {
+      "name": "supplier_balance_observations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "integrationId": {
+          "name": "integrationId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "balance": {
+          "name": "balance",
+          "type": "decimal(12,2)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "currency": {
+          "name": "currency",
+          "type": "varchar(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'USD'"
+        },
+        "source": {
+          "name": "source",
+          "type": "enum('manual','authenticated_receipt')",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'manual'"
+        },
+        "observedAt": {
+          "name": "observedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "recordedByAdminId": {
+          "name": "recordedByAdminId",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "note": {
+          "name": "note",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        }
+      },
+      "indexes": {
+        "supplier_balance_observations_integration_observed_idx": {
+          "name": "supplier_balance_observations_integration_observed_idx",
+          "columns": [
+            "integrationId",
+            "observedAt"
+          ],
+          "isUnique": false
+        },
+        "supplier_balance_observations_balance_idx": {
+          "name": "supplier_balance_observations_balance_idx",
+          "columns": [
+            "balance",
+            "currency"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "supplier_balance_observations_id": {
+          "name": "supplier_balance_observations_id",
           "columns": [
             "id"
           ]

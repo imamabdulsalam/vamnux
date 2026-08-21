@@ -38,10 +38,6 @@ export const customerProfiles = mysqlTable("customer_profiles", {
   registrationSource: varchar("registrationSource", { length: 40 }),
   referralCode: varchar("referralCode", { length: 48 }),
   accountStatus: mysqlEnum("accountStatus", ["active", "restricted", "suspended", "banned", "deleted", "pending_email_verification"]).default("active").notNull(),
-  suspensionReason: varchar("suspensionReason", { length: 500 }),
-  suspendedAt: timestamp("suspendedAt"),
-  suspendedUntil: timestamp("suspendedUntil"),
-  suspendedByAdminId: int("suspendedByAdminId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
@@ -54,7 +50,7 @@ export const customerProfiles = mysqlTable("customer_profiles", {
 export const customerIdentityLinks = mysqlTable("customer_identity_links", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  provider: mysqlEnum("provider", ["manus_oauth", "supabase", "native_email"]).notNull(),
+  provider: mysqlEnum("provider", ["manus_oauth", "supabase"]).notNull(),
   providerSubject: varchar("providerSubject", { length: 255 }).notNull(),
   providerEmail: varchar("providerEmail", { length: 320 }),
   emailVerifiedAt: timestamp("emailVerifiedAt"),
@@ -64,67 +60,6 @@ export const customerIdentityLinks = mysqlTable("customer_identity_links", {
   providerSubjectUnique: uniqueIndex("customer_identity_links_provider_subject_unique").on(table.provider, table.providerSubject),
   userProviderUnique: uniqueIndex("customer_identity_links_user_provider_unique").on(table.userId, table.provider),
   userIndex: index("customer_identity_links_user_idx").on(table.userId),
-}));
-
-/** Native VAMNUX credentials. Password values are represented only by a server-side memory-hard hash. */
-export const nativeCredentials = mysqlTable("native_credentials", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  email: varchar("email", { length: 320 }).notNull(),
-  passwordHash: varchar("passwordHash", { length: 1024 }).notNull(),
-  emailVerifiedAt: timestamp("emailVerifiedAt"),
-  credentialStatus: mysqlEnum("credentialStatus", ["active", "locked", "disabled"]).default("active").notNull(),
-  passwordChangedAt: timestamp("passwordChangedAt").defaultNow().notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => ({
-  userUnique: uniqueIndex("native_credentials_user_unique").on(table.userId),
-  emailUnique: uniqueIndex("native_credentials_email_unique").on(table.email),
-  statusIndex: index("native_credentials_status_idx").on(table.credentialStatus),
-}));
-
-/** Revocable browser sessions for native VAMNUX credentials. Only a SHA-256 session hash is persisted. */
-export const nativeSessions = mysqlTable("native_sessions", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  sessionHash: varchar("sessionHash", { length: 128 }).notNull(),
-  expiresAt: timestamp("expiresAt").notNull(),
-  revokedAt: timestamp("revokedAt"),
-  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, (table) => ({
-  sessionHashUnique: uniqueIndex("native_sessions_hash_unique").on(table.sessionHash),
-  userExpiryIndex: index("native_sessions_user_expiry_idx").on(table.userId, table.expiresAt),
-}));
-
-/** Privacy-minimized rolling counters for native registration and sign-in abuse controls. */
-export const nativeAuthRateLimits = mysqlTable("native_auth_rate_limits", {
-  id: int("id").autoincrement().primaryKey(),
-  bucketHash: varchar("bucketHash", { length: 128 }).notNull(),
-  action: mysqlEnum("action", ["register", "sign_in", "forgot_password", "resend_verification", "verify_email"]).notNull(),
-  attemptCount: int("attemptCount").default(0).notNull(),
-  windowExpiresAt: timestamp("windowExpiresAt").notNull(),
-  lastAttemptAt: timestamp("lastAttemptAt").defaultNow().notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-}, (table) => ({
-  bucketActionUnique: uniqueIndex("native_auth_rate_limit_bucket_action_unique").on(table.bucketHash, table.action),
-  expiryIndex: index("native_auth_rate_limit_expiry_idx").on(table.windowExpiresAt),
-}));
-
-/** Single-use native account actions. Raw verification and recovery tokens are never persisted. */
-export const nativeAuthTokens = mysqlTable("native_auth_tokens", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  tokenHash: varchar("tokenHash", { length: 128 }).notNull(),
-  tokenType: mysqlEnum("tokenType", ["email_verification", "password_reset"]).notNull(),
-  expiresAt: timestamp("expiresAt").notNull(),
-  usedAt: timestamp("usedAt"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-}, (table) => ({
-  tokenHashUnique: uniqueIndex("native_auth_tokens_hash_unique").on(table.tokenHash),
-  userTypeCreatedIndex: index("native_auth_tokens_user_type_created_idx").on(table.userId, table.tokenType, table.createdAt),
-  expiryIndex: index("native_auth_tokens_expiry_idx").on(table.expiresAt),
 }));
 
 /** Independently recorded customer legal and marketing consent decisions. */
@@ -292,10 +227,6 @@ export const products = mysqlTable("products", {
   supplierEligible: boolean("supplierEligible").default(true).notNull(),
   catalogSourceId: int("catalogSourceId"),
   regionLabel: varchar("regionLabel", { length: 120 }),
-  deliveryEstimate: varchar("deliveryEstimate", { length: 160 }),
-  deliveryMinMinutes: int("deliveryMinMinutes"),
-  deliveryMaxMinutes: int("deliveryMaxMinutes"),
-  customerRequirements: text("customerRequirements"),
   deliveryType: mysqlEnum("deliveryType", ["instant", "digital_code", "activation_link", "manual_processing", "account_access"]).notNull(),
   requiresPlayerId: boolean("requiresPlayerId").default(false).notNull(),
   requiresServerId: boolean("requiresServerId").default(false).notNull(),
@@ -343,10 +274,6 @@ export const productAdminAttributes = mysqlTable("product_admin_attributes", {
   bestSeller: boolean("bestSeller").default(false).notNull(),
   newProduct: boolean("newProduct").default(false).notNull(),
   deal: boolean("deal").default(false).notNull(),
-  displayNameOverride: varchar("displayNameOverride", { length: 255 }),
-  descriptionOverride: text("descriptionOverride"),
-  deliveryEstimateOverride: varchar("deliveryEstimateOverride", { length: 160 }),
-  customerRequirementsOverride: text("customerRequirementsOverride"),
   seoTitle: varchar("seoTitle", { length: 180 }),
   seoDescription: varchar("seoDescription", { length: 300 }),
   internalNote: text("internalNote"),
@@ -570,7 +497,7 @@ export const commerceIntegrations = mysqlTable("commerce_integrations", {
   typeStatusIndex: index("commerce_integrations_type_status_idx").on(table.integrationType, table.syncStatus),
 }));
 
-/** A manually recorded or future authenticated supplier-wallet observation. Provider credentials and live balance payloads are never stored here. */
+/** Explicit supplier wallet observations only. This table never stores credentials, raw supplier responses, or payment data. */
 export const supplierBalanceObservations = mysqlTable("supplier_balance_observations", {
   id: int("id").autoincrement().primaryKey(),
   integrationId: int("integrationId").notNull(),
@@ -583,7 +510,7 @@ export const supplierBalanceObservations = mysqlTable("supplier_balance_observat
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => ({
   integrationObservedIndex: index("supplier_balance_observations_integration_observed_idx").on(table.integrationId, table.observedAt),
-  lowBalanceIndex: index("supplier_balance_observations_balance_idx").on(table.balance, table.currency),
+  balanceIndex: index("supplier_balance_observations_balance_idx").on(table.balance, table.currency),
 }));
 
 /** An auditable commercial source for products entered by a VAMNUX administrator. It stores references, never API credentials. */
