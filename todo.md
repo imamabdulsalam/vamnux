@@ -369,3 +369,6 @@
 
 - [x] Remove the confirmed public “VAMNUX PRICE · xx% MARKUP” watermark from every catalog card and product-detail view while retaining Admin-only markup controls.
 - [x] Verify public customer price labels show only the payable product price and no percentage, supplier cost, buffer, or profit information before publishing.
+
+- [x] Replace the fixed public storefront category-pill list with the active-visible category source so Admin hide, archive, show, and restore actions update every customer-facing category view.
+- [x] Verify active-visible category propagation across storefront pill navigation, menus, catalog sections, search/filter affordances, and User Dashboard categories before publishing.

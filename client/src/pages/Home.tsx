@@ -144,7 +144,7 @@ export default function Home() {
   const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
 
-  const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("Top-up");
+  const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<Product[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -211,11 +211,17 @@ export default function Home() {
   }, [activeCategory, publicProducts, query]);
 
   const visibleCategories = useMemo(() => {
-    if (!publicCategories.data) return categories;
+    if (!publicCategories.data) return [];
     const visibleSlugs = new Set(publicCategories.data.map((category) => category.slug));
     return categories.filter((category) => visibleSlugs.has(category.slug));
   }, [publicCategories.data]);
   const selectedCategory = visibleCategories.find((category) => category.filter === activeCategory);
+
+  useEffect(() => {
+    if (activeCategory !== "All" && !visibleCategories.some((category) => category.filter === activeCategory)) {
+      setActiveCategory("All");
+    }
+  }, [activeCategory, visibleCategories]);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
   const gameProducts = useMemo(() => filteredProducts.filter((product) => product.category === "Top-up"), [filteredProducts]);
@@ -429,7 +435,7 @@ export default function Home() {
         </div>
 
         <div className="filter-row" aria-label="Filter product list">
-          {(["All", "Top-up", "Voucher", "Subscription", "Software", "AI tools", "Steam", "Telegram Stars"] as const).map((filter) => (
+          {(["All", ...visibleCategories.map((category) => category.filter)] as Array<"All" | ProductCategory>).map((filter) => (
             <button key={filter} onClick={() => setActiveCategory(filter)} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
               {filter === "All" ? "All picks" : filter}
             </button>
