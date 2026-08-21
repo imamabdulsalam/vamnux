@@ -316,3 +316,9 @@
 - [x] Make hidden and archived marketplace categories unavailable to storefront navigation and category discovery while preserving their associated product records.
 - [x] Add clear archived-category restore control with auditable state changes and no product deletion.
 - [x] Validate category authorization, controls, marketplace filtering, deterministic tests, and production build before publishing.
+
+- [x] Expand Manual Delivery Operations beyond task analytics with a dedicated owner-managed manual-product setup workflow.
+- [x] Add manual-product category, type, name, description, price, image URL, image upload/dropzone, delivery-hour range, customer requirements, fulfilment format, and active/draft controls.
+- [x] Securely store owner-uploaded manual-product imagery through the VAMNUX storage workflow and validate external image links without exposing storage credentials.
+- [x] Add a guided review step and keep personally fulfilled product management separate from supplier APIs, wallet funding, and supplier settlement.
+- [ ] Validate manual-product setup authorization, file and input handling, responsive operations UI, deterministic tests, production build, and visual review before publishing.

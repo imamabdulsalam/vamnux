@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
+import { decodeManualProductImage, manualProductImageContentTypes } from "../shared/manualProductImage";
 import { bulkUpdateSyncedProductMarkup, canRunSupplierCatalogSync, cancelSuperAdminDraftOrder, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminCustomerControlDetail, getSuperAdminFinanceAnalytics, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminManualDeliveryTasks, listSuperAdminOrders, listSuperAdminSupplierBalances, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSuperAdminAuditEvent, recordSuperAdminSupplierBalance, reinstateCustomerAccount, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, suspendCustomerAccount, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, updateSuperAdminManualDeliveryTask, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
 import { bulkArchiveAdminManagedCatalogProducts, bulkUpdateProductStorefrontVisibility } from "./db";
 import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } from "./db";
@@ -9,6 +10,7 @@ import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
+import { storagePut } from "./storage";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
@@ -190,6 +192,17 @@ export const appRouter = router({
     recordSupplierBalance: adminProcedure.input(z.object({ integrationId: z.number().int().positive(), balance: z.number().min(0).max(1_000_000), currency: z.string().trim().length(3), note: z.string().trim().max(500).optional() }))
       .mutation(({ ctx, input }) => recordSuperAdminSupplierBalance({ ...input, adminUserId: ctx.user.id })),
     listAdminManagedCatalog: adminProcedure.query(() => listAdminManagedCatalogProducts()),
+    uploadManualProductImage: adminProcedure.input(z.object({
+      fileName: z.string().trim().min(1).max(180),
+      contentType: z.enum(manualProductImageContentTypes),
+      dataBase64: z.string().min(1).max(7_000_000),
+    })).mutation(async ({ ctx, input }) => {
+      const { bytes, extension } = decodeManualProductImage(input);
+      const safeName = input.fileName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "manual-product";
+      const { key, url } = await storagePut(`manual-products/${ctx.user.id}/${safeName}-${Date.now()}.${extension}`, bytes, input.contentType);
+      await recordSuperAdminAuditEvent({ adminUserId: ctx.user.id, action: "admin.manual_product_image_upload", targetType: "manual_product_image", targetId: key, summary: "Uploaded an owner-managed product image", metadata: { contentType: input.contentType, byteLength: bytes.length } });
+      return { imageUrl: url };
+    }),
     listAuthorizedCatalogSources: adminProcedure.query(() => listAuthorizedCatalogSources()),
     createAuthorizedCatalogSource: adminProcedure.input(authorizedCatalogSourceInputSchema)
       .mutation(({ input }) => createAuthorizedCatalogSource(input)),

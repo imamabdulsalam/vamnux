@@ -21,13 +21,13 @@ export type AuthorizedCatalogSourceInput = z.infer<typeof authorizedCatalogSourc
 
 export const adminManagedCatalogProductInputSchema = z.object({
   name: z.string().trim().min(3).max(255),
-  category: z.enum(["gift_card", "subscription", "software", "ai_tool", "game_key", "steam", "telegram_stars"]),
+  category: z.enum(["top_up", "gift_card", "subscription", "software", "ai_tool", "game_key", "steam", "telegram_stars"]),
   description: z.string().trim().min(12).max(2_000),
   catalogSourceId: z.number().int().positive(),
   basePrice: z.number().finite().positive().max(1_000_000),
   platform: z.string().trim().max(120).optional(),
   productType: z.string().trim().max(120).optional(),
-  imageUrl: z.string().url().max(2_000).optional(),
+  imageUrl: z.union([z.string().url().max(2_000), z.string().regex(/^\/manus-storage\/[A-Za-z0-9/_\-.]+$/).max(2_000)]).optional(),
   regionLabel: z.string().trim().max(120).optional(),
   deliveryType: z.enum(["digital_code", "activation_link", "manual_processing", "account_access"]),
   deliveryMinimumMinutes: z.number().int().min(0).max(525_600).nullable().optional(),
