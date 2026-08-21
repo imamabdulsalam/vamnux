@@ -288,6 +288,26 @@ export async function updateCatalogProductPricing(input: { productId: number; ma
   return listCatalogPricing();
 }
 
+export async function bulkUpdateSyncedProductMarkup(input: { productIds: number[]; markupPercent: number; adminUserId: number }) {
+  const uniqueProductIds = Array.from(new Set(input.productIds)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!uniqueProductIds.length || uniqueProductIds.length > 100) throw new Error("Select between 1 and 100 synchronized products");
+  if (!Number.isFinite(input.markupPercent) || input.markupPercent < -100 || input.markupPercent > 500) throw new Error("Bulk markup must be between -100% and 500%");
+  const db = requireDb(await getDb());
+  const selected = await db.select({ id: products.id, name: products.name, supplierKey: products.supplierKey, markupPercentOverride: products.markupPercentOverride, displayPriceOverride: products.displayPriceOverride })
+    .from(products).where(inArray(products.id, uniqueProductIds));
+  if (selected.length !== uniqueProductIds.length) throw new Error("One or more selected products are unavailable");
+  if (selected.some((product) => !product.supplierKey)) throw new Error("Bulk markup is limited to supplier-synchronized products");
+  await db.transaction(async (tx) => {
+    for (const product of selected) {
+      await tx.update(products).set({ markupPercentOverride: input.markupPercent.toFixed(2), displayPriceOverride: null }).where(eq(products.id, product.id));
+      await tx.insert(priceChangeHistory).values({ productId: product.id, adminUserId: input.adminUserId, changeType: "product_markup", oldValue: JSON.stringify({ markupPercentOverride: product.markupPercentOverride, displayPriceOverride: product.displayPriceOverride }), newValue: JSON.stringify({ markupPercentOverride: input.markupPercent, displayPriceOverride: null }), reason: "Bulk markup updated from Product Sync" });
+      await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "pricing.product_bulk_markup_member", targetType: "product", targetId: String(product.id), summary: `Applied bulk customer markup to ${product.name}`, metadata: { markupPercent: input.markupPercent, supplierKey: product.supplierKey } });
+    }
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "pricing.product_bulk_markup", targetType: "product_batch", targetId: uniqueProductIds.join(","), summary: `Applied ${input.markupPercent}% customer markup to ${selected.length} synchronized products`, metadata: { productCount: selected.length, productIds: uniqueProductIds, markupPercent: input.markupPercent } });
+  });
+  return { productCount: selected.length, markupPercent: input.markupPercent };
+}
+
 type MarketplaceCategoryInput = {
   slug: string;
   name: string;

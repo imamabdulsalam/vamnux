@@ -37,6 +37,7 @@ describe("Super Admin authorization", () => {
     await expect(caller.admin.listSupplierWebhookEvents({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listSupplierBalances()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.recordSupplierBalance({ integrationId: 1, balance: 5, currency: "USD" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.bulkUpdateSyncedProductMarkup({ productIds: [1, 2], markupPercent: 25 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.cancelDraftOrder({ orderId: 1, reason: "Review required" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.recordCsvExport({ exportType: "products", rowCount: 0 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.search({ query: "PUBG" })).rejects.toMatchObject({ code: "FORBIDDEN" });

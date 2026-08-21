@@ -262,3 +262,6 @@
 - [x] Expand Refunds with failed/refunded-order analytics and safe inactive refund processing boundaries.
 - [x] Validate the remaining Admin operational expansion for owner authorization, data minimization, safe workflow boundaries, deterministic tests, and production build before publishing.
 - [x] Surface recorded low supplier-balance alerts in the operational Notifications inbox and expand Website Health with actionable record-backed component guidance.
+- [x] Add an owner-only Product Sync bulk markup workflow for selected newly synchronized products, with bounded validation, confirmation, and audit events.
+- [x] Add Notifications quick actions to open support tickets directly and safely cancel only eligible risky unfunded, unsent draft orders without leaving the Admin workspace.
+- [x] Validate bulk selection, pricing isolation, notification actions, authorization, deterministic tests, and production build before publishing.
