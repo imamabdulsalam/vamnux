@@ -140,7 +140,7 @@ export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
-  const publicCategories = trpc.marketplace.categories.useQuery();
+  const publicCategories = trpc.marketplace.categories.useQuery(undefined, { refetchInterval: 15_000, refetchOnWindowFocus: true });
   const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
 

@@ -362,3 +362,7 @@
 - [x] Validate customer authorization, $3 minimum enforcement, saved-rate calculation, readiness copy, deterministic tests, production build, and responsive funding presentation before publishing.
 
 - [x] Verify the owner-connected GitHub export and synchronize the latest published VAMNUX project version when direct repository access is available.
+
+- [x] Remove every customer-facing VAMNUX markup, profit, supplier-cost, percentage, buffer, and Admin exchange-rate disclosure while retaining final payable amounts.
+- [x] Ensure hidden or archived categories disappear immediately from all public storefront and User Dashboard category discovery, and restored active-visible categories return to every relevant customer view.
+- [x] Validate public pricing privacy, category hide/archive/restore propagation, responsive category navigation, deterministic tests, production build, and visual presentation before publishing.
