@@ -336,3 +336,7 @@
 - [x] Perform a non-redesign verification of every VAMNUX Super Admin workspace, navigation control, button, form, status state, and protected server action.
 - [x] Correct only confirmed Admin reliability or recognition issues found during verification, preserving all current layout, content, and business boundaries; no confirmed Admin UI correction was required.
 - [ ] Validate the Admin verification pass with deterministic tests, production build, runtime diagnostics, and authenticated owner review before publishing.
+
+- [x] Replace the compact storefront footer with the requested structured VAMNUX Company, Products, Support, Legal, social, and payment-method footer.
+- [x] Connect footer links to available VAMNUX routes, catalog filters, and legal pages while providing clear truthful states for unavailable external payment and social destinations.
+- [x] Validate footer accessibility, routing, desktop/mobile layout, deterministic tests, production build, and visual presentation before publishing.

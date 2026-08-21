@@ -293,6 +293,16 @@ export default function Home() {
     setLocation("/account");
   };
 
+  const openFooterCatalog = (category: "All" | ProductCategory) => {
+    setActiveCategory(category);
+    setQuery("");
+    requestAnimationFrame(() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const showFooterUnavailable = (label: string, description = "This VAMNUX destination is being prepared.") => {
+    toast.message(`${label} is not available yet`, { description });
+  };
+
   const handleCurrencyChange = (next: CurrencyCode) => {
     setCurrency(next);
     toast.message(`Prices now display in ${next}`, { description: "This storefront preview uses USD as the base price. Live checkout should confirm final FX and currency availability." });
@@ -494,9 +504,82 @@ export default function Home() {
         <button onClick={openAccount}>{isAuthenticated ? "Open my account" : "Create an account"} <ArrowRight size={18} /></button>
       </section>
 
-      <footer>
-        <div className="footer-top"><Logo /><p>Digital products for game time, work flow, and everything in between.</p><div className="footer-links"><a href="#products">Browse</a><a href="#categories">Categories</a><a href="#how-it-works">How it works</a><a href="#support">Help center</a></div></div>
-        <div className="footer-bottom"><span>© 2026 VAMNUX. A global digital-products marketplace concept.</span><span>USD base display · Region rules apply by product.</span></div>
+      <footer className="market-footer">
+        <div className="market-footer-shell">
+          <section className="market-footer-intro" aria-labelledby="footer-marketplace-title">
+            <Logo />
+            <h2 id="footer-marketplace-title">Your trusted digital marketplace for games, gift cards, subscriptions, software and digital products.</h2>
+            <p>Browse real VAMNUX catalog availability, review product requirements, and use your wallet only when your account has sufficient settled balance.</p>
+            <div className="market-footer-social" aria-label="VAMNUX social media">
+              <span>Follow VAMNUX</span>
+              <div>
+                <button type="button" aria-label="VAMNUX Facebook" onClick={() => showFooterUnavailable("Facebook profile")}><Facebook size={15} /><span>Facebook</span></button>
+                <button type="button" aria-label="VAMNUX Instagram" onClick={() => showFooterUnavailable("Instagram profile")}><Instagram size={15} /><span>Instagram</span></button>
+                <button type="button" aria-label="VAMNUX TikTok" onClick={() => showFooterUnavailable("TikTok profile")}><span>TikTok</span></button>
+                <button type="button" aria-label="VAMNUX X" onClick={() => showFooterUnavailable("X profile")}><X size={14} /><span>X</span></button>
+                <button type="button" aria-label="VAMNUX YouTube" onClick={() => showFooterUnavailable("YouTube channel")}><span>YouTube</span></button>
+              </div>
+            </div>
+          </section>
+
+          <nav className="market-footer-columns" aria-label="Footer navigation">
+            <section>
+              <h3>Company</h3>
+              <a href="#how-it-works">About Us</a>
+              <a href="#support">Contact Us</a>
+              <button type="button" onClick={() => showFooterUnavailable("VAMNUX Blog")}>Blog</button>
+              <button type="button" onClick={() => showFooterUnavailable("Reseller application", "Reseller onboarding will open after its pricing and approval policy is published.")}>Become a Reseller</button>
+              <button type="button" onClick={() => showFooterUnavailable("Affiliate Program", "Affiliate enrollment will open after its terms and tracking policy are published.")}>Affiliate Program</button>
+            </section>
+            <section>
+              <h3>Products</h3>
+              <button type="button" onClick={() => openFooterCatalog("Top-up")}>Game Top-Up</button>
+              <button type="button" onClick={() => openFooterCatalog("Voucher")}>Gift Cards</button>
+              <button type="button" onClick={() => openFooterCatalog("Top-up")}>Gaming Vouchers</button>
+              <button type="button" onClick={() => showFooterUnavailable("Game Keys", "Game keys will appear when an approved supplier exposes active inventory.")}>Game Keys</button>
+              <button type="button" onClick={() => openFooterCatalog("Subscription")}>Subscriptions</button>
+              <button type="button" onClick={() => openFooterCatalog("AI tools")}>AI Tools</button>
+              <button type="button" onClick={() => openFooterCatalog("All")}>Deals</button>
+              <button type="button" onClick={() => openFooterCatalog("All")}>Others</button>
+            </section>
+            <section>
+              <h3>Support</h3>
+              <a href="#support">Help Center</a>
+              <a href="#how-it-works">FAQs</a>
+              <button type="button" onClick={openAccount}>Contact Support</button>
+              <button type="button" onClick={openAccount}>Track Order</button>
+              <button type="button" onClick={openAccount}>Submit a Ticket</button>
+            </section>
+            <section>
+              <h3>Legal</h3>
+              <a href="/policies/terms-of-service">Terms of Service</a>
+              <a href="/policies/privacy-policy">Privacy Policy</a>
+              <a href="/policies/cookie-policy">Cookie Policy</a>
+              <a href="/policies/refund-policy">Refund Policy</a>
+              <button type="button" onClick={() => showFooterUnavailable("Payment Policy", "Payment policy publishing requires approved provider and reconciliation rules.")}>Payment Policy</button>
+              <button type="button" onClick={() => showFooterUnavailable("Delivery Policy", "Delivery policy publishing requires approved delivery and supplier fulfilment rules.")}>Delivery Policy</button>
+              <button type="button" onClick={() => showFooterUnavailable("Acceptable Use Policy")}>Acceptable Use Policy</button>
+            </section>
+          </nav>
+
+          <section className="market-footer-payments" aria-label="Payment method readiness">
+            <div>
+              <span className="market-footer-kicker">Payment methods</span>
+              <h3>Wallet funding readiness</h3>
+              <p>Paystack, Korapay, and crypto funding are planned. VAMNUX does not present any as an active checkout method until verified provider integration is enabled.</p>
+            </div>
+            <div className="market-footer-payment-badges">
+              <button type="button" onClick={() => showFooterUnavailable("Paystack funding", "Paystack has not been integrated for VAMNUX wallet funding yet.")}>Paystack</button>
+              <button type="button" onClick={() => showFooterUnavailable("Korapay funding", "Korapay has not been integrated for VAMNUX wallet funding yet.")}>Korapay</button>
+              <button type="button" onClick={() => showFooterUnavailable("USDT TRC20 funding", "Crypto wallet funding has not been integrated for VAMNUX yet.")}>USDT <small>TRC20</small></button>
+            </div>
+          </section>
+
+          <div className="market-footer-bottom">
+            <span>© 2026 VAMNUX. All rights reserved.</span>
+            <span>USD base display · Region rules apply by product.</span>
+          </div>
+        </div>
       </footer>
 
       <div className={cartOpen ? "cart-overlay open" : "cart-overlay"} onClick={() => setCartOpen(false)} />
