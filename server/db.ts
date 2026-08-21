@@ -813,7 +813,41 @@ export async function listSuperAdminCustomers(limit = 100) {
     preferredCurrency: customerProfiles.preferredCurrency,
     countryCode: customerProfiles.countryCode,
     registrationSource: customerProfiles.registrationSource,
+    accountStatus: customerProfiles.accountStatus,
+    suspensionReason: customerProfiles.suspensionReason,
+    suspendedUntil: customerProfiles.suspendedUntil,
+    suspensionAppeal: customerProfiles.suspensionAppeal,
+    appealSubmittedAt: customerProfiles.appealSubmittedAt,
   }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).orderBy(desc(users.createdAt)).limit(limit);
+}
+
+export async function suspendCustomerAccount(input: { userId: number; reason: string; suspendedUntil?: Date | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [customer] = await db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!customer) throw new Error("Customer account was not found");
+  if (customer.role === "admin") throw new Error("Admin accounts cannot be suspended from this workspace");
+  const reason = input.reason.trim().slice(0, 500);
+  if (reason.length < 3) throw new Error("Provide a clear suspension reason");
+  await ensureCustomerAccountRows(db, customer.id);
+  await db.transaction(async (tx) => {
+    await tx.update(customerProfiles).set({ accountStatus: "suspended", suspensionReason: reason, suspendedUntil: input.suspendedUntil ?? null, suspensionAppeal: null, appealSubmittedAt: null }).where(eq(customerProfiles.userId, customer.id));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer.suspended", targetType: "customer", targetId: String(customer.id), summary: `Suspended customer ${customer.name || `#${customer.id}`}`, metadata: { reason, suspendedUntil: input.suspendedUntil?.toISOString() ?? null } });
+  });
+  return { userId: customer.id, accountStatus: "suspended" as const };
+}
+
+export async function reinstateCustomerAccount(input: { userId: number; decisionNote?: string; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [customer] = await db.select({ id: users.id, name: users.name, role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!customer) throw new Error("Customer account was not found");
+  if (customer.role === "admin") throw new Error("Admin accounts do not require reinstatement");
+  await ensureCustomerAccountRows(db, customer.id);
+  const decisionNote = input.decisionNote?.trim().slice(0, 500) || null;
+  await db.transaction(async (tx) => {
+    await tx.update(customerProfiles).set({ accountStatus: "active", suspensionReason: null, suspendedUntil: null, suspensionAppeal: null, appealSubmittedAt: null }).where(eq(customerProfiles.userId, customer.id));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer.reinstated", targetType: "customer", targetId: String(customer.id), summary: `Reinstated customer ${customer.name || `#${customer.id}`}`, metadata: { decisionNote } });
+  });
+  return { userId: customer.id, accountStatus: "active" as const };
 }
 
 export async function listSuperAdminOrders(limit = 100) {

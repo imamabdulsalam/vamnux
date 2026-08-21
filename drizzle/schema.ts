@@ -38,12 +38,17 @@ export const customerProfiles = mysqlTable("customer_profiles", {
   registrationSource: varchar("registrationSource", { length: 40 }),
   referralCode: varchar("referralCode", { length: 48 }),
   accountStatus: mysqlEnum("accountStatus", ["active", "restricted", "suspended", "banned", "deleted", "pending_email_verification"]).default("active").notNull(),
+  suspensionReason: varchar("suspensionReason", { length: 500 }),
+  suspendedUntil: timestamp("suspendedUntil"),
+  suspensionAppeal: text("suspensionAppeal"),
+  appealSubmittedAt: timestamp("appealSubmittedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
   userUnique: uniqueIndex("customer_profiles_user_unique").on(table.userId),
   usernameUnique: uniqueIndex("customer_profiles_username_unique").on(table.username),
   accountStatusIndex: index("customer_profiles_status_idx").on(table.accountStatus),
+  suspendedUntilIndex: index("customer_profiles_suspended_until_idx").on(table.suspendedUntil),
 }));
 
 /** Parallel external identity links. Existing Manus OAuth ownership remains the source of truth until a tested Supabase cutover is approved. */

@@ -265,3 +265,7 @@
 - [x] Add an owner-only Product Sync bulk markup workflow for selected newly synchronized products, with bounded validation, confirmation, and audit events.
 - [x] Add Notifications quick actions to open support tickets directly and safely cancel only eligible risky unfunded, unsent draft orders without leaving the Admin workspace.
 - [x] Validate bulk selection, pricing isolation, notification actions, authorization, deterministic tests, and production build before publishing.
+- [x] Add Analytics daily and weekly progress bars for stored order, revenue, and profit goals without fabricating performance data.
+- [x] Add a red supplier-balance Fund Wallet shortcut that opens the recorded funding context without creating a payment, supplier wallet credit, or email notification.
+- [x] Add a Customers suspended-account filter with protected appeal review and direct reinstatement controls, preserving existing suspension authorization and audit rules.
+- [x] Validate analytics progress, supplier funding shortcut, suspended-account operations, authorization, deterministic tests, and production build before publishing.
