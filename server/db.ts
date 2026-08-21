@@ -5,6 +5,7 @@ import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipi
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDeliveryMinutesFromMetadata, type ManualDeliveryStatus } from "../shared/manualDelivery";
+import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 
@@ -1399,6 +1400,7 @@ export async function getCustomerDashboard(userId: number) {
   await ensureCustomerAccountRows(db, userId);
   await ensureDraftPolicyPages(db);
   const settings = await ensureMarketplacePricingSettings(db);
+  const savedExchangeRates = await listExchangeRates();
   const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.userId, userId)).limit(1);
   const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1);
   const recentOrders = await db.select({
@@ -1489,6 +1491,7 @@ export async function getCustomerDashboard(userId: number) {
   return {
     profile: profile ?? null,
     wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
+    exchangeRates: savedExchangeRates.filter((rate) => rate.active && rate.baseCurrency === "USD"),
     orders: recentOrders,
     manualDeliveryTasks: manualDeliveryTaskRows.map((task) => ({ ...task, deliveryWindow: formatManualDeliveryWindow(task.deliveryMinimumMinutes, task.deliveryMaximumMinutes) })),
     walletEntries: recentWalletEntries,
@@ -1647,8 +1650,11 @@ function createWalletFundingCode() {
 }
 
 export async function createCustomerWalletFundingRequest(input: { userId: number; amount: number; currency: "USD" | "EUR" | "GBP" | "NGN"; customerNote?: string }) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a wallet top-up amount between 0.01 and 1,000,000");
+  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a valid wallet funding amount.");
   const db = requireDb(await getDb());
+  const minimumAmount = fundingMinimumForCurrency(input.currency, await listExchangeRates());
+  if (minimumAmount === null) throw new Error(`An active USD/${input.currency} rate is required before funding in ${input.currency}.`);
+  if (input.amount < minimumAmount) throw new Error(`The minimum wallet funding amount is ${minimumAmount.toFixed(2)} ${input.currency}, based on the $3.00 USD minimum.`);
   await db.insert(wallets).values({ userId: input.userId, currency: input.currency }).onDuplicateKeyUpdate({ set: { userId: input.userId } });
   const [wallet] = await db.select({ id: wallets.id, status: wallets.status, currency: wallets.currency }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
   if (!wallet || wallet.status !== "active") throw new Error("This wallet is not available for a top-up request");

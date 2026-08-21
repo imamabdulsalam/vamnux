@@ -119,6 +119,32 @@ export default function UserDashboard() {
 
   const data = dashboard.data;
   const displayName = [data.profile?.firstName, data.profile?.lastName].filter(Boolean).join(" ") || user.name || "VAMNUX customer";
+  useEffect(() => {
+    if (activeTab !== "wallet") return;
+    const legacyForm = document.querySelector<HTMLElement>(".user-dashboard-v2 .user-topup-form");
+    if (!legacyForm || legacyForm.previousElementSibling?.classList.contains("user-funding-ready")) return;
+    const rateRows = data.exchangeRates;
+    legacyForm.style.display = "none";
+    const calculator = document.createElement("section");
+    calculator.className = "user-funding-ready";
+    calculator.innerHTML = `<div class="user-funding-ready__header"><div><span>FUND WALLET</span><h3>Choose your funding amount</h3></div><strong>Minimum $3.00 USD</strong></div><div class="user-funding-ready__fields"><label>Amount in USD<input inputmode="decimal" value="3.00" aria-label="Funding amount in USD" /></label><label>Pay in<select aria-label="Funding payment currency"><option value="NGN">NGN — Nigerian Naira</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option><option value="GBP">GBP — British Pound</option></select></label></div><output class="user-funding-ready__quote" aria-live="polite"></output><p class="user-funding-ready__note">A payment checkout will appear here after VAMNUX configures a provider. Your wallet balance updates only after a verified provider confirmation.</p><button type="button" disabled>Payment checkout unavailable</button>`;
+    const amountInput = calculator.querySelector<HTMLInputElement>("input");
+    const currencySelect = calculator.querySelector<HTMLSelectElement>("select");
+    const quoteOutput = calculator.querySelector<HTMLOutputElement>("output");
+    const refreshQuote = () => {
+      const usdAmount = Number(amountInput?.value);
+      const currency = currencySelect?.value || "NGN";
+      if (!Number.isFinite(usdAmount) || usdAmount < 3) { if (quoteOutput) quoteOutput.textContent = "Enter at least $3.00 USD to see your payment estimate."; return; }
+      if (currency === "USD") { if (quoteOutput) quoteOutput.textContent = `Estimated payment: ${money(usdAmount, "USD")}.`; return; }
+      const rate = rateRows.find((item) => item.quoteCurrency === currency && item.active);
+      const effectiveRate = rate ? Number(rate.rate) * (1 + Number(rate.bufferPercent || 0) / 100) : NaN;
+      if (!Number.isFinite(effectiveRate) || effectiveRate <= 0) { if (quoteOutput) quoteOutput.textContent = `An active USD/${currency} rate must be saved in Admin before this estimate can be shown.`; return; }
+      if (quoteOutput) quoteOutput.textContent = `Estimated payment: ${money(usdAmount * effectiveRate, currency)} · Admin-set effective rate ${effectiveRate.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${currency}/USD.`;
+    };
+    amountInput?.addEventListener("input", refreshQuote); currencySelect?.addEventListener("change", refreshQuote); refreshQuote();
+    legacyForm.before(calculator);
+    return () => { amountInput?.removeEventListener("input", refreshQuote); currencySelect?.removeEventListener("change", refreshQuote); calculator.remove(); legacyForm.style.display = ""; };
+  }, [activeTab, data.exchangeRates]);
   const submitPreferences = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const normalizedCountry = countryCode.trim().toUpperCase(); if (normalizedCountry && !/^[A-Z]{2}$/.test(normalizedCountry)) return toast.error("Use a two-letter country code, such as NG, GB, or US."); savePreferences.mutate({ preferredCurrency: currency as "USD" | "EUR" | "GBP" | "NGN", countryCode: normalizedCountry || null }); };
   const submitProfile = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const normalizedCountry = countryCode.trim().toUpperCase(); const normalizedUsername = username.trim(); if (!firstName.trim() || !lastName.trim()) return toast.error("Add your first and last name to complete your profile."); if (!/^[A-Za-z0-9_.-]{3,30}$/.test(normalizedUsername)) return toast.error("Use 3–30 letters, numbers, dots, underscores, or hyphens for your username."); if (!/^[A-Z]{2}$/.test(normalizedCountry)) return toast.error("Use a two-letter country code, such as NG, GB, or US."); saveProfile.mutate({ firstName: firstName.trim(), lastName: lastName.trim(), username: normalizedUsername, phone: phone.trim() || null, countryCode: normalizedCountry, registrationSource: registrationSource ? registrationSource as "Google" | "Facebook" | "Instagram" | "TikTok" | "X" | "YouTube" | "WhatsApp" | "Friend" | "Referral" | "Advertisement" | "Other" : null }); };
   const submitTopUpRequest = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const amount = Number(topUpAmount); if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) return toast.error("Enter a top-up amount between 0.01 and 1,000,000."); createWalletFundingRequest.mutate({ amount, currency: data.wallet.currency as "USD" | "EUR" | "GBP" | "NGN", customerNote: topUpNote.trim() || undefined }); };
