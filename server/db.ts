@@ -742,6 +742,7 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
     name: input.name,
     category: input.category,
     description: input.description,
+    imageUrl: input.imageUrl?.trim() || null,
     basePrice: input.basePrice.toFixed(2),
     baseCurrency: "USD",
     supplierEligible: input.status === "active",
@@ -760,6 +761,8 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
       deliveryMinimumMinutes: input.deliveryMinimumMinutes ?? null,
       deliveryMaximumMinutes: input.deliveryMaximumMinutes ?? null,
       customerRequirements: input.customerRequirements?.trim() || null,
+      platform: input.platform?.trim() || null,
+      productType: input.productType?.trim() || null,
     },
   }).$returningId();
 

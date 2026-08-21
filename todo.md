@@ -283,3 +283,6 @@
 - [x] Add a category quick-view overlay showing the top available stored product signals without fabricating sales or performance metrics.
 - [x] Add protected category multi-select controls and bulk hide/archive actions that preserve supplier products and mappings.
 - [x] Validate category ordering, quick view, bulk actions, authorization, deterministic tests, and production build before publishing.
+- [x] Add a prominent Products workspace action that opens the guided manual-product setup without losing the current catalog-management context.
+- [x] Expand the manual product form with recognizable name, description, category, platform, fulfillment type, region, price, image, delivery, and customer-requirement inputs under approved-source safeguards.
+- [x] Validate manual listing metadata, source authorization, draft-first behavior, deterministic tests, and production build before publishing.

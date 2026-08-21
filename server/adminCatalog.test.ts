@@ -25,6 +25,16 @@ describe("admin-managed VAMNUX catalog safeguards", () => {
     expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, deliveryMinimumMinutes: 60, deliveryMaximumMinutes: 5 })).toThrow();
   });
 
+  it("accepts recognised optional listing metadata while requiring a valid image URL when one is supplied", () => {
+    expect(adminManagedCatalogProductInputSchema.parse({
+      ...validProduct,
+      platform: "Steam",
+      productType: "Wallet code",
+      imageUrl: "https://assets.example.com/steam-wallet.png",
+    })).toMatchObject({ platform: "Steam", productType: "Wallet code", imageUrl: "https://assets.example.com/steam-wallet.png" });
+    expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, imageUrl: "not-a-url" })).toThrow();
+  });
+
   it("requires every authorised source record to retain its commercial agreement reference", () => {
     expect(() => authorizedCatalogSourceInputSchema.parse({ displayName: "Approved partner", sourceType: "supplier", agreementReference: "" })).toThrow();
     expect(() => authorizedCatalogSourceInputSchema.parse({ displayName: "Approved partner", sourceType: "supplier", agreementReference: "AGR-2026-001" })).toThrow();
