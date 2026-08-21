@@ -18,6 +18,7 @@ describe("Super Admin authorization", () => {
     const caller = appRouter.createCaller({ user: { id: 91, openId: "customer-test", name: "Customer", email: "customer@example.test", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
     await expect(caller.admin.listAdminProductOperations()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listMarketplaceCategories()).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.updateMarketplaceCategory({ id: 1, slug: "games", name: "Games", sortOrder: 0, visible: false, featured: false, status: "active" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listExchangeRates()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listSiteContentBlocks()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listPriceChangeHistory({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });

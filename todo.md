@@ -276,3 +276,6 @@
 - [x] Add a catalog-list search field and individual Edit control for every VAMNUX Admin product listing.
 - [x] Add product-row selection controls and protected bulk actions for storefront visibility, authorized listing archive/disable, and selected-product percentage markup.
 - [x] Validate product search, selected-action boundaries, supplier-data isolation, authorization, deterministic tests, and production build before publishing.
+- [x] Rebuild Categories with a compact side-by-side category list showing every configured marketplace category, real associated product counts, and expandable product drill-downs.
+- [x] Add direct protected category controls for visibility, edit, hide, and safe archive without deleting supplier inventory or mapping records.
+- [x] Validate category product mapping, visibility/archive boundaries, authorization, responsive density, deterministic tests, and production build before publishing.
