@@ -162,8 +162,7 @@ export default function Home() {
   });
 
   useEffect(() => {
-    const queryString = location.includes("?") ? location.slice(location.indexOf("?") + 1) : "";
-    const marketplaceQuery = new URLSearchParams(queryString);
+    const marketplaceQuery = new URLSearchParams(window.location.search);
     const category = marketplaceQuery.get("category");
     const keyword = marketplaceQuery.get("q");
     if (category === "All" || isProductCategory(category)) setActiveCategory(category);
