@@ -111,7 +111,7 @@ export default function CustomerAuth() {
           <label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required /></label>
           <label>Password<div className="native-password-input"><input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? "Hide password" : "Show password"}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></div></label>
           <button className="native-submit" type="submit" disabled={isBusy}>{isBusy ? "Signing in…" : <>Sign in <ArrowRight size={16} /></>}</button>
-          <p className="native-auth-deferred"><CircleAlert size={15} /><span>Password recovery is not available until VAMNUX configures transactional email.</span></p>
+          <p className="native-auth-switch"><Link href="/forgot-password">Forgot password? Reset it</Link></p>
           <p className="native-auth-switch">New to VAMNUX? <button onClick={() => setMode("register")} type="button">Create an account</button> or <button onClick={() => startLogin()} type="button">use Manus OAuth</button>.</p>
         </form>}
       </section>

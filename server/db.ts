@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, nativeAuthRateLimits, nativeCredentials, nativeSessions, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
@@ -8,6 +8,7 @@ import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pric
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 import { hashNativePassword, verifyNativePassword } from "./nativeAuthCrypto";
+import { nativeAuthTokens } from "../drizzle/schema";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -209,7 +210,7 @@ function nativeOpaqueHash(value: string) {
   return createHash("sha256").update(`${ENV.cookieSecret}:${value}`).digest("hex");
 }
 
-async function consumeNativeAuthAttempt(input: { email: string; action: "register" | "sign_in" }) {
+async function consumeNativeAuthAttempt(input: { email: string; action: "register" | "sign_in" | "forgot_password" | "resend_verification" | "verify_email" }) {
   const db = requireDb(await getDb());
   const bucketHash = nativeOpaqueHash(normalizeNativeEmail(input.email));
   const now = new Date();
@@ -289,6 +290,80 @@ export async function revokeNativeSession(input: { userId: number; sessionToken:
 export async function revokeAllNativeSessions(userId: number) {
   const db = requireDb(await getDb());
   await db.update(nativeSessions).set({ revokedAt: new Date() }).where(and(eq(nativeSessions.userId, userId), isNull(nativeSessions.revokedAt)));
+}
+
+type NativeTokenType = "email_verification" | "password_reset";
+
+function createNativeActionToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+async function issueNativeActionToken(input: { userId: number; tokenType: NativeTokenType; expiresInMs: number }) {
+  const db = requireDb(await getDb());
+  const token = createNativeActionToken();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + input.expiresInMs);
+  await db.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.userId, input.userId), eq(nativeAuthTokens.tokenType, input.tokenType), isNull(nativeAuthTokens.usedAt)));
+  await db.insert(nativeAuthTokens).values({ userId: input.userId, tokenHash: nativeOpaqueHash(token), tokenType: input.tokenType, expiresAt });
+  return { token, expiresAt };
+}
+
+async function findUsableNativeActionToken(input: { token: string; tokenType: NativeTokenType }) {
+  const db = requireDb(await getDb());
+  const [record] = await db.select().from(nativeAuthTokens).where(and(eq(nativeAuthTokens.tokenHash, nativeOpaqueHash(input.token)), eq(nativeAuthTokens.tokenType, input.tokenType), isNull(nativeAuthTokens.usedAt), gte(nativeAuthTokens.expiresAt, new Date()))).limit(1);
+  return record ?? null;
+}
+
+export async function prepareNativeEmailVerification(userId: number) {
+  const db = requireDb(await getDb());
+  const [record] = await db.select({ user: users, credential: nativeCredentials, profile: customerProfiles }).from(nativeCredentials).innerJoin(users, eq(nativeCredentials.userId, users.id)).leftJoin(customerProfiles, eq(customerProfiles.userId, users.id)).where(eq(nativeCredentials.userId, userId)).limit(1);
+  if (!record || record.credential.emailVerifiedAt) return null;
+  const token = await issueNativeActionToken({ userId, tokenType: "email_verification", expiresInMs: 24 * 60 * 60 * 1000 });
+  return { email: record.credential.email, firstName: record.profile?.firstName ?? record.user.name, ...token };
+}
+
+export async function prepareNativePasswordReset(emailAddress: string) {
+  const email = normalizeNativeEmail(emailAddress);
+  if (!(await consumeNativeAuthAttempt({ email, action: "forgot_password" }))) return null;
+  const db = requireDb(await getDb());
+  const [record] = await db.select({ user: users, credential: nativeCredentials, profile: customerProfiles }).from(nativeCredentials).innerJoin(users, eq(nativeCredentials.userId, users.id)).leftJoin(customerProfiles, eq(customerProfiles.userId, users.id)).where(and(eq(nativeCredentials.email, email), eq(nativeCredentials.credentialStatus, "active"))).limit(1);
+  if (!record) return null;
+  const token = await issueNativeActionToken({ userId: record.user.id, tokenType: "password_reset", expiresInMs: 60 * 60 * 1000 });
+  await recordCustomerSecurityEvent({ userId: record.user.id, eventType: "password_reset_requested", summary: "A VAMNUX password reset was requested." });
+  return { email: record.credential.email, firstName: record.profile?.firstName ?? record.user.name, ...token };
+}
+
+export async function verifyNativeEmailToken(token: string) {
+  const record = await findUsableNativeActionToken({ token, tokenType: "email_verification" });
+  if (!record) return false;
+  const db = requireDb(await getDb());
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    const [tokenUse] = await tx.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.id, record.id), isNull(nativeAuthTokens.usedAt)));
+    if (tokenUse.affectedRows !== 1) throw new Error("This email-verification link is no longer available.");
+    await tx.update(nativeCredentials).set({ emailVerifiedAt: now }).where(eq(nativeCredentials.userId, record.userId));
+    await tx.update(customerIdentityLinks).set({ emailVerifiedAt: now }).where(and(eq(customerIdentityLinks.userId, record.userId), eq(customerIdentityLinks.provider, "native_email")));
+    await tx.update(customerProfiles).set({ accountStatus: "active" }).where(and(eq(customerProfiles.userId, record.userId), eq(customerProfiles.accountStatus, "pending_email_verification")));
+  });
+  await recordCustomerSecurityEvent({ userId: record.userId, eventType: "email_verified", summary: "The VAMNUX account email address was verified." });
+  return true;
+}
+
+export async function resetNativePasswordWithToken(input: { token: string; password: string }) {
+  const record = await findUsableNativeActionToken({ token: input.token, tokenType: "password_reset" });
+  if (!record) return false;
+  const db = requireDb(await getDb());
+  const passwordHash = await hashNativePassword(input.password);
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    const [tokenUse] = await tx.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.id, record.id), isNull(nativeAuthTokens.usedAt)));
+    if (tokenUse.affectedRows !== 1) throw new Error("This password-reset link is no longer available.");
+    await tx.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.userId, record.userId), eq(nativeAuthTokens.tokenType, "password_reset"), isNull(nativeAuthTokens.usedAt)));
+    await tx.update(nativeCredentials).set({ passwordHash, passwordChangedAt: now }).where(eq(nativeCredentials.userId, record.userId));
+    await tx.update(nativeSessions).set({ revokedAt: now }).where(and(eq(nativeSessions.userId, record.userId), isNull(nativeSessions.revokedAt)));
+  });
+  await recordCustomerSecurityEvent({ userId: record.userId, eventType: "password_reset_completed", summary: "The VAMNUX password was reset and prior password sessions were signed out." });
+  return true;
 }
 
 export async function listActiveCatalogProducts() {

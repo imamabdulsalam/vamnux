@@ -97,7 +97,7 @@ export const nativeSessions = mysqlTable("native_sessions", {
 export const nativeAuthRateLimits = mysqlTable("native_auth_rate_limits", {
   id: int("id").autoincrement().primaryKey(),
   bucketHash: varchar("bucketHash", { length: 128 }).notNull(),
-  action: mysqlEnum("action", ["register", "sign_in"]).notNull(),
+  action: mysqlEnum("action", ["register", "sign_in", "forgot_password", "resend_verification", "verify_email"]).notNull(),
   attemptCount: int("attemptCount").default(0).notNull(),
   windowExpiresAt: timestamp("windowExpiresAt").notNull(),
   lastAttemptAt: timestamp("lastAttemptAt").defaultNow().notNull(),
@@ -106,6 +106,21 @@ export const nativeAuthRateLimits = mysqlTable("native_auth_rate_limits", {
 }, (table) => ({
   bucketActionUnique: uniqueIndex("native_auth_rate_limit_bucket_action_unique").on(table.bucketHash, table.action),
   expiryIndex: index("native_auth_rate_limit_expiry_idx").on(table.windowExpiresAt),
+}));
+
+/** Single-use native account actions. Raw verification and recovery tokens are never persisted. */
+export const nativeAuthTokens = mysqlTable("native_auth_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  tokenHash: varchar("tokenHash", { length: 128 }).notNull(),
+  tokenType: mysqlEnum("tokenType", ["email_verification", "password_reset"]).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  tokenHashUnique: uniqueIndex("native_auth_tokens_hash_unique").on(table.tokenHash),
+  userTypeCreatedIndex: index("native_auth_tokens_user_type_created_idx").on(table.userId, table.tokenType, table.createdAt),
+  expiryIndex: index("native_auth_tokens_expiry_idx").on(table.expiresAt),
 }));
 
 /** Independently recorded customer legal and marketing consent decisions. */

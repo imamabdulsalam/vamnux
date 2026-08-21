@@ -13,6 +13,8 @@ import AdminLogin from "./pages/AdminLogin";
 import SuperAdmin from "./pages/SuperAdmin";
 import PolicyPage from "./pages/PolicyPage";
 import CustomerAuth from "./pages/CustomerAuth";
+import AccountRecovery from "./pages/AccountRecovery";
+import EmailVerification from "./pages/EmailVerification";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -24,6 +26,9 @@ function Router() {
       <Route path="/account" component={UserDashboard} />
       <Route path="/login" component={CustomerAuth} />
       <Route path="/register" component={CustomerAuth} />
+      <Route path="/forgot-password" component={AccountRecovery} />
+      <Route path="/reset-password" component={AccountRecovery} />
+      <Route path="/verify-email" component={EmailVerification} />
       <Route path="/policies/:slug" component={PolicyPage} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={SuperAdmin} />

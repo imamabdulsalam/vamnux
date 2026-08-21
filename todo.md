@@ -258,6 +258,11 @@
 - [ ] Configure required Supabase server and public client environment values securely, stopping for actual provider credentials and dashboard configuration rather than fabricating them.
 - [ ] Implement staged Supabase email/password sign-up, verification, login, logout, password reset, secure sessions, logout-all-devices, security activity, and optional MFA/TOTP without enabling payments or supplier orders.
 - [ ] Prepare disabled-by-default Google OAuth support that requires confirmed Google client credentials and approved redirect URLs before activation.
+- [ ] Configure a secure transactional-email sender for VAMNUX verification and password-recovery messages without exposing provider credentials to the browser.
+- [x] Add expiring hashed email-verification and password-reset token workflows that preserve existing native users and Manus OAuth accounts.
+- [x] Add user-friendly email-verification, Forgot password, and password-reset screens with generic request feedback, strong-password guidance, and secure session revocation.
+- [ ] Test email-delivery configuration, token expiry and single-use behavior, account isolation, verification state, password recovery, and production build before publishing.
+- [x] Keep verification and password-reset sending fail-closed when no verified sender credential is configured; never claim that a recovery email was delivered or surface recovery tokens to users.
 - [ ] Connect verified Supabase identities to existing customer profiles and apply owner-enforced customer isolation for profile, orders, wallet, favorites, notifications, support, and security data.
 - [ ] Refine VAMNUX sign-in/sign-up entry actions and add accessible social navigation in the supplied compact-header direction without copying third-party branding or layout.
 - [ ] Validate staged identity flows, account isolation, migration preservation, dashboard access, and storefront continuity, then report remaining provider configuration and security boundaries.

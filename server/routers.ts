@@ -10,7 +10,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
-import { authenticateNativeCustomer, createNativeSession, registerNativeCustomer, revokeAllNativeSessions, revokeNativeSession } from "./db";
+import { authenticateNativeCustomer, createNativeSession, prepareNativeEmailVerification, prepareNativePasswordReset, registerNativeCustomer, resetNativePasswordWithToken, revokeAllNativeSessions, revokeNativeSession, verifyNativeEmailToken } from "./db";
+import { validateNativePassword } from "./nativeAuthCrypto";
+import { isTransactionalEmailConfigured, passwordResetEmail, sendVamnuxAccountEmail, verificationEmail } from "./transactionalEmail";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -34,7 +36,11 @@ export const appRouter = router({
       const token = await sdk.createSessionToken(user.openId, { expiresInMs, name: user.name || "VAMNUX customer" });
       await createNativeSession({ userId: user.id, sessionToken: token, expiresAt: new Date(Date.now() + expiresInMs) });
       ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: expiresInMs });
-      return { success: true, emailStatus: "unverified" as const };
+      if (isTransactionalEmailConfigured()) {
+        const verification = await prepareNativeEmailVerification(user.id);
+        if (verification) await sendVamnuxAccountEmail(verificationEmail(verification));
+      }
+      return { success: true, emailStatus: "unverified" as const, emailDeliveryAvailable: isTransactionalEmailConfigured() };
     }),
     nativeSignIn: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(256) })).mutation(async ({ ctx, input }) => {
       const user = await authenticateNativeCustomer(input);
@@ -43,6 +49,27 @@ export const appRouter = router({
       await createNativeSession({ userId: user.id, sessionToken: token, expiresAt: new Date(Date.now() + expiresInMs) });
       ctx.res.cookie(COOKIE_NAME, token, { ...getSessionCookieOptions(ctx.req), maxAge: expiresInMs });
       return { success: true, emailStatus: "unverified" as const };
+    }),
+    forgotPassword: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ input }) => {
+      if (!isTransactionalEmailConfigured()) return { success: true, deliveryAvailable: false };
+      const reset = await prepareNativePasswordReset(input.email);
+      if (reset) await sendVamnuxAccountEmail(passwordResetEmail(reset));
+      return { success: true, deliveryAvailable: true };
+    }),
+    resetPassword: publicProcedure.input(z.object({ token: z.string().min(32).max(256), password: z.string().min(12).max(256), confirmPassword: z.string().min(12).max(256) }).refine((input) => input.password === input.confirmPassword, { message: "Passwords do not match.", path: ["confirmPassword"] })).mutation(async ({ input }) => {
+      const passwordCheck = validateNativePassword(input.password);
+      if (!passwordCheck.valid) throw new Error("Choose a password that meets the VAMNUX security requirements.");
+      const success = await resetNativePasswordWithToken({ token: input.token, password: input.password });
+      return { success };
+    }),
+    verifyEmail: publicProcedure.input(z.object({ token: z.string().min(32).max(256) })).mutation(({ input }) => verifyNativeEmailToken(input.token).then((verified) => ({ verified }))),
+    resendVerification: protectedProcedure.mutation(async ({ ctx }) => {
+      if (!ctx.user.openId.startsWith("native_")) throw new Error("Email verification is available for VAMNUX password accounts only.");
+      if (!isTransactionalEmailConfigured()) return { deliveryAvailable: false, sent: false };
+      const verification = await prepareNativeEmailVerification(ctx.user.id);
+      if (!verification) return { deliveryAvailable: true, sent: false };
+      const result = await sendVamnuxAccountEmail(verificationEmail(verification));
+      return { deliveryAvailable: true, sent: result.delivered };
     }),
     logout: publicProcedure.mutation(async ({ ctx }) => {
       const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME];
