@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, nativeAuthRateLimits, nativeCredentials, nativeSessions, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
@@ -210,6 +210,10 @@ function nativeOpaqueHash(value: string) {
   return createHash("sha256").update(`${ENV.cookieSecret}:${value}`).digest("hex");
 }
 
+function nativeActionTokenHash(value: string) {
+  return createHmac("sha256", ENV.cookieSecret).update(value).digest("hex");
+}
+
 async function consumeNativeAuthAttempt(input: { email: string; action: "register" | "sign_in" | "forgot_password" | "resend_verification" | "verify_email" }) {
   const db = requireDb(await getDb());
   const bucketHash = nativeOpaqueHash(normalizeNativeEmail(input.email));
@@ -304,13 +308,13 @@ async function issueNativeActionToken(input: { userId: number; tokenType: Native
   const now = new Date();
   const expiresAt = new Date(now.getTime() + input.expiresInMs);
   await db.update(nativeAuthTokens).set({ usedAt: now }).where(and(eq(nativeAuthTokens.userId, input.userId), eq(nativeAuthTokens.tokenType, input.tokenType), isNull(nativeAuthTokens.usedAt)));
-  await db.insert(nativeAuthTokens).values({ userId: input.userId, tokenHash: nativeOpaqueHash(token), tokenType: input.tokenType, expiresAt });
+  await db.insert(nativeAuthTokens).values({ userId: input.userId, tokenHash: nativeActionTokenHash(token), tokenType: input.tokenType, expiresAt });
   return { token, expiresAt };
 }
 
 async function findUsableNativeActionToken(input: { token: string; tokenType: NativeTokenType }) {
   const db = requireDb(await getDb());
-  const [record] = await db.select().from(nativeAuthTokens).where(and(eq(nativeAuthTokens.tokenHash, nativeOpaqueHash(input.token)), eq(nativeAuthTokens.tokenType, input.tokenType), isNull(nativeAuthTokens.usedAt), gte(nativeAuthTokens.expiresAt, new Date()))).limit(1);
+  const [record] = await db.select().from(nativeAuthTokens).where(and(eq(nativeAuthTokens.tokenHash, nativeActionTokenHash(input.token)), eq(nativeAuthTokens.tokenType, input.tokenType), isNull(nativeAuthTokens.usedAt), gte(nativeAuthTokens.expiresAt, new Date()))).limit(1);
   return record ?? null;
 }
 
