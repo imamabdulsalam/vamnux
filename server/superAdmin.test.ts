@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { ENV } from "./_core/env";
 
 describe("Super Admin authorization", () => {
+  it("allows the configured server-only owner email to call the lightweight system-health Admin endpoint", async () => {
+    expect(ENV.adminEmail).toBe("thepeakvaulthq@gmail.com");
+    const caller = appRouter.createCaller({ user: { id: 9630001, openId: "owner-test", name: "VAMNUX owner", email: ENV.adminEmail, loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
+    await expect(caller.auth.adminAccess()).resolves.toEqual({ allowed: true });
+    await expect(caller.admin.getSystemHealth()).resolves.toMatchObject({ database: expect.any(Object) });
+  });
+
+  it("blocks an Admin-role account whose email is not the configured VAMNUX owner email", async () => {
+    const caller = appRouter.createCaller({ user: { id: 92, openId: "other-admin-test", name: "Other administrator", email: "other-admin@example.test", loginMethod: "test", role: "admin", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
+    await expect(caller.auth.adminAccess()).resolves.toEqual({ allowed: false });
+    await expect(caller.admin.getOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("rejects an authenticated customer before the admin overview can return marketplace operations data", async () => {
     const caller = appRouter.createCaller({ user: { id: 91, openId: "customer-test", name: "Customer", email: "customer@example.test", loginMethod: "test", role: "user", createdAt: new Date(), updatedAt: new Date(), lastSignedIn: new Date() } } as TrpcContext);
     await expect(caller.admin.getOverview()).rejects.toMatchObject({ code: "FORBIDDEN" });

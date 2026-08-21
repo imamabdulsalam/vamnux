@@ -13,12 +13,14 @@ import { sdk } from "./_core/sdk";
 import { authenticateNativeCustomer, createNativeSession, prepareNativeEmailVerification, prepareNativePasswordReset, registerNativeCustomer, resetNativePasswordWithToken, revokeAllNativeSessions, revokeNativeSession, verifyNativeEmailToken } from "./db";
 import { validateNativePassword } from "./nativeAuthCrypto";
 import { isTransactionalEmailConfigured, passwordResetEmail, sendVamnuxAccountEmail, verificationEmail } from "./transactionalEmail";
+import { ENV } from "./_core/env";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    adminAccess: publicProcedure.query(({ ctx }) => ({ allowed: Boolean(ctx.user?.role === "admin" && ENV.adminEmail && ctx.user.email?.trim().toLowerCase() === ENV.adminEmail) })),
     nativeRegister: publicProcedure.input(z.object({
       firstName: z.string().trim().min(1).max(80),
       lastName: z.string().trim().min(1).max(80),

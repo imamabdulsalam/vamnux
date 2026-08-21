@@ -10,4 +10,5 @@ export const ENV = {
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailFrom: process.env.VAMNUX_EMAIL_FROM ?? "",
   appUrl: process.env.VAMNUX_APP_URL ?? "",
+  adminEmail: (process.env.VAMNUX_ADMIN_EMAIL ?? "").trim().toLowerCase(),
 };
