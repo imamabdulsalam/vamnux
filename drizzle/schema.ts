@@ -288,6 +288,7 @@ export const products = mysqlTable("products", {
   supplierEligible: boolean("supplierEligible").default(true).notNull(),
   catalogSourceId: int("catalogSourceId"),
   regionLabel: varchar("regionLabel", { length: 120 }),
+  deliveryEstimate: varchar("deliveryEstimate", { length: 160 }),
   deliveryType: mysqlEnum("deliveryType", ["instant", "digital_code", "activation_link", "manual_processing", "account_access"]).notNull(),
   requiresPlayerId: boolean("requiresPlayerId").default(false).notNull(),
   requiresServerId: boolean("requiresServerId").default(false).notNull(),

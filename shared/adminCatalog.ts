@@ -26,12 +26,22 @@ export const adminManagedCatalogProductInputSchema = z.object({
   catalogSourceId: z.number().int().positive(),
   basePrice: z.number().finite().positive().max(1_000_000),
   regionLabel: z.string().trim().max(120).optional(),
+  deliveryEstimate: z.string().trim().min(3).max(160),
   deliveryType: z.enum(["digital_code", "activation_link", "manual_processing", "account_access"]),
   recipientEmailRequired: z.boolean().default(false),
   status: z.enum(["draft", "active", "paused"]).default("draft"),
 });
 
 export type AdminManagedCatalogProductInput = z.infer<typeof adminManagedCatalogProductInputSchema>;
+
+export const adminManagedCatalogProductUpdateInputSchema = adminManagedCatalogProductInputSchema
+  .omit({ catalogSourceId: true, status: true })
+  .extend({
+    productId: z.number().int().positive(),
+    status: z.enum(["draft", "active", "paused", "archived"]),
+  });
+
+export type AdminManagedCatalogProductUpdateInput = z.infer<typeof adminManagedCatalogProductUpdateInputSchema>;
 
 /** Derive a stable, readable catalog key so repeated entries are rejected instead of silently duplicated. */
 export function createAdminManagedCatalogSlug(category: AdminManagedCatalogProductInput["category"], name: string) {

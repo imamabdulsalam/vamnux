@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema, createAdminManagedCatalogSlug, createRecipientEmailRequirement } from "../shared/adminCatalog";
+import { adminManagedCatalogProductInputSchema, adminManagedCatalogProductUpdateInputSchema, authorizedCatalogSourceInputSchema, createAdminManagedCatalogSlug, createRecipientEmailRequirement } from "../shared/adminCatalog";
 
 describe("admin-managed VAMNUX catalog safeguards", () => {
   const validProduct = {
@@ -8,6 +8,7 @@ describe("admin-managed VAMNUX catalog safeguards", () => {
     description: "A verified USD Steam Wallet digital code for the stated supported region.",
     catalogSourceId: 10,
     basePrice: 52.5,
+    deliveryEstimate: "Usually delivered within 24 hours after recipient details are verified.",
     deliveryType: "digital_code" as const,
   };
 
@@ -18,6 +19,12 @@ describe("admin-managed VAMNUX catalog safeguards", () => {
   it("requires a structured source reference and a meaningful customer description", () => {
     expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, catalogSourceId: 0 })).toThrow();
     expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, description: "Too short" })).toThrow();
+    expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, deliveryEstimate: "" })).toThrow();
+  });
+
+  it("permits safe archive only through the existing manual-product update contract", () => {
+    expect(() => adminManagedCatalogProductInputSchema.parse({ ...validProduct, status: "archived" })).toThrow();
+    expect(adminManagedCatalogProductUpdateInputSchema.parse({ ...validProduct, productId: 42, status: "archived" })).toMatchObject({ productId: 42, status: "archived" });
   });
 
   it("requires every authorised source record to retain its commercial agreement reference", () => {

@@ -1,8 +1,8 @@
-import { and, desc, eq, gte, inArray, isNull, like, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, marketplaceCategories, marketplacePricingSettings, nativeAuthRateLimits, nativeCredentials, nativeSessions, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
-import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
+import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AdminManagedCatalogProductUpdateInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import type { SupplierCatalogRow } from "./catalogTypes";
@@ -604,6 +604,10 @@ export async function listAdminProductOperations() {
       slug: product.slug,
       supplierKey: product.supplierKey,
       category: product.category,
+      description: product.description,
+      regionLabel: product.regionLabel,
+      deliveryEstimate: product.deliveryEstimate,
+      deliveryType: product.deliveryType,
       productStatus: product.status,
       supplierEligible: product.supplierEligible,
       basePrice: Number(product.basePrice),
@@ -760,7 +764,11 @@ export async function listAdminManagedCatalogProducts() {
     basePrice: products.basePrice,
     baseCurrency: products.baseCurrency,
     regionLabel: products.regionLabel,
+    deliveryEstimate: products.deliveryEstimate,
     deliveryType: products.deliveryType,
+    description: products.description,
+    inputRequirements: products.inputRequirements,
+    catalogSourceId: products.catalogSourceId,
     status: products.status,
     updatedAt: products.updatedAt,
     sourceName: authorizedCatalogSources.displayName,
@@ -815,7 +823,7 @@ export async function createAuthorizedCatalogSource(input: AuthorizedCatalogSour
   return { id: created.id, displayName, status: "active" as const };
 }
 
-export async function createAdminManagedCatalogProduct(input: AdminManagedCatalogProductInput) {
+export async function createAdminManagedCatalogProduct(input: AdminManagedCatalogProductInput & { adminUserId: number }) {
   const db = requireDb(await getDb());
   const slug = createAdminManagedCatalogSlug(input.category, input.name);
   const [existing] = await db.select({ id: products.id }).from(products).where(eq(products.slug, slug)).limit(1);
@@ -837,6 +845,7 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
     supplierEligible: input.status === "active",
     catalogSourceId: source.id,
     regionLabel: input.regionLabel || null,
+    deliveryEstimate: input.deliveryEstimate,
     deliveryType: input.deliveryType,
     requiresPlayerId: false,
     requiresServerId: false,
@@ -849,8 +858,31 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
       sourceType: source.sourceType,
     },
   }).$returningId();
-
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_created", targetType: "product", targetId: created.id, summary: `Created manual catalog item ${input.name}`, metadata: { category: input.category, status: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate, catalogSourceId: source.id } });
   return { id: created.id, name: input.name, status: input.status, slug };
+}
+
+/** Edits only VAMNUX-managed listings; supplier-synchronised catalog records remain immutable to this workflow. */
+export async function updateAdminManagedCatalogProduct(input: AdminManagedCatalogProductUpdateInput & { adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [product] = await db.select().from(products).where(and(eq(products.id, input.productId), eq(products.supplierKey, ADMIN_MANAGED_SUPPLIER_KEY))).limit(1);
+  if (!product) throw new Error("Admin-managed catalog item was not found");
+  const [conflicting] = await db.select({ id: products.id }).from(products).where(and(eq(products.slug, createAdminManagedCatalogSlug(input.category, input.name)), ne(products.id, product.id))).limit(1);
+  if (conflicting) throw new Error("Another catalog item already uses that category and name");
+  await db.update(products).set({
+    name: input.name,
+    category: input.category,
+    description: input.description,
+    basePrice: input.basePrice.toFixed(2),
+    regionLabel: input.regionLabel || null,
+    deliveryEstimate: input.deliveryEstimate,
+    deliveryType: input.deliveryType,
+    inputRequirements: createRecipientEmailRequirement(input.recipientEmailRequired),
+    status: input.status,
+    supplierEligible: input.status === "active",
+  }).where(eq(products.id, product.id));
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_updated", targetType: "product", targetId: product.id, summary: `Updated manual catalog item ${input.name}`, metadata: { previousStatus: product.status, nextStatus: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate } });
+  return { productId: product.id, name: input.name, status: input.status };
 }
 
 export async function setAdminManagedCatalogProductStatus(input: { productId: number; status: "active" | "paused" | "archived"; adminUserId: number }) {
@@ -1634,12 +1666,18 @@ export async function getSuperAdminFinanceAnalytics(range?: { start?: Date; end?
   const [customerSummary] = await db.select({ totalCustomers: sql<number>`count(*)`, activeCustomers: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} = 'active' then 1 else 0 end), 0)`, restrictedOrSuspended: sql<number>`coalesce(sum(case when ${customerProfiles.accountStatus} in ('suspended', 'banned', 'restricted') then 1 else 0 end), 0)` }).from(customerProfiles);
   const [newCustomerSummary] = await db.select({ newCustomers: sql<number>`count(*)` }).from(customerProfiles).where(between(customerProfiles.createdAt));
   const paidOrderWhere = and(eq(orders.paymentStatus, "paid"), between(orders.createdAt));
+  const trendRows = await db.select({
+    date: sql<string>`date(${orders.createdAt})`,
+    orders: sql<number>`count(*)`,
+    revenue: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`,
+    supplierCost: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then coalesce(${orders.supplierTotal}, 0) else 0 end), 0)`,
+  }).from(orders).where(between(orders.createdAt)).groupBy(sql`date(${orders.createdAt})`).orderBy(sql`date(${orders.createdAt})`);
   const [productPerformance, categoryPerformance] = await Promise.all([
     db.select({ productId: orderItems.productId, productName: orderItems.productName, units: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`, revenue: sql<string>`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).where(paidOrderWhere).groupBy(orderItems.productId, orderItems.productName).orderBy(desc(sql`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)`)).limit(20),
     db.select({ category: products.category, units: sql<number>`coalesce(sum(${orderItems.quantity}), 0)`, revenue: sql<string>`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)` }).from(orderItems).innerJoin(orders, eq(orderItems.orderId, orders.id)).innerJoin(products, eq(orderItems.productId, products.id)).where(paidOrderWhere).groupBy(products.category).orderBy(desc(sql`coalesce(sum(${orderItems.quantity} * ${orderItems.unitPrice}), 0)`)).limit(20),
   ]);
   const revenue = numeric(orderSummary?.settledRevenue); const supplierCost = numeric(orderSummary?.recordedSupplierCost); const grossProfit = revenue - supplierCost;
-  return { finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid within the selected period. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." }, orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) }, customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended), newInPeriod: numeric(newCustomerSummary?.newCustomers) }, wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) }, performance: { topProducts: productPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })), topCategories: categoryPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })) }, period: { start: range?.start ?? null, end: range?.end ?? null } };
+  return { finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid within the selected period. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." }, orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) }, customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended), newInPeriod: numeric(newCustomerSummary?.newCustomers) }, wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) }, performance: { topProducts: productPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })), topCategories: categoryPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })) }, trends: trendRows.map((row) => ({ date: row.date, orders: numeric(row.orders), revenue: numeric(row.revenue), grossProfit: numeric(row.revenue) - numeric(row.supplierCost) })), period: { start: range?.start ?? null, end: range?.end ?? null } };
 }
 
 export async function listPromotions() {

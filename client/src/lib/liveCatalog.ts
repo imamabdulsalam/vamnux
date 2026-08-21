@@ -11,6 +11,7 @@ export type LiveCatalogProduct = {
   priceNote: string;
   region: string;
   delivery: string;
+  deliveryEstimate: string | null;
   image: string;
   tone: string;
   badge: string;
@@ -29,6 +30,7 @@ type CatalogSourceRow = {
   supplierKey: string | null;
   supplierEligible: boolean;
   regionLabel: string | null;
+  deliveryEstimate: string | null;
   deliveryType: string;
   requiresPlayerId: boolean;
   requiresServerId: boolean;
@@ -77,6 +79,7 @@ export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): Liv
     priceNote: customerPriceLabel(item),
     region: item.regionLabel || "Supplier region rules",
     delivery: supplierDeliveryLabel(item),
+    deliveryEstimate: item.deliveryEstimate?.trim() || null,
     image: item.imageUrl || "",
     tone: productTones[index % productTones.length],
     badge: item.category === "game_key" ? "Game key" : category === "Voucher" ? "Gift card" : category,

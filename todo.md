@@ -275,3 +275,7 @@
 - [x] Organize real-data Admin Panel workspaces for revenue, profit, orders, products, categories, suppliers, pricing, exchange rates, customers, wallet, payment/refund readiness, analytics, promotions, referrals, rewards, support, content, notifications, fraud/risk, system health, audit logs, and settings with truthful inactive states.
 - [x] Validate Super Admin authorization, data isolation, export safeguards, responsive usability, deterministic tests, and production build before publishing.
 - [x] Verify the newly registered specified email account and assign its server-side VAMNUX Admin role without changing unrelated user roles.
+- [x] Add real-data Admin Dashboard charts for revenue, profit, and order trends, with clear zero/unavailable states when no qualifying records exist.
+- [x] Extend Admin Products with controlled manual-listing create, edit, disable, and safe archive/delete behavior without altering supplier-backed catalog data.
+- [x] Store and show manual-product customer delivery-time instructions without making unverified fulfilment or delivery guarantees.
+- [x] Validate owner-only authorization, finance-chart accuracy, manual-product lifecycle controls, tests, responsive presentation, and production build before publishing.
