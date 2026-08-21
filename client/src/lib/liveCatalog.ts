@@ -57,7 +57,7 @@ function supplierDeliveryLabel(item: Pick<CatalogSourceRow, "requiresPlayerId" |
 
 function customerPriceLabel(item: Pick<CatalogSourceRow, "priceRule" | "supplierEligible">) {
   if (!item.supplierEligible) return "Availability paused";
-  return `VAMNUX price · ${item.priceRule}`;
+  return "Final price";
 }
 
 export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): LiveCatalogProduct {

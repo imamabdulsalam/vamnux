@@ -366,3 +366,6 @@
 - [x] Remove every customer-facing VAMNUX markup, profit, supplier-cost, percentage, buffer, and Admin exchange-rate disclosure while retaining final payable amounts.
 - [x] Ensure hidden or archived categories disappear immediately from all public storefront and User Dashboard category discovery, and restored active-visible categories return to every relevant customer view.
 - [x] Validate public pricing privacy, category hide/archive/restore propagation, responsive category navigation, deterministic tests, production build, and visual presentation before publishing.
+
+- [x] Remove the confirmed public “VAMNUX PRICE · xx% MARKUP” watermark from every catalog card and product-detail view while retaining Admin-only markup controls.
+- [x] Verify public customer price labels show only the payable product price and no percentage, supplier cost, buffer, or profit information before publishing.
