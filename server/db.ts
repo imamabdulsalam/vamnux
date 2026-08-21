@@ -893,13 +893,14 @@ export async function getSuperAdminOverview() {
 
 export async function listSuperAdminCustomers(limit = 100) {
   const db = requireDb(await getDb());
-  return db.select({
+  const customerRows = await db.select({
     id: users.id,
     name: users.name,
     email: users.email,
     role: users.role,
     createdAt: users.createdAt,
     lastSignedIn: users.lastSignedIn,
+    username: customerProfiles.username,
     preferredCurrency: customerProfiles.preferredCurrency,
     countryCode: customerProfiles.countryCode,
     registrationSource: customerProfiles.registrationSource,
@@ -909,6 +910,51 @@ export async function listSuperAdminCustomers(limit = 100) {
     suspensionAppeal: customerProfiles.suspensionAppeal,
     appealSubmittedAt: customerProfiles.appealSubmittedAt,
   }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).orderBy(desc(users.createdAt)).limit(limit);
+  const customerIds = customerRows.map((customer) => customer.id);
+  if (!customerIds.length) return [];
+  const [walletRows, orderRows, transactionRows] = await Promise.all([
+    db.select({ userId: wallets.userId, id: wallets.id, availableBalance: wallets.availableBalance, currency: wallets.currency, status: wallets.status }).from(wallets).where(inArray(wallets.userId, customerIds)),
+    db.select({ userId: orders.userId, total: orders.total, currency: orders.currency, paymentStatus: orders.paymentStatus, createdAt: orders.createdAt }).from(orders).where(inArray(orders.userId, customerIds)),
+    db.select({ userId: wallets.userId, entryId: walletEntries.id }).from(walletEntries).innerJoin(wallets, eq(walletEntries.walletId, wallets.id)).where(inArray(wallets.userId, customerIds)),
+  ]);
+  const walletByUser = new Map(walletRows.map((wallet) => [wallet.userId, wallet]));
+  const ordersByUser = new Map<number, typeof orderRows>();
+  orderRows.forEach((order) => ordersByUser.set(order.userId, [...(ordersByUser.get(order.userId) ?? []), order]));
+  const transactionCountByUser = new Map<number, number>();
+  transactionRows.forEach((transaction) => transactionCountByUser.set(transaction.userId, (transactionCountByUser.get(transaction.userId) ?? 0) + 1));
+  return customerRows.map((customer) => {
+    const wallet = walletByUser.get(customer.id);
+    const customerOrders = ordersByUser.get(customer.id) ?? [];
+    const paidOrders = customerOrders.filter((order) => order.paymentStatus === "paid");
+    const spendCurrencies = Array.from(new Set(paidOrders.map((order) => order.currency)));
+    const lastPurchaseAt = paidOrders.reduce<Date | null>((latest, order) => !latest || new Date(order.createdAt) > latest ? new Date(order.createdAt) : latest, null);
+    return {
+      ...customer,
+      walletBalance: wallet ? numericValue(wallet.availableBalance) : null,
+      walletCurrency: wallet?.currency ?? null,
+      walletStatus: wallet?.status ?? "inactive",
+      totalOrders: customerOrders.length,
+      paidOrderCount: paidOrders.length,
+      settledSpend: spendCurrencies.length <= 1 ? paidOrders.reduce((sum, order) => sum + numericValue(order.total), 0) : null,
+      spendCurrency: spendCurrencies.length === 1 ? spendCurrencies[0] : spendCurrencies.length > 1 ? "MULTI" : wallet?.currency ?? "USD",
+      lastPurchaseAt,
+      transactionCount: transactionCountByUser.get(customer.id) ?? 0,
+    };
+  });
+}
+
+/** Owner-only customer operations detail. It intentionally excludes passwords, sessions, credentials, provider references, and free-text private messages. */
+export async function getSuperAdminCustomerControlDetail(userId: number) {
+  const db = requireDb(await getDb());
+  const [customer] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role, createdAt: users.createdAt, lastSignedIn: users.lastSignedIn, username: customerProfiles.username, phone: customerProfiles.phone, countryCode: customerProfiles.countryCode, preferredCurrency: customerProfiles.preferredCurrency, registrationSource: customerProfiles.registrationSource, accountStatus: customerProfiles.accountStatus, suspensionReason: customerProfiles.suspensionReason, suspendedUntil: customerProfiles.suspendedUntil, suspensionAppeal: customerProfiles.suspensionAppeal, appealSubmittedAt: customerProfiles.appealSubmittedAt }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).where(eq(users.id, userId)).limit(1);
+  if (!customer) throw new Error("Customer account was not found");
+  const [wallet] = await db.select({ id: wallets.id, availableBalance: wallets.availableBalance, currency: wallets.currency, status: wallets.status, updatedAt: wallets.updatedAt }).from(wallets).where(eq(wallets.userId, userId)).limit(1);
+  const [customerOrders, securityEvents] = await Promise.all([
+    db.select({ orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, total: orders.total, currency: orders.currency, createdAt: orders.createdAt, updatedAt: orders.updatedAt }).from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt)).limit(25),
+    db.select({ eventType: customerSecurityEvents.eventType, summary: customerSecurityEvents.summary, createdAt: customerSecurityEvents.createdAt }).from(customerSecurityEvents).where(eq(customerSecurityEvents.userId, userId)).orderBy(desc(customerSecurityEvents.createdAt)).limit(20),
+  ]);
+  const transactions = wallet ? await db.select({ direction: walletEntries.direction, entryType: walletEntries.entryType, amount: walletEntries.amount, currency: walletEntries.currency, status: walletEntries.status, createdAt: walletEntries.createdAt }).from(walletEntries).where(eq(walletEntries.walletId, wallet.id)).orderBy(desc(walletEntries.createdAt)).limit(25) : [];
+  return { customer, wallet: wallet ? { balance: numericValue(wallet.availableBalance), currency: wallet.currency, status: wallet.status, updatedAt: wallet.updatedAt } : null, orders: customerOrders, transactions: transactions.map((transaction) => ({ ...transaction, amount: numericValue(transaction.amount) })), securityEvents };
 }
 
 export async function suspendCustomerAccount(input: { userId: number; reason: string; suspendedUntil?: Date | null; adminUserId: number }) {
@@ -924,6 +970,18 @@ export async function suspendCustomerAccount(input: { userId: number; reason: st
     await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer.suspended", targetType: "customer", targetId: String(customer.id), summary: `Suspended customer ${customer.name || `#${customer.id}`}`, metadata: { reason, suspendedUntil: input.suspendedUntil?.toISOString() ?? null } });
   });
   return { userId: customer.id, accountStatus: "suspended" as const };
+}
+
+/** Enforces customer account restrictions for all customer-facing marketplace actions. Admin accounts are never restricted by this guard. */
+export async function assertCustomerAccountActive(userId: number) {
+  const db = requireDb(await getDb());
+  const [account] = await db.select({ role: users.role, accountStatus: customerProfiles.accountStatus, suspendedUntil: customerProfiles.suspendedUntil }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).where(eq(users.id, userId)).limit(1);
+  if (!account || account.role === "admin" || account.accountStatus !== "suspended") return;
+  if (account.suspendedUntil && account.suspendedUntil <= new Date()) {
+    await db.update(customerProfiles).set({ accountStatus: "active", suspensionReason: null, suspendedUntil: null }).where(eq(customerProfiles.userId, userId));
+    return;
+  }
+  throw new Error("This customer account is suspended. Contact support if you believe this is an error.");
 }
 
 export async function reinstateCustomerAccount(input: { userId: number; decisionNote?: string; adminUserId: number }) {

@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { suspensionEndFromPreset, type SuspensionDuration } from "@shared/customerControls";
 import { calculateManualExchangeQuote } from "@shared/exchangeRates";
 import { ManualCatalogManager } from "./Account";
 import {
@@ -77,7 +78,7 @@ function AdminAccessGate() {
 function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: string; onSignOut: () => void; onReturn: () => void }) {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    return requestedTab === "rates" || requestedTab === "traffic" || requestedTab === "suppliers" ? requestedTab : "overview";
+    return requestedTab === "rates" || requestedTab === "traffic" || requestedTab === "suppliers" || requestedTab === "customers" ? requestedTab : "overview";
   });
   const overview = trpc.admin.getOverview.useQuery();
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery();
@@ -126,6 +127,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const [goalDraft, setGoalDraft] = useState({ orders: "0", revenue: "0", profit: "0" });
   const [customerStatusFilter, setCustomerStatusFilter] = useState<"all" | "suspended">("all");
   const [reinstatementNotes, setReinstatementNotes] = useState<Record<number, string>>({});
+  const [selectedCustomerControlId, setSelectedCustomerControlId] = useState<number | null>(null);
   const [syncIntervalDraft, setSyncIntervalDraft] = useState<"off" | "1h" | "3h" | "12h">("off");
   const [selectedSyncedProductIds, setSelectedSyncedProductIds] = useState<number[]>([]);
   const [bulkMarkupPercent, setBulkMarkupPercent] = useState("25");
@@ -162,6 +164,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const search = trpc.admin.search.useQuery(searchInput, { enabled: searchQuery.trim().length >= 2 });
   const selectedProduct = useMemo(() => (catalogPricing.data ?? []).find((product) => product.id === Number(productId)), [catalogPricing.data, productId]);
   const selectedOperationsProduct = useMemo(() => (productOperations.data ?? []).find((product) => product.id === Number(productOperationsId)), [productOperations.data, productOperationsId]);
+  const customerControlDetail = trpc.admin.getCustomerControlDetail.useQuery({ userId: selectedCustomerControlId || 0 }, { enabled: !!selectedCustomerControlId });
   const trafficStart = useMemo(() => { const start = new Date(); if (trafficWindow === "1d") start.setDate(start.getDate() - 1); if (trafficWindow === "7d") start.setDate(start.getDate() - 7); if (trafficWindow === "14d") start.setDate(start.getDate() - 14); if (trafficWindow === "30d") start.setDate(start.getDate() - 30); if (trafficWindow === "3m") start.setMonth(start.getMonth() - 3); return start; }, [trafficWindow]);
   const trafficSnapshot = useMemo(() => { const inRange = (customers.data ?? []).filter((customer) => new Date(customer.createdAt) >= trafficStart); const bySource = new Map<string, number>(); const byCountry = new Map<string, number>(); inRange.forEach((customer) => { const source = customer.registrationSource || "Not provided"; const country = customer.countryCode || "Not provided"; bySource.set(source, (bySource.get(source) || 0) + 1); byCountry.set(country, (byCountry.get(country) || 0) + 1); }); return { accounts: inRange.length, sources: Array.from(bySource.entries()).sort((a, b) => b[1] - a[1]), countries: Array.from(byCountry.entries()).sort((a, b) => b[1] - a[1]) }; }, [customers.data, trafficStart]);
   const savedGoals = useMemo(() => { const setting = (siteSettings.data ?? []).find((item) => item.settingKey === "analytics.sales_goals"); if (!setting || !setting.value || typeof setting.value !== "object") return null; const value = setting.value as Record<string, unknown>; return { orders: Number(value.orders || 0), revenue: Number(value.revenue || 0), profit: Number(value.profit || 0) }; }, [siteSettings.data]);
@@ -206,6 +209,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const reviewFundingRequest = trpc.admin.reviewWalletFundingRequest.useMutation({ onSuccess: async (result) => { toast.success(result.status === "settled" ? "Wallet funding request settled and ledger credit recorded." : "Wallet funding request rejected. No wallet credit was created."); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not review the funding request.") });
   const cancelDraftOrder = trpc.admin.cancelDraftOrder.useMutation({ onSuccess: async () => { toast.success("Unfunded, unsent draft order cancelled and audit logged."); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "This order cannot be cancelled from the Admin workspace.") });
   const recordSupplierBalance = trpc.admin.recordSupplierBalance.useMutation({ onSuccess: async () => { toast.success("Supplier balance observation saved and audit logged."); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not record supplier balance.") });
+  const suspendCustomer = trpc.admin.suspendCustomer.useMutation({ onSuccess: async () => { toast.success("Customer suspended, access revoked, and action audit logged."); setSelectedCustomerControlId(null); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not suspend the customer.") });
   const reinstateCustomer = trpc.admin.reinstateCustomer.useMutation({ onSuccess: async () => { toast.success("Customer reinstated and audit logged."); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not reinstate the customer.") });
   const replyToSupportTicket = trpc.admin.replyToSupportTicket.useMutation({ onSuccess: async () => { toast.success("Support reply sent and audit logged."); setSupportReply(""); await refreshAdminData(); await supportTicketDetail.refetch(); }, onError: (error) => toast.error(error.message || "Could not send the support reply.") });
   const createMarketplaceCategory = trpc.admin.createMarketplaceCategory.useMutation({ onSuccess: async () => { toast.success("Category created and audit logged."); setCategoryDraft({ slug: "", name: "", description: "", imageUrl: "", seoTitle: "", seoDescription: "", sortOrder: "0", visible: true, featured: false, status: "active" }); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not create the category.") });
@@ -286,6 +290,91 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     refresh();
     return () => { tools.remove(); panel.querySelectorAll("[data-category-select], [data-category-quick-view], [data-category-drag]").forEach((element) => element.remove()); rows.forEach((row) => { row.draggable = false; delete row.dataset.categoryId; }); document.querySelectorAll(".admin-category-quick-overlay").forEach((overlay) => overlay.remove()); };
   }, [activeTab, marketplaceCategories.data, productOperations.data, bulkUpdateCategories, reorderCategories]);
+  useEffect(() => {
+    if (activeTab !== "customers") return;
+    const panel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.textContent?.includes("Authenticated accounts"));
+    if (!panel) return;
+    const legacyTools = panel.querySelector<HTMLElement>(":scope > .admin-funding-actions");
+    const legacyTable = panel.querySelector<HTMLElement>(":scope > .admin-table-wrap");
+    const previousToolsDisplay = legacyTools?.style.display;
+    const previousTableDisplay = legacyTable?.style.display;
+    if (legacyTools) legacyTools.style.display = "none";
+    if (legacyTable) legacyTable.style.display = "none";
+    panel.querySelector("[data-customer-control-center]")?.remove();
+    const workspace = document.createElement("section"); workspace.dataset.customerControlCenter = "true"; workspace.className = "admin-customer-control-center";
+    const toolbar = document.createElement("div"); toolbar.className = "admin-customer-toolbar";
+    const allButton = document.createElement("button"); allButton.type = "button"; allButton.className = "admin-primary-action"; allButton.textContent = `All accounts (${customers.data?.length ?? 0})`;
+    const suspendedButton = document.createElement("button"); suspendedButton.type = "button"; suspendedButton.className = "admin-secondary-action"; suspendedButton.textContent = `Suspended (${(customers.data ?? []).filter((customer) => customer.accountStatus === "suspended").length})`;
+    const searchInput = document.createElement("input"); searchInput.type = "search"; searchInput.placeholder = "Search name, email, country, or username"; searchInput.setAttribute("aria-label", "Search customer accounts");
+    toolbar.append(allButton, suspendedButton, searchInput);
+    const tableWrap = document.createElement("div"); tableWrap.className = "admin-table-wrap";
+    const table = document.createElement("table"); table.className = "admin-customer-control-table";
+    table.innerHTML = "<thead><tr><th>Customer</th><th>Account & sign-in</th><th>Wallet</th><th>Spend & orders</th><th>Last purchase</th><th>Transactions</th><th>Controls</th></tr></thead>";
+    const body = document.createElement("tbody"); table.append(body); tableWrap.append(table);
+    const detail = document.createElement("section"); detail.className = "admin-customer-detail";
+    const appendText = (parent: HTMLElement, tag: keyof HTMLElementTagNameMap, text: string, className?: string) => { const element = document.createElement(tag); element.textContent = text; if (className) element.className = className; parent.append(element); return element; };
+    let showingSuspended = false;
+    const renderRows = () => {
+      body.replaceChildren();
+      const term = searchInput.value.trim().toLowerCase();
+      const matching = (customers.data ?? []).filter((customer) => {
+        if (showingSuspended && customer.accountStatus !== "suspended") return false;
+        return !term || `${customer.name || ""} ${customer.email || ""} ${customer.countryCode || ""} ${customer.username || ""}`.toLowerCase().includes(term);
+      });
+      allButton.className = showingSuspended ? "admin-secondary-action" : "admin-primary-action";
+      suspendedButton.className = showingSuspended ? "admin-danger-action" : "admin-secondary-action";
+      if (!matching.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 7; cell.textContent = "No customers match the selected filter."; row.append(cell); body.append(row); return; }
+      matching.forEach((customer) => {
+        const row = document.createElement("tr");
+        const identity = document.createElement("td"); appendText(identity, "strong", customer.name || customer.username || "Unnamed account"); appendText(identity, "small", customer.email || "Email unavailable"); appendText(identity, "small", customer.countryCode ? `${customer.countryCode} · ${customer.preferredCurrency || "USD"}` : customer.preferredCurrency || "USD");
+        const account = document.createElement("td"); const status = appendText(account, "span", customer.accountStatus || "active", customer.accountStatus === "suspended" ? "admin-status danger" : "admin-status muted"); status.textContent = label(customer.accountStatus || "active"); appendText(account, "small", `Last sign-in: ${customer.lastSignedIn ? new Date(customer.lastSignedIn).toLocaleString() : "Not recorded"}`); if (customer.accountStatus === "suspended") appendText(account, "small", customer.suspendedUntil ? `Until ${new Date(customer.suspendedUntil).toLocaleString()}` : "Permanent until reviewed");
+        const wallet = document.createElement("td"); appendText(wallet, "strong", customer.walletBalance === null ? "Unavailable" : money(customer.walletBalance, customer.walletCurrency || "USD")); appendText(wallet, "small", label(customer.walletStatus || "inactive"));
+        const commerce = document.createElement("td"); appendText(commerce, "strong", customer.settledSpend === null ? "Multi-currency" : money(customer.settledSpend, customer.spendCurrency || "USD")); appendText(commerce, "small", `${customer.totalOrders} total · ${customer.paidOrderCount} paid`);
+        const purchase = document.createElement("td"); appendText(purchase, "small", customer.lastPurchaseAt ? new Date(customer.lastPurchaseAt).toLocaleString() : "No paid purchase recorded");
+        const transactions = document.createElement("td"); appendText(transactions, "strong", String(customer.transactionCount)); appendText(transactions, "small", "Recorded wallet entries");
+        const controls = document.createElement("td"); controls.className = "admin-customer-row-actions";
+        const view = document.createElement("button"); view.type = "button"; view.className = "admin-secondary-action"; view.textContent = "View details"; view.addEventListener("click", () => setSelectedCustomerControlId(customer.id)); controls.append(view);
+        if (customer.role !== "admin" && customer.accountStatus !== "suspended") { const suspend = document.createElement("button"); suspend.type = "button"; suspend.className = "admin-danger-action"; suspend.textContent = "Suspend"; suspend.addEventListener("click", () => {
+          const overlay = document.createElement("div"); overlay.className = "admin-category-quick-overlay";
+          const modal = document.createElement("section"); modal.className = "admin-category-quick-modal admin-customer-suspend-modal";
+          const close = document.createElement("button"); close.type = "button"; close.setAttribute("aria-label", "Close suspension dialog"); close.textContent = "×";
+          const heading = document.createElement("h3"); heading.textContent = `Suspend ${customer.name || customer.email || `customer #${customer.id}`}`;
+          const note = document.createElement("small"); note.textContent = "A suspension is audit logged and server-enforced. Passwords, tokens, and payment details are never shown or collected here.";
+          const reasonLabel = document.createElement("label"); reasonLabel.textContent = "Reason"; const reason = document.createElement("textarea"); reason.maxLength = 500; reason.placeholder = "Clear reason for the account restriction"; reasonLabel.append(reason);
+          const durationLabel = document.createElement("label"); durationLabel.textContent = "Restriction duration"; const duration = document.createElement("select"); ([['7d', '7 days'], ['30d', '30 days'], ['90d', '3 months'], ['1y', '1 year'], ['permanent', 'Permanent until review']] as const).forEach(([value, text]) => { const option = document.createElement("option"); option.value = value; option.textContent = text; duration.append(option); }); durationLabel.append(duration);
+          const confirm = document.createElement("button"); confirm.type = "button"; confirm.className = "admin-danger-action"; confirm.textContent = "Confirm suspension"; confirm.addEventListener("click", () => { if (reason.value.trim().length < 3) { toast.error("Enter a clear suspension reason before continuing."); return; } const preset = duration.value as SuspensionDuration; const until = suspensionEndFromPreset(preset); if (window.confirm(`Confirm ${preset === "permanent" ? "a permanent review restriction" : `suspension until ${until?.toLocaleString()}`} for ${customer.name || customer.email || `customer #${customer.id}`}?`)) { suspendCustomer.mutate({ userId: customer.id, reason: reason.value.trim(), suspendedUntil: until }); overlay.remove(); } });
+          modal.append(close, heading, note, reasonLabel, durationLabel, confirm); overlay.append(modal); document.body.append(overlay); overlay.addEventListener("click", (event) => { if (event.target === overlay || event.target === close) overlay.remove(); });
+        }); controls.append(suspend); }
+        if (customer.role !== "admin" && customer.accountStatus === "suspended") { const reinstate = document.createElement("button"); reinstate.type = "button"; reinstate.className = "admin-primary-action"; reinstate.textContent = "Reinstate"; reinstate.addEventListener("click", () => { const decision = window.prompt("Optional decision note for the reinstatement audit record:"); if (decision === null) return; if (window.confirm(`Confirm reinstating ${customer.name || customer.email || `customer #${customer.id}`}?`)) reinstateCustomer.mutate({ userId: customer.id, decisionNote: decision.trim() || undefined }); }); controls.append(reinstate); }
+        row.append(identity, account, wallet, commerce, purchase, transactions, controls); body.append(row);
+      });
+    };
+    const renderDetail = () => {
+      detail.replaceChildren();
+      const data = customerControlDetail.data;
+      if (!selectedCustomerControlId) return;
+      const heading = document.createElement("div"); heading.className = "admin-customer-detail-head"; appendText(heading, "span", "CUSTOMER CONTROL DETAIL"); appendText(heading, "h3", customerControlDetail.isLoading ? "Loading protected customer records…" : data?.customer.name || data?.customer.email || "Customer detail"); const close = document.createElement("button"); close.type = "button"; close.className = "admin-secondary-action"; close.textContent = "Close details"; close.addEventListener("click", () => setSelectedCustomerControlId(null)); heading.append(close); detail.append(heading);
+      if (customerControlDetail.isLoading) return;
+      if (!data) { appendText(detail, "p", "Customer detail is unavailable."); return; }
+      const summary = document.createElement("div"); summary.className = "admin-customer-detail-summary";
+      const blocks = [
+        ["Account", `${data.customer.email || "Email unavailable"} · ${data.customer.countryCode || "Country unavailable"}`],
+        ["Wallet", data.wallet ? `${money(data.wallet.balance, data.wallet.currency)} · ${label(data.wallet.status)}` : "No wallet configuration"],
+        ["Login activity", `${data.securityEvents.length} safe security events · last sign-in ${data.customer.lastSignedIn ? new Date(data.customer.lastSignedIn).toLocaleString() : "not recorded"}`],
+      ];
+      blocks.forEach(([title, value]) => { const block = document.createElement("article"); appendText(block, "span", title); appendText(block, "strong", value); summary.append(block); }); detail.append(summary);
+      const detailsGrid = document.createElement("div"); detailsGrid.className = "admin-customer-detail-grid";
+      const createList = (title: string, empty: string, items: Array<{ primary: string; secondary: string }>) => { const section = document.createElement("section"); appendText(section, "h4", title); if (!items.length) appendText(section, "p", empty); items.forEach((item) => { const row = document.createElement("article"); appendText(row, "strong", item.primary); appendText(row, "small", item.secondary); section.append(row); }); return section; };
+      detailsGrid.append(
+        createList("Orders", "No orders are recorded.", data.orders.map((order) => ({ primary: `#${order.orderCode} · ${money(Number(order.total), order.currency)}`, secondary: `${label(order.status)} · ${label(order.paymentStatus)} · ${new Date(order.createdAt).toLocaleString()}` }))),
+        createList("Wallet transactions", "No wallet transactions are recorded.", data.transactions.map((transaction) => ({ primary: `${label(transaction.entryType)} · ${transaction.direction} · ${money(transaction.amount, transaction.currency)}`, secondary: `${label(transaction.status)} · ${new Date(transaction.createdAt).toLocaleString()}` }))),
+        createList("Login & security activity", "No safe login activity is recorded.", data.securityEvents.map((event) => ({ primary: event.summary, secondary: `${event.eventType} · ${new Date(event.createdAt).toLocaleString()}` }))),
+      ); detail.append(detailsGrid);
+    };
+    allButton.addEventListener("click", () => { showingSuspended = false; renderRows(); }); suspendedButton.addEventListener("click", () => { showingSuspended = true; renderRows(); }); searchInput.addEventListener("input", renderRows);
+    workspace.append(toolbar, tableWrap, detail); panel.append(workspace); renderRows(); renderDetail();
+    return () => { workspace.remove(); if (legacyTools) legacyTools.style.display = previousToolsDisplay || ""; if (legacyTable) legacyTable.style.display = previousTableDisplay || ""; document.querySelectorAll(".admin-category-quick-overlay").forEach((overlay) => overlay.remove()); };
+  }, [activeTab, customers.data, selectedCustomerControlId, customerControlDetail.data, customerControlDetail.isLoading, suspendCustomer, reinstateCustomer]);
   useEffect(() => {
     if (activeTab !== "suppliers") return;
     const panel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.textContent?.includes("Read-only catalog operations"));

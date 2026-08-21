@@ -1,15 +1,21 @@
 import { COOKIE_NAME } from "@shared/const";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
-import { bulkUpdateSyncedProductMarkup, canRunSupplierCatalogSync, cancelSuperAdminDraftOrder, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminFinanceAnalytics, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminSupplierBalances, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSuperAdminAuditEvent, recordSuperAdminSupplierBalance, reinstateCustomerAccount, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, suspendCustomerAccount, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
+import { bulkUpdateSyncedProductMarkup, canRunSupplierCatalogSync, cancelSuperAdminDraftOrder, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminCustomerControlDetail, getSuperAdminFinanceAnalytics, getSuperAdminOverview, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminOrders, listSuperAdminSupplierBalances, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSuperAdminAuditEvent, recordSuperAdminSupplierBalance, reinstateCustomerAccount, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, suspendCustomerAccount, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
 import { bulkArchiveAdminManagedCatalogProducts, bulkUpdateProductStorefrontVisibility } from "./db";
 import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } from "./db";
+import { assertCustomerAccountActive } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+
+const customerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
+  await assertCustomerAccountActive(ctx.user.id);
+  return next();
+});
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -28,16 +34,16 @@ export const appRouter = router({
     catalog: publicProcedure.query(() => listActiveCatalogProducts()),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "refund-policy", "cookie-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
-    accountSummary: protectedProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
-    customerDashboard: protectedProcedure.query(({ ctx }) => getCustomerDashboard(ctx.user.id)),
-    orderDetail: protectedProcedure.input(z.object({ orderCode: z.string().trim().min(3).max(32) })).query(({ ctx, input }) => getCustomerOrderDetail({ userId: ctx.user.id, ...input })),
-    updateCustomerPreferences: protectedProcedure.input(z.object({
+    accountSummary: customerProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
+    customerDashboard: customerProcedure.query(({ ctx }) => getCustomerDashboard(ctx.user.id)),
+    orderDetail: customerProcedure.input(z.object({ orderCode: z.string().trim().min(3).max(32) })).query(({ ctx, input }) => getCustomerOrderDetail({ userId: ctx.user.id, ...input })),
+    updateCustomerPreferences: customerProcedure.input(z.object({
       preferredCurrency: z.enum(["USD", "EUR", "GBP", "NGN"]),
       countryCode: z.string().trim().length(2).toUpperCase().nullable().optional(),
     })).mutation(({ ctx, input }) => updateCustomerDashboardPreferences({ userId: ctx.user.id, ...input })),
-    toggleSavedProduct: protectedProcedure.input(z.object({ productId: z.number().int().positive() }))
+    toggleSavedProduct: customerProcedure.input(z.object({ productId: z.number().int().positive() }))
       .mutation(({ ctx, input }) => toggleCustomerSavedProduct({ userId: ctx.user.id, productId: input.productId })),
-    updateCustomerProfile: protectedProcedure.input(z.object({
+    updateCustomerProfile: customerProcedure.input(z.object({
       firstName: z.string().trim().max(80).nullable().optional(),
       lastName: z.string().trim().max(80).nullable().optional(),
       username: z.string().trim().max(30).nullable().optional(),
@@ -45,33 +51,33 @@ export const appRouter = router({
       countryCode: z.string().trim().length(2).toUpperCase().nullable().optional(),
       registrationSource: z.enum(["Google", "Facebook", "Instagram", "TikTok", "X", "YouTube", "WhatsApp", "Friend", "Referral", "Advertisement", "Other"]).nullable().optional(),
     })).mutation(({ ctx, input }) => updateCustomerProfile({ userId: ctx.user.id, ...input })),
-    updateNotificationPreferences: protectedProcedure.input(z.object({
+    updateNotificationPreferences: customerProcedure.input(z.object({
       orderUpdates: z.boolean(),
       paymentUpdates: z.boolean(),
       walletUpdates: z.boolean(),
       marketingUpdates: z.boolean(),
       productAnnouncements: z.boolean(),
     })).mutation(({ ctx, input }) => updateCustomerNotificationPreferences({ userId: ctx.user.id, ...input })),
-    markNotificationRead: protectedProcedure.input(z.object({ notificationId: z.number().int().positive() }))
+    markNotificationRead: customerProcedure.input(z.object({ notificationId: z.number().int().positive() }))
       .mutation(({ ctx, input }) => markCustomerNotificationRead({ userId: ctx.user.id, ...input })),
-    createSupportTicket: protectedProcedure.input(z.object({
+    createSupportTicket: customerProcedure.input(z.object({
       category: z.enum(["payment", "order", "game_top_up", "gift_card", "subscription", "software", "wallet", "account", "refund", "other"]),
       subject: z.string().trim().min(3).max(180),
       message: z.string().trim().min(3).max(5000),
       orderCode: z.string().trim().min(3).max(32).optional(),
     })).mutation(({ ctx, input }) => createCustomerSupportTicket({ userId: ctx.user.id, ...input })),
-    getSupportTicket: protectedProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32) }))
+    getSupportTicket: customerProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32) }))
       .query(({ ctx, input }) => getCustomerSupportTicket({ userId: ctx.user.id, ...input })),
-    replyToSupportTicket: protectedProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32), message: z.string().trim().min(3).max(5000) }))
+    replyToSupportTicket: customerProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32), message: z.string().trim().min(3).max(5000) }))
       .mutation(({ ctx, input }) => replyToCustomerSupportTicket({ userId: ctx.user.id, ...input })),
-    createPrivacyRequest: protectedProcedure.input(z.object({ requestType: z.enum(["data_access", "data_correction", "account_deletion"]), note: z.string().trim().max(500).optional() }))
+    createPrivacyRequest: customerProcedure.input(z.object({ requestType: z.enum(["data_access", "data_correction", "account_deletion"]), note: z.string().trim().max(500).optional() }))
       .mutation(({ ctx, input }) => createCustomerPrivacyRequest({ userId: ctx.user.id, ...input })),
-    createWalletFundingRequest: protectedProcedure.input(z.object({
+    createWalletFundingRequest: customerProcedure.input(z.object({
       amount: z.number().positive().max(1_000_000),
       currency: z.enum(["USD", "EUR", "GBP", "NGN"]),
       customerNote: z.string().trim().max(500).optional(),
     })).mutation(({ ctx, input }) => createCustomerWalletFundingRequest({ userId: ctx.user.id, ...input })),
-    createOrder: protectedProcedure.input(z.object({
+    createOrder: customerProcedure.input(z.object({
       currency: z.enum(["USD", "EUR", "GBP", "NGN"]),
       items: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(25) })).min(1).max(25),
       fulfillmentDetails: z.record(z.string(), z.string()).optional(),
@@ -86,6 +92,7 @@ export const appRouter = router({
     getOverview: adminProcedure.query(() => getSuperAdminOverview()),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
+    getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),
     suspendCustomer: adminProcedure.input(z.object({ userId: z.number().int().positive(), reason: z.string().trim().min(3).max(500), suspendedUntil: z.date().nullable().optional() }))
       .mutation(({ ctx, input }) => suspendCustomerAccount({ ...input, adminUserId: ctx.user.id })),
     reinstateCustomer: adminProcedure.input(z.object({ userId: z.number().int().positive(), decisionNote: z.string().trim().max(500).optional() }))

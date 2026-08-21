@@ -302,3 +302,7 @@
 - [x] Preserve Admin-only supplier product pricing and VAMNUX markup access without exposing supplier credentials or data to customers.
 - [x] Clarify recorded supplier wallet balances, red at-or-below-$5 status, funding preparation controls, and the current transactional-email alert limitation.
 - [x] Validate supplier-data isolation, balance readiness controls, responsive layout, deterministic tests, and production build before publishing.
+- [x] Redesign Customers as a functional control center for safe account, email, country, wallet, spend, orders, sign-in, purchase, and transaction information.
+- [x] Add clear protected customer detail controls while excluding passwords, tokens, and credential material from all Admin views.
+- [x] Repair audited suspension, duration selection for days/months/years/permanent restrictions, appeal review, and reinstatement actions for non-Admin accounts.
+- [x] Validate customer-data protection, customer-control actions, responsive layout, deterministic tests, and production build before publishing.
