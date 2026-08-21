@@ -27,9 +27,19 @@ export const adminManagedCatalogProductInputSchema = z.object({
   basePrice: z.number().finite().positive().max(1_000_000),
   regionLabel: z.string().trim().max(120).optional(),
   deliveryEstimate: z.string().trim().min(3).max(160),
+  deliveryMinMinutes: z.number().int().min(0).max(525_600).optional(),
+  deliveryMaxMinutes: z.number().int().min(1).max(525_600).optional(),
+  customerRequirements: z.string().trim().max(2_000).optional(),
   deliveryType: z.enum(["digital_code", "activation_link", "manual_processing", "account_access"]),
   recipientEmailRequired: z.boolean().default(false),
   status: z.enum(["draft", "active", "paused"]).default("draft"),
+}).superRefine((value, context) => {
+  if ((value.deliveryMinMinutes === undefined) !== (value.deliveryMaxMinutes === undefined)) {
+    context.addIssue({ code: "custom", path: ["deliveryMaxMinutes"], message: "Provide both minimum and maximum delivery time, or leave both blank." });
+  }
+  if (value.deliveryMinMinutes !== undefined && value.deliveryMaxMinutes !== undefined && value.deliveryMaxMinutes < value.deliveryMinMinutes) {
+    context.addIssue({ code: "custom", path: ["deliveryMaxMinutes"], message: "Maximum delivery time must be greater than or equal to minimum delivery time." });
+  }
 });
 
 export type AdminManagedCatalogProductInput = z.infer<typeof adminManagedCatalogProductInputSchema>;

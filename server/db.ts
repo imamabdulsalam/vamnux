@@ -628,6 +628,10 @@ export async function listAdminProductOperations() {
       bestSeller: attributes?.bestSeller ?? false,
       newProduct: attributes?.newProduct ?? false,
       deal: attributes?.deal ?? false,
+      displayNameOverride: attributes?.displayNameOverride ?? null,
+      descriptionOverride: attributes?.descriptionOverride ?? null,
+      deliveryEstimateOverride: attributes?.deliveryEstimateOverride ?? null,
+      customerRequirementsOverride: attributes?.customerRequirementsOverride ?? null,
       seoTitle: attributes?.seoTitle ?? null,
       seoDescription: attributes?.seoDescription ?? null,
       internalNote: attributes?.internalNote ?? null,
@@ -644,6 +648,10 @@ export async function updateProductAdminAttributes(input: {
   bestSeller: boolean;
   newProduct: boolean;
   deal: boolean;
+  displayNameOverride?: string | null;
+  descriptionOverride?: string | null;
+  deliveryEstimateOverride?: string | null;
+  customerRequirementsOverride?: string | null;
   seoTitle?: string | null;
   seoDescription?: string | null;
   internalNote?: string | null;
@@ -661,6 +669,10 @@ export async function updateProductAdminAttributes(input: {
     bestSeller: input.bestSeller,
     newProduct: input.newProduct,
     deal: input.deal,
+    displayNameOverride: input.displayNameOverride?.trim() || null,
+    descriptionOverride: input.descriptionOverride?.trim() || null,
+    deliveryEstimateOverride: input.deliveryEstimateOverride?.trim() || null,
+    customerRequirementsOverride: input.customerRequirementsOverride?.trim() || null,
     seoTitle: input.seoTitle?.trim() || null,
     seoDescription: input.seoDescription?.trim() || null,
     internalNote: input.internalNote?.trim() || null,
@@ -671,8 +683,8 @@ export async function updateProductAdminAttributes(input: {
     productId: product.id,
     adminUserId: input.adminUserId,
     changeType: "product_status",
-    oldValue: existing ? JSON.stringify({ storefrontStatus: existing.storefrontStatus, featured: existing.featured, trending: existing.trending, bestSeller: existing.bestSeller, newProduct: existing.newProduct, deal: existing.deal }) : null,
-    newValue: JSON.stringify({ storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal }),
+    oldValue: existing ? JSON.stringify({ storefrontStatus: existing.storefrontStatus, featured: existing.featured, trending: existing.trending, bestSeller: existing.bestSeller, newProduct: existing.newProduct, deal: existing.deal, displayNameOverride: existing.displayNameOverride }) : null,
+    newValue: JSON.stringify({ storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal, displayNameOverride: input.displayNameOverride?.trim() || null }),
     reason: "Product storefront presentation updated in Super Admin",
   });
   await appendAdminAuditEvent(db, {
@@ -681,7 +693,7 @@ export async function updateProductAdminAttributes(input: {
     targetType: "product",
     targetId: product.id,
     summary: `Updated storefront presentation for ${product.name}`,
-    metadata: { storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal },
+    metadata: { storefrontStatus: input.storefrontStatus, featured: input.featured, trending: input.trending, bestSeller: input.bestSeller, newProduct: input.newProduct, deal: input.deal, displayNameOverride: input.displayNameOverride?.trim() || null, hasDescriptionOverride: Boolean(input.descriptionOverride?.trim()), hasDeliveryOverride: Boolean(input.deliveryEstimateOverride?.trim()) },
   });
   return { productId: product.id };
 }
@@ -773,6 +785,9 @@ export async function listAdminManagedCatalogProducts() {
     baseCurrency: products.baseCurrency,
     regionLabel: products.regionLabel,
     deliveryEstimate: products.deliveryEstimate,
+    deliveryMinMinutes: products.deliveryMinMinutes,
+    deliveryMaxMinutes: products.deliveryMaxMinutes,
+    customerRequirements: products.customerRequirements,
     deliveryType: products.deliveryType,
     description: products.description,
     inputRequirements: products.inputRequirements,
@@ -854,6 +869,9 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
     catalogSourceId: source.id,
     regionLabel: input.regionLabel || null,
     deliveryEstimate: input.deliveryEstimate,
+    deliveryMinMinutes: input.deliveryMinMinutes ?? null,
+    deliveryMaxMinutes: input.deliveryMaxMinutes ?? null,
+    customerRequirements: input.customerRequirements || null,
     deliveryType: input.deliveryType,
     requiresPlayerId: false,
     requiresServerId: false,
@@ -866,7 +884,7 @@ export async function createAdminManagedCatalogProduct(input: AdminManagedCatalo
       sourceType: source.sourceType,
     },
   }).$returningId();
-  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_created", targetType: "product", targetId: created.id, summary: `Created manual catalog item ${input.name}`, metadata: { category: input.category, status: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate, catalogSourceId: source.id } });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_created", targetType: "product", targetId: created.id, summary: `Created manual catalog item ${input.name}`, metadata: { category: input.category, status: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate, deliveryMinMinutes: input.deliveryMinMinutes ?? null, deliveryMaxMinutes: input.deliveryMaxMinutes ?? null, catalogSourceId: source.id } });
   return { id: created.id, name: input.name, status: input.status, slug };
 }
 
@@ -884,12 +902,15 @@ export async function updateAdminManagedCatalogProduct(input: AdminManagedCatalo
     basePrice: input.basePrice.toFixed(2),
     regionLabel: input.regionLabel || null,
     deliveryEstimate: input.deliveryEstimate,
+    deliveryMinMinutes: input.deliveryMinMinutes ?? null,
+    deliveryMaxMinutes: input.deliveryMaxMinutes ?? null,
+    customerRequirements: input.customerRequirements || null,
     deliveryType: input.deliveryType,
     inputRequirements: createRecipientEmailRequirement(input.recipientEmailRequired),
     status: input.status,
     supplierEligible: input.status === "active",
   }).where(eq(products.id, product.id));
-  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_updated", targetType: "product", targetId: product.id, summary: `Updated manual catalog item ${input.name}`, metadata: { previousStatus: product.status, nextStatus: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate } });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog.manual_product_updated", targetType: "product", targetId: product.id, summary: `Updated manual catalog item ${input.name}`, metadata: { previousStatus: product.status, nextStatus: input.status, deliveryType: input.deliveryType, deliveryEstimate: input.deliveryEstimate, deliveryMinMinutes: input.deliveryMinMinutes ?? null, deliveryMaxMinutes: input.deliveryMaxMinutes ?? null } });
   return { productId: product.id, name: input.name, status: input.status };
 }
 

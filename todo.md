@@ -286,3 +286,9 @@
 - [x] Enforce a minimum $5 wallet-funding request amount and display an Admin-configured USD/NGN estimate without representing it as a provider-confirmed payment quote.
 - [ ] Prepare automatic wallet credit only for independently verified payment-provider callbacks with idempotency, signature validation, and immutable ledger safeguards; keep it inactive until a payment provider is configured and verified.
 - [ ] Validate customer access isolation, suspension lifecycle, Admin-only financial visibility, funding safeguards, responsive typography, tests, and production build before publishing.
+- [ ] Reorganize the owner-only VAMNUX Admin Panel shell into the requested dark operational hierarchy without copying third-party branding or generating synthetic business metrics.
+- [x] Redesign the Admin Dashboard to show real active-user, order-status, estimated-revenue, estimated-profit, and supplier-wallet data with clear unavailable states where a supplier balance is not stored.
+- [x] Refine Products management so supplier-synchronised products and manual listings both support private source/cost/markup visibility, storefront visibility controls, full editable product fields, delivery ranges, and requirements.
+- [ ] Refine Categories management to show marketplace categories, product counts, and protected visibility controls that prevent a disabled category from appearing in the public marketplace.
+- [ ] Reorganize the Pricing Engine around global markup, category and product overrides, fixed display price, and buffer percentage controls using existing auditable server-side pricing records.
+- [ ] Validate the first Admin Panel redesign increment for owner authorization, customer/supplier data protection, real-data chart accuracy, responsive usability, deterministic tests, and production build.
