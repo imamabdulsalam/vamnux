@@ -279,3 +279,7 @@
 - [x] Rebuild Categories with a compact side-by-side category list showing every configured marketplace category, real associated product counts, and expandable product drill-downs.
 - [x] Add direct protected category controls for visibility, edit, hide, and safe archive without deleting supplier inventory or mapping records.
 - [x] Validate category product mapping, visibility/archive boundaries, authorization, responsive density, deterministic tests, and production build before publishing.
+- [x] Add owner-only drag-and-drop category display ordering with persisted sort order and audit history.
+- [x] Add a category quick-view overlay showing the top available stored product signals without fabricating sales or performance metrics.
+- [x] Add protected category multi-select controls and bulk hide/archive actions that preserve supplier products and mappings.
+- [x] Validate category ordering, quick view, bulk actions, authorization, deterministic tests, and production build before publishing.

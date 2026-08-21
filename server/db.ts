@@ -392,6 +392,36 @@ export async function updateMarketplaceCategory(input: MarketplaceCategoryInput 
   return { id: existing.id, slug, name };
 }
 
+export async function reorderMarketplaceCategories(input: { categoryIds: number[]; adminUserId: number }) {
+  const categoryIds = Array.from(new Set(input.categoryIds)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!categoryIds.length || categoryIds.length > 100) throw new Error("Provide between 1 and 100 unique category identifiers");
+  const db = requireDb(await getDb());
+  const categories = await db.select({ id: marketplaceCategories.id, name: marketplaceCategories.name, sortOrder: marketplaceCategories.sortOrder }).from(marketplaceCategories).where(inArray(marketplaceCategories.id, categoryIds));
+  if (categories.length !== categoryIds.length) throw new Error("One or more categories are unavailable");
+  await db.transaction(async (tx) => {
+    for (let index = 0; index < categoryIds.length; index += 1) await tx.update(marketplaceCategories).set({ sortOrder: index + 1 }).where(eq(marketplaceCategories.id, categoryIds[index]));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "catalog.category_reordered", targetType: "marketplace_category_batch", targetId: categoryIds.join(","), summary: `Reordered ${categoryIds.length} marketplace categories`, metadata: { categoryIds } });
+  });
+  return { categoryCount: categoryIds.length };
+}
+
+export async function bulkUpdateMarketplaceCategoryStatus(input: { categoryIds: number[]; action: "hide" | "archive"; adminUserId: number }) {
+  const categoryIds = Array.from(new Set(input.categoryIds)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!categoryIds.length || categoryIds.length > 100) throw new Error("Select between 1 and 100 categories");
+  const db = requireDb(await getDb());
+  const categories = await db.select({ id: marketplaceCategories.id, name: marketplaceCategories.name, status: marketplaceCategories.status, visible: marketplaceCategories.visible }).from(marketplaceCategories).where(inArray(marketplaceCategories.id, categoryIds));
+  if (categories.length !== categoryIds.length) throw new Error("One or more categories are unavailable");
+  const next = input.action === "archive" ? { visible: false, status: "archived" as const } : { visible: false, status: undefined };
+  await db.transaction(async (tx) => {
+    for (const category of categories) {
+      await tx.update(marketplaceCategories).set(next).where(eq(marketplaceCategories.id, category.id));
+      await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: input.action === "archive" ? "catalog.category_bulk_archived_member" : "catalog.category_bulk_hidden_member", targetType: "marketplace_category", targetId: String(category.id), summary: `${input.action === "archive" ? "Archived" : "Hid"} category ${category.name}`, metadata: { previousStatus: category.status, previousVisible: category.visible } });
+    }
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: input.action === "archive" ? "catalog.category_bulk_archived" : "catalog.category_bulk_hidden", targetType: "marketplace_category_batch", targetId: categoryIds.join(","), summary: `${input.action === "archive" ? "Archived" : "Hid"} ${categories.length} marketplace categories`, metadata: { categoryCount: categories.length, categoryIds } });
+  });
+  return { categoryCount: categories.length, action: input.action };
+}
+
 export async function listPriceChangeHistory(limit = 100) {
   const db = requireDb(await getDb());
   return db.select({
