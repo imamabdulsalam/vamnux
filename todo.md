@@ -301,5 +301,8 @@
 - [ ] Validate each confirmed Admin control, real-data metric, unavailable state, responsive action layout, authorization boundary, deterministic tests, and production build before publishing.
 - [x] Add a compact Products action bar with immediate Add manual product, protected supplier sync, marketplace visibility, pricing, edit, and source-cost controls.
 - [x] Remove unused Products workspace space by grouping catalog management, private supplier data, and manual listing controls into clear operator sections.
-- [ ] Add Categories product-count and product drill-down controls alongside direct marketplace visibility controls for each managed category.
-- [ ] Validate Products and Categories action controls, data isolation, responsive compact layout, tests, and production build before publishing.
+- [x] Add Categories product-count and product drill-down controls alongside direct marketplace visibility controls for each managed category.
+- [x] Validate Products and Categories action controls, data isolation, responsive compact layout, tests, and production build before publishing.
+- [x] Remove the excessive vertical gap between Products workspace panels so the next operator control is visible without unnecessary scrolling.
+- [x] Render a compact Categories product association view showing each managed category, its real product count and product names, plus a protected marketplace visibility toggle.
+- [x] Validate Products spacing, category visibility and associations, responsive density, authorization, tests, and production build before publishing.
