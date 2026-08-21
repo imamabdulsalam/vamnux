@@ -9,6 +9,8 @@ export const NOT_ADMIN_ERR_MSG = 'You do not have required permission (10002)';
 // Domain), so a sibling *.manus.space site cannot plant a matching value in a
 // victim's browser.
 export const OAUTH_STATE_COOKIE = "__Host-oauth_state";
+export const ADMIN_MFA_CHALLENGE_COOKIE = "__Host-vamnux_admin_mfa_challenge";
+export const ADMIN_MFA_VERIFIED_COOKIE = "__Host-vamnux_admin_mfa_verified";
 
 // `state` carries the callback redirect URI (used at token exchange) plus the
 // CSRF nonce. Defined here so the client encoder and server decoder never drift.

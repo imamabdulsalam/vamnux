@@ -1,9 +1,10 @@
-import { COOKIE_NAME, ONE_YEAR_MS, OAUTH_STATE_COOKIE, decodeOAuthState } from "@shared/const";
+import { ADMIN_MFA_CHALLENGE_COOKIE, COOKIE_NAME, ONE_YEAR_MS, OAUTH_STATE_COOKIE, decodeOAuthState } from "@shared/const";
 import { parse as parseCookieHeader } from "cookie";
 import type { Express, Request, Response } from "express";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
+import { createAdminMfaChallenge, isAdminMfaEnrolled } from "../adminMfa";
 
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
@@ -64,6 +65,14 @@ export function registerOAuthRoutes(app: Express) {
         } catch (securityEventError) {
           console.warn("[OAuth] Security event could not be recorded", securityEventError);
         }
+      }
+
+      if (signedInUser?.role === "admin" && await isAdminMfaEnrolled(signedInUser.id)) {
+        const challenge = await createAdminMfaChallenge(signedInUser.id);
+        const cookieOptions = getSessionCookieOptions(req);
+        res.cookie(ADMIN_MFA_CHALLENGE_COOKIE, challenge, { ...cookieOptions, maxAge: 10 * 60 * 1000 });
+        res.redirect(302, "/admin/login?mfa=required");
+        return;
       }
 
       const sessionToken = await sdk.createSessionToken(userInfo.openId, {

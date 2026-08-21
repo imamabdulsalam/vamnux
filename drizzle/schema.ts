@@ -91,6 +91,44 @@ export const customerSecurityEvents = mysqlTable("customer_security_events", {
   userCreatedIndex: index("customer_security_events_user_created_idx").on(table.userId, table.createdAt),
 }));
 
+/** Encrypted native authenticator-app MFA credentials for the Super Admin only. Raw secrets never leave the server after initial enrollment. */
+export const adminMfaCredentials = mysqlTable("admin_mfa_credentials", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  secretEncrypted: varchar("secretEncrypted", { length: 1024 }).notNull(),
+  enrolledAt: timestamp("enrolledAt"),
+  lastVerifiedAt: timestamp("lastVerifiedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userUnique: uniqueIndex("admin_mfa_credentials_user_unique").on(table.userId),
+}));
+
+/** Hashed single-use recovery codes. The original code is rendered once during enrollment and is never retained. */
+export const adminMfaRecoveryCodes = mysqlTable("admin_mfa_recovery_codes", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  codeHash: varchar("codeHash", { length: 128 }).notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  userCodeUnique: uniqueIndex("admin_mfa_recovery_user_code_unique").on(table.userId, table.codeHash),
+  userUnusedIndex: index("admin_mfa_recovery_user_unused_idx").on(table.userId, table.usedAt),
+}));
+
+/** Single-use, short-lived OAuth-to-MFA bridge. A nonce is stored server-side while the browser holds only an opaque HttpOnly cookie. */
+export const adminMfaChallenges = mysqlTable("admin_mfa_challenges", {
+  id: int("id").autoincrement().primaryKey(),
+  challengeHash: varchar("challengeHash", { length: 128 }).notNull(),
+  userId: int("userId").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  consumedAt: timestamp("consumedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  challengeUnique: uniqueIndex("admin_mfa_challenge_hash_unique").on(table.challengeHash),
+  userExpiryIndex: index("admin_mfa_challenge_user_expiry_idx").on(table.userId, table.expiresAt),
+}));
+
 /** Customer-controlled notification preferences. Security notices remain operational regardless of promotional opt-in. */
 export const customerNotificationPreferences = mysqlTable("customer_notification_preferences", {
   id: int("id").autoincrement().primaryKey(),

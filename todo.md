@@ -327,3 +327,8 @@
 - [x] Add owner-authorized profile editing, security activity context, recovery and session readiness, verification preferences, and explicit authentication protection settings without exposing credentials or security secrets.
 - [x] Present email, phone, and authenticator enrollment truthfully, activating no verification factor until its secure delivery or enrollment flow is configured and enforced.
 - [ ] Validate security-setting authorization, owner-data minimization, audit behavior, tests, build, and authenticated visual review before publishing.
+
+- [x] Add enforceable native authenticator-app MFA for the VAMNUX Super Admin while retaining the current OAuth sign-in route.
+- [x] Add Admin-only authenticator enrollment, confirmation, encrypted secret handling, single-use recovery codes, trusted challenge state, and audit events without exposing MFA secrets in client logs, databases, or Admin detail screens.
+- [x] Require a verified authenticator challenge before granting an Admin session after OAuth login, while leaving email and phone verification unavailable until a real delivery provider is configured.
+- [ ] Validate MFA enrollment, login challenge, recovery, authorization, secret protection, tests, build, and authenticated Admin UI before publishing.
