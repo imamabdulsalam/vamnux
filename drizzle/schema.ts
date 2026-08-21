@@ -38,6 +38,10 @@ export const customerProfiles = mysqlTable("customer_profiles", {
   registrationSource: varchar("registrationSource", { length: 40 }),
   referralCode: varchar("referralCode", { length: 48 }),
   accountStatus: mysqlEnum("accountStatus", ["active", "restricted", "suspended", "banned", "deleted", "pending_email_verification"]).default("active").notNull(),
+  suspensionReason: varchar("suspensionReason", { length: 500 }),
+  suspendedAt: timestamp("suspendedAt"),
+  suspendedUntil: timestamp("suspendedUntil"),
+  suspendedByAdminId: int("suspendedByAdminId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({

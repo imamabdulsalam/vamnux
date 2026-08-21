@@ -279,3 +279,10 @@
 - [x] Extend Admin Products with controlled manual-listing create, edit, disable, and safe archive/delete behavior without altering supplier-backed catalog data.
 - [x] Store and show manual-product customer delivery-time instructions without making unverified fulfilment or delivery guarantees.
 - [x] Validate owner-only authorization, finance-chart accuracy, manual-product lifecycle controls, tests, responsive presentation, and production build before publishing.
+- [x] Expand Super Admin Customers to show each account’s real sign-in identity and current access state, excluding passwords, session tokens, and sensitive credential data.
+- [x] Add owner-audited customer suspension, time-bound expiry, permanent suspension, reinstatement, and active-session revocation controls that preserve account and order history.
+- [x] Show Admin-only product source, supplier cost, configured markup, and customer display price details without exposing supplier credentials or source costs to storefront users.
+- [x] Refine VAMNUX Admin and customer-facing typography for readable moderate sizing on mobile, Windows, and macOS layouts.
+- [x] Enforce a minimum $5 wallet-funding request amount and display an Admin-configured USD/NGN estimate without representing it as a provider-confirmed payment quote.
+- [ ] Prepare automatic wallet credit only for independently verified payment-provider callbacks with idempotency, signature validation, and immutable ledger safeguards; keep it inactive until a payment provider is configured and verified.
+- [ ] Validate customer access isolation, suspension lifecycle, Admin-only financial visibility, funding safeguards, responsive typography, tests, and production build before publishing.

@@ -593,16 +593,19 @@ export async function upsertExchangeRate(input: { baseCurrency: string; quoteCur
 export async function listAdminProductOperations() {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
-  const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
+  const rows = await db.select({ product: products, attributes: productAdminAttributes, sourceName: authorizedCatalogSources.displayName, sourceType: authorizedCatalogSources.sourceType }).from(products)
     .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
+    .leftJoin(authorizedCatalogSources, eq(products.catalogSourceId, authorizedCatalogSources.id))
     .orderBy(desc(products.updatedAt));
-  return rows.map(({ product, attributes }) => {
+  return rows.map(({ product, attributes, sourceName, sourceType }) => {
     const price = customerPriceForProduct(product, settings);
     return {
       id: product.id,
       name: product.name,
       slug: product.slug,
       supplierKey: product.supplierKey,
+      sourceName: sourceName ?? (product.supplierKey ? product.supplierKey : "Admin managed"),
+      sourceType: sourceType ?? "manual",
       category: product.category,
       description: product.description,
       regionLabel: product.regionLabel,
@@ -611,6 +614,11 @@ export async function listAdminProductOperations() {
       productStatus: product.status,
       supplierEligible: product.supplierEligible,
       basePrice: Number(product.basePrice),
+      supplierPrice: product.supplierPrice === null ? null : Number(product.supplierPrice),
+      supplierCurrency: product.supplierCurrency,
+      markupPercentOverride: product.markupPercentOverride === null ? null : Number(product.markupPercentOverride),
+      displayPriceOverride: product.displayPriceOverride === null ? null : Number(product.displayPriceOverride),
+      defaultMarkupPercent: settings.defaultMarkupPercent,
       baseCurrency: product.baseCurrency,
       displayPrice: price.customerPrice,
       priceRule: price.priceRule,
@@ -966,12 +974,91 @@ export async function listSuperAdminCustomers(limit = 100) {
     id: users.id,
     name: users.name,
     email: users.email,
+    loginMethod: users.loginMethod,
     role: users.role,
     createdAt: users.createdAt,
     lastSignedIn: users.lastSignedIn,
     preferredCurrency: customerProfiles.preferredCurrency,
     countryCode: customerProfiles.countryCode,
+    accountStatus: customerProfiles.accountStatus,
+    suspensionReason: customerProfiles.suspensionReason,
+    suspendedAt: customerProfiles.suspendedAt,
+    suspendedUntil: customerProfiles.suspendedUntil,
   }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).orderBy(desc(users.createdAt)).limit(limit);
+}
+
+type SuspensionUnit = "days" | "months" | "years" | "permanent";
+
+function calculateSuspensionExpiry(unit: SuspensionUnit, duration: number | undefined) {
+  if (unit === "permanent") return null;
+  if (!Number.isInteger(duration) || !duration || duration < 1) throw new Error("A positive suspension duration is required");
+  const expiry = new Date();
+  if (unit === "days") {
+    if (duration > 3650) throw new Error("Suspension duration cannot exceed 3,650 days");
+    expiry.setUTCDate(expiry.getUTCDate() + duration);
+  } else if (unit === "months") {
+    if (duration > 120) throw new Error("Suspension duration cannot exceed 120 months");
+    expiry.setUTCMonth(expiry.getUTCMonth() + duration);
+  } else {
+    if (duration > 10) throw new Error("Suspension duration cannot exceed 10 years");
+    expiry.setUTCFullYear(expiry.getUTCFullYear() + duration);
+  }
+  return expiry;
+}
+
+/** Enforces active account state across all authenticated entry points without revealing profile data to other customers. */
+export async function getCustomerAccountAccessState(userId: number) {
+  const db = requireDb(await getDb());
+  await db.insert(customerProfiles).values({ userId }).onDuplicateKeyUpdate({ set: { userId } });
+  const [profile] = await db.select({ accountStatus: customerProfiles.accountStatus, suspendedUntil: customerProfiles.suspendedUntil })
+    .from(customerProfiles).where(eq(customerProfiles.userId, userId)).limit(1);
+  if (profile?.accountStatus === "suspended" && profile.suspendedUntil && profile.suspendedUntil.getTime() <= Date.now()) {
+    await db.transaction(async (tx) => {
+      await tx.update(customerProfiles).set({ accountStatus: "active", suspensionReason: null, suspendedAt: null, suspendedUntil: null, suspendedByAdminId: null }).where(eq(customerProfiles.userId, userId));
+      await tx.insert(customerSecurityEvents).values({ userId, eventType: "account_suspension_expired", summary: "Your VAMNUX account restriction period ended automatically." });
+      await tx.insert(customerNotifications).values({ userId, category: "security", title: "Account access restored", body: "Your VAMNUX account restriction period has ended.", actionUrl: "/account" });
+    });
+    return { allowed: true, status: "active" as const };
+  }
+  if (profile?.accountStatus === "suspended" || profile?.accountStatus === "banned") return { allowed: false, status: profile.accountStatus };
+  return { allowed: true, status: profile?.accountStatus ?? "active" };
+}
+
+export async function suspendCustomerAccount(input: { adminUserId: number; userId: number; reason: string; unit: SuspensionUnit; duration?: number }) {
+  const db = requireDb(await getDb());
+  if (input.adminUserId === input.userId) throw new Error("You cannot suspend your own Admin account");
+  const reason = input.reason.trim();
+  if (reason.length < 3 || reason.length > 500) throw new Error("Provide a suspension reason between 3 and 500 characters");
+  const [target] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!target) throw new Error("Customer account was not found");
+  if (target.role === "admin") throw new Error("Admin accounts cannot be suspended from this customer control");
+  const expiry = calculateSuspensionExpiry(input.unit, input.duration);
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.insert(customerProfiles).values({ userId: target.id }).onDuplicateKeyUpdate({ set: { userId: target.id } });
+    await tx.update(customerProfiles).set({ accountStatus: "suspended", suspensionReason: reason, suspendedAt: now, suspendedUntil: expiry, suspendedByAdminId: input.adminUserId }).where(eq(customerProfiles.userId, target.id));
+    await tx.update(nativeSessions).set({ revokedAt: now }).where(and(eq(nativeSessions.userId, target.id), isNull(nativeSessions.revokedAt)));
+    await tx.insert(customerSecurityEvents).values({ userId: target.id, eventType: "account_suspended", summary: expiry ? "Your VAMNUX account access has been temporarily restricted." : "Your VAMNUX account access has been restricted." });
+    await tx.insert(customerNotifications).values({ userId: target.id, category: "security", title: "Account access restricted", body: expiry ? `Your account has been suspended until ${expiry.toISOString()}.` : "Your account has been suspended until further notice.", actionUrl: "/account" });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer.suspended", targetType: "customer", targetId: String(target.id), summary: `Suspended customer ${target.email || target.name || `#${target.id}`}`, metadata: { unit: input.unit, duration: input.duration ?? null, suspendedUntil: expiry?.toISOString() ?? null, reason } });
+  });
+  return { userId: target.id, status: "suspended" as const, suspendedUntil: expiry };
+}
+
+export async function reinstateCustomerAccount(input: { adminUserId: number; userId: number; note?: string }) {
+  const db = requireDb(await getDb());
+  const [target] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users).where(eq(users.id, input.userId)).limit(1);
+  if (!target) throw new Error("Customer account was not found");
+  if (target.role === "admin") throw new Error("Admin accounts are not managed through this customer control");
+  const note = input.note?.trim().slice(0, 500) || null;
+  await db.transaction(async (tx) => {
+    await tx.insert(customerProfiles).values({ userId: target.id }).onDuplicateKeyUpdate({ set: { userId: target.id } });
+    await tx.update(customerProfiles).set({ accountStatus: "active", suspensionReason: null, suspendedAt: null, suspendedUntil: null, suspendedByAdminId: null }).where(eq(customerProfiles.userId, target.id));
+    await tx.insert(customerSecurityEvents).values({ userId: target.id, eventType: "account_reinstated", summary: "Your VAMNUX account access has been restored by an administrator." });
+    await tx.insert(customerNotifications).values({ userId: target.id, category: "security", title: "Account access restored", body: "Your VAMNUX account has been reinstated. Please sign in again if needed.", actionUrl: "/account" });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer.reinstated", targetType: "customer", targetId: String(target.id), summary: `Reinstated customer ${target.email || target.name || `#${target.id}`}`, metadata: { note } });
+  });
+  return { userId: target.id, status: "active" as const };
 }
 
 export async function listSuperAdminOrders(limit = 100) {
@@ -1534,13 +1621,26 @@ function createWalletFundingCode() {
   return `WF${crypto.randomUUID().replace(/-/g, "").slice(0, 18).toUpperCase()}`;
 }
 
+export async function getWalletFundingQuote(currency: "USD" | "EUR" | "GBP" | "NGN") {
+  const db = requireDb(await getDb());
+  if (currency === "USD") return { currency, minimumAmount: 5, minimumUsd: 5, configuredRate: 1, quoteAvailable: true, note: "Minimum wallet funding is $5.00 USD." };
+  if (currency !== "NGN") return { currency, minimumAmount: null, minimumUsd: 5, configuredRate: null, quoteAvailable: false, note: "Wallet funding currently requires a USD or Admin-configured NGN wallet currency." };
+  const [rate] = await db.select().from(exchangeRates).where(and(eq(exchangeRates.baseCurrency, "USD"), eq(exchangeRates.quoteCurrency, "NGN"), eq(exchangeRates.active, true))).limit(1);
+  if (!rate) return { currency, minimumAmount: null, minimumUsd: 5, configuredRate: null, quoteAvailable: false, note: "An Admin-configured USD/NGN rate is required before NGN wallet funding can be requested." };
+  const configuredRate = Number(rate.rate) * (1 + Number(rate.bufferPercent) / 100);
+  return { currency, minimumAmount: Number((5 * configuredRate).toFixed(2)), minimumUsd: 5, configuredRate, quoteAvailable: true, note: "Estimate based on the current Admin-configured VAMNUX USD/NGN rate; a payment provider confirmation is still required before any wallet credit." };
+}
+
 export async function createCustomerWalletFundingRequest(input: { userId: number; amount: number; currency: "USD" | "EUR" | "GBP" | "NGN"; customerNote?: string }) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a wallet top-up amount between 0.01 and 1,000,000");
+  if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a valid wallet top-up amount");
   const db = requireDb(await getDb());
   await db.insert(wallets).values({ userId: input.userId, currency: input.currency }).onDuplicateKeyUpdate({ set: { userId: input.userId } });
   const [wallet] = await db.select({ id: wallets.id, status: wallets.status, currency: wallets.currency }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
   if (!wallet || wallet.status !== "active") throw new Error("This wallet is not available for a top-up request");
   if (wallet.currency !== input.currency) throw new Error(`Use your active ${wallet.currency} wallet currency for this top-up request`);
+  const quote = await getWalletFundingQuote(input.currency);
+  if (!quote.quoteAvailable || quote.minimumAmount === null) throw new Error(quote.note);
+  if (input.amount < quote.minimumAmount) throw new Error(`Minimum wallet funding is ${quote.minimumAmount.toFixed(2)} ${input.currency}, equivalent to $5.00 USD at the configured rate.`);
   const fundingCode = createWalletFundingCode();
   await db.insert(walletFundingAttempts).values({
     fundingCode,
@@ -1551,9 +1651,9 @@ export async function createCustomerWalletFundingRequest(input: { userId: number
     amount: input.amount.toFixed(2),
     currency: input.currency,
     status: "pending",
-    metadata: { requestKind: "manual_admin_review", customerNote: input.customerNote?.trim().slice(0, 500) || null },
+    metadata: { requestKind: "manual_admin_review", customerNote: input.customerNote?.trim().slice(0, 500) || null, minimumUsd: quote.minimumUsd, configuredRate: quote.configuredRate, quoteNote: quote.note },
   });
-  return { fundingCode, status: "pending" as const, amount: input.amount.toFixed(2), currency: input.currency };
+  return { fundingCode, status: "pending" as const, amount: input.amount.toFixed(2), currency: input.currency, quoteNote: quote.note };
 }
 
 export async function reviewCustomerWalletFundingRequest(input: { adminUserId: number; fundingCode: string; action: "settle" | "reject"; verificationReference?: string; reviewNote?: string }) {

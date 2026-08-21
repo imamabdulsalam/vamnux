@@ -14,6 +14,8 @@ import { authenticateNativeCustomer, createNativeSession, prepareNativeEmailVeri
 import { validateNativePassword } from "./nativeAuthCrypto";
 import { isTransactionalEmailConfigured, passwordResetEmail, sendVamnuxAccountEmail, verificationEmail } from "./transactionalEmail";
 import { ENV } from "./_core/env";
+import { getCustomerAccountAccessState, reinstateCustomerAccount, suspendCustomerAccount } from "./db";
+import { getWalletFundingQuote } from "./db";
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -46,6 +48,8 @@ export const appRouter = router({
     }),
     nativeSignIn: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(256) })).mutation(async ({ ctx, input }) => {
       const user = await authenticateNativeCustomer(input);
+      const access = await getCustomerAccountAccessState(user.id);
+      if (!access.allowed) throw new Error("We could not sign in with those details.");
       const expiresInMs = 30 * 24 * 60 * 60 * 1000;
       const token = await sdk.createSessionToken(user.openId, { expiresInMs, name: user.name || "VAMNUX customer" });
       await createNativeSession({ userId: user.id, sessionToken: token, expiresAt: new Date(Date.now() + expiresInMs) });
@@ -92,6 +96,7 @@ export const appRouter = router({
   }),
   marketplace: router({
     catalog: publicProcedure.query(() => listActiveCatalogProducts()),
+    walletFundingQuote: protectedProcedure.input(z.object({ currency: z.enum(["USD", "EUR", "GBP", "NGN"]) })).query(({ input }) => getWalletFundingQuote(input.currency)),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "refund-policy", "cookie-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
     accountSummary: protectedProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
@@ -152,6 +157,17 @@ export const appRouter = router({
     getOverview: adminProcedure.query(() => getSuperAdminOverview()),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
+    suspendCustomer: adminProcedure.input(z.object({
+      userId: z.number().int().positive(),
+      reason: z.string().trim().min(3).max(500),
+      unit: z.enum(["days", "months", "years", "permanent"]),
+      duration: z.number().int().positive().optional(),
+    }).superRefine((input, ctx) => {
+      if (input.unit === "permanent" && input.duration !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A permanent suspension does not use a duration" });
+      if (input.unit !== "permanent" && input.duration === undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "A temporary suspension duration is required" });
+    })).mutation(({ ctx, input }) => suspendCustomerAccount({ adminUserId: ctx.user.id, ...input })),
+    reinstateCustomer: adminProcedure.input(z.object({ userId: z.number().int().positive(), note: z.string().trim().max(500).optional() }))
+      .mutation(({ ctx, input }) => reinstateCustomerAccount({ adminUserId: ctx.user.id, ...input })),
     listOrders: adminProcedure.query(() => listSuperAdminOrders()),
     listSupportTickets: adminProcedure.query(() => listSuperAdminSupportTickets()),
     getSupportTicket: adminProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32) })).query(({ input }) => getSuperAdminSupportTicket(input.ticketCode)),

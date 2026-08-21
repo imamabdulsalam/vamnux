@@ -1,0 +1,72 @@
+.super-admin,
+.account-hub {
+  font-size: clamp(13px, 0.3vw + 11px, 15px);
+}
+
+.super-admin .admin-panel p,
+.super-admin .admin-panel td,
+.super-admin .admin-panel th,
+.super-admin .admin-panel label,
+.super-admin .admin-panel input,
+.super-admin .admin-panel select,
+.super-admin .admin-panel textarea {
+  font-size: clamp(12px, 0.18vw + 11px, 14px);
+  line-height: 1.5;
+}
+
+.super-admin .admin-panel small,
+.super-admin .admin-form-kicker,
+.super-admin .admin-status {
+  font-size: clamp(10px, 0.14vw + 9px, 12px);
+  line-height: 1.45;
+}
+
+.super-admin .admin-panel h2 {
+  font-size: clamp(20px, 1.25vw + 14px, 30px);
+  line-height: 1.08;
+}
+
+.super-admin .admin-primary-action,
+.super-admin .admin-secondary-action,
+.super-admin .admin-danger-action {
+  font-size: clamp(11px, 0.16vw + 10px, 13px);
+  line-height: 1.25;
+}
+
+.account-hub .account-hub-panel p,
+.account-hub .account-hub-list,
+.account-hub .account-hub-form,
+.account-hub .account-hub-form input,
+.account-hub .account-hub-form select,
+.account-hub .account-hub-form textarea {
+  font-size: clamp(12px, 0.18vw + 11px, 14px);
+  line-height: 1.5;
+}
+
+.account-hub .account-hub-panel h2 {
+  font-size: clamp(19px, 1vw + 14px, 27px);
+}
+
+@media (max-width: 720px) {
+  .super-admin .admin-panel p,
+  .super-admin .admin-panel td,
+  .super-admin .admin-panel th,
+  .super-admin .admin-panel label,
+  .super-admin .admin-panel input,
+  .super-admin .admin-panel select,
+  .super-admin .admin-panel textarea,
+  .account-hub .account-hub-panel p,
+  .account-hub .account-hub-list,
+  .account-hub .account-hub-form,
+  .account-hub .account-hub-form input,
+  .account-hub .account-hub-form select,
+  .account-hub .account-hub-form textarea {
+    font-size: 13px;
+  }
+
+  .super-admin .admin-panel small,
+  .super-admin .admin-form-kicker,
+  .super-admin .admin-status {
+    font-size: 11px;
+  }
+}

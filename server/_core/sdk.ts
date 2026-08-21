@@ -319,6 +319,11 @@ class SDKServer {
       throw ForbiddenError("Native session is not active");
     }
 
+    const access = await db.getCustomerAccountAccessState(user.id);
+    if (!access.allowed) {
+      throw ForbiddenError("This account is currently restricted. Contact VAMNUX support if you believe this is in error.");
+    }
+
     await db.upsertUser({
       openId: user.openId,
       lastSignedIn: signedInAt,
