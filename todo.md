@@ -294,3 +294,7 @@
 - [x] Rename the Traffic Sources workspace to Statistics in the Admin navigation and workspace heading.
 - [x] Add recorded registration-source and country analytics for 1 day, 7 days, 14 days, 30 days, and 3 months, with clear limits where raw visitor telemetry is unavailable.
 - [x] Validate Dashboard and Statistics data honesty, responsive presentation, deterministic tests, and production build before publishing.
+- [x] Redesign Exchange Rate as a clear USD/NGN rate-management workspace with visible EUR, GBP, and cross-currency readiness.
+- [x] Add a functional manual-rate refresh action and a transparent calculator that uses only saved active rates.
+- [x] Preserve the rule that currencies without saved rates remain unavailable and are not auto-updated or fabricated.
+- [x] Validate Exchange Rate controls, data boundaries, responsive presentation, deterministic tests, and production build before publishing.

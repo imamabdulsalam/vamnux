@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
+import { calculateManualExchangeQuote } from "@shared/exchangeRates";
 import { ManualCatalogManager } from "./Account";
 import {
   Activity,
@@ -74,7 +75,10 @@ function AdminAccessGate() {
 }
 
 function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: string; onSignOut: () => void; onReturn: () => void }) {
-  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    return requestedTab === "rates" || requestedTab === "traffic" ? requestedTab : "overview";
+  });
   const overview = trpc.admin.getOverview.useQuery();
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery();
   const catalogPricing = trpc.admin.listCatalogPricing.useQuery();
@@ -282,6 +286,70 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     refresh();
     return () => { tools.remove(); panel.querySelectorAll("[data-category-select], [data-category-quick-view], [data-category-drag]").forEach((element) => element.remove()); rows.forEach((row) => { row.draggable = false; delete row.dataset.categoryId; }); document.querySelectorAll(".admin-category-quick-overlay").forEach((overlay) => overlay.remove()); };
   }, [activeTab, marketplaceCategories.data, productOperations.data, bulkUpdateCategories, reorderCategories]);
+  useEffect(() => {
+    if (activeTab !== "rates") return;
+    const panel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.textContent?.includes("USD base conversion readiness"));
+    const header = panel?.querySelector<HTMLElement>(":scope > header");
+    const metricGrid = panel?.querySelector<HTMLElement>(".admin-metric-grid");
+    if (!panel || !header || !metricGrid) return;
+    const managementPanel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.textContent?.includes("Manual rate readiness"));
+    const managementHeader = managementPanel?.querySelector<HTMLElement>(":scope > header");
+    panel.querySelectorAll("[data-rate-refresh], [data-rate-calculator]").forEach((element) => element.remove());
+    managementPanel?.querySelectorAll("[data-rate-refresh]").forEach((element) => element.remove());
+    header.querySelector("svg")?.remove();
+    managementHeader?.querySelector("svg")?.remove();
+    const refreshButtons: HTMLButtonElement[] = [];
+    const addRefreshButton = (target: HTMLElement, label: string) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.rateRefresh = "true";
+      button.className = "admin-rate-refresh";
+      button.textContent = label;
+      button.setAttribute("aria-label", "Refresh saved exchange rate records");
+      button.addEventListener("click", async () => {
+        refreshButtons.forEach((item) => { item.disabled = true; item.textContent = "Refreshing…"; });
+        try {
+          await exchangeRates.refetch();
+          toast.success("Saved exchange-rate records refreshed. No external market rate was requested.");
+        } finally {
+          refreshButtons.forEach((item) => { item.disabled = false; item.textContent = item === button ? label : "Refresh records"; });
+        }
+      });
+      refreshButtons.push(button);
+      target.append(button);
+    };
+    addRefreshButton(header, "Refresh saved rates");
+    if (managementHeader) addRefreshButton(managementHeader, "Refresh records");
+    const activeRates = (exchangeRates.data ?? []).filter((rate) => rate.active && rate.baseCurrency === "USD" && ["NGN", "EUR", "GBP"].includes(rate.quoteCurrency));
+    const calculator = document.createElement("section");
+    calculator.dataset.rateCalculator = "true";
+    calculator.className = "admin-rate-calculator";
+    const calculatorHeader = document.createElement("div");
+    const kicker = document.createElement("span"); kicker.textContent = "SAVED-RATE CALCULATOR";
+    const title = document.createElement("strong"); title.textContent = "Convert USD using an active manual pair";
+    const note = document.createElement("small"); note.textContent = "The result uses the saved rate and configured buffer. It does not request a live bank, FX, or market rate.";
+    calculatorHeader.append(kicker, title, note);
+    const fields = document.createElement("div"); fields.className = "admin-rate-calculator-fields";
+    const amountLabel = document.createElement("label"); amountLabel.textContent = "USD amount";
+    const amount = document.createElement("input"); amount.type = "number"; amount.min = "0"; amount.step = "0.01"; amount.value = "1"; amount.inputMode = "decimal"; amountLabel.append(amount);
+    const targetLabel = document.createElement("label"); targetLabel.textContent = "Convert to";
+    const target = document.createElement("select");
+    activeRates.forEach((rate) => { const option = document.createElement("option"); option.value = String(rate.id); option.textContent = `USD / ${rate.quoteCurrency}`; target.append(option); });
+    targetLabel.append(target);
+    const result = document.createElement("output"); result.className = "admin-rate-calculator-result";
+    const updateResult = () => {
+      const rate = activeRates.find((item) => item.id === Number(target.value));
+      const usdAmount = Number(amount.value);
+      if (!rate || !Number.isFinite(usdAmount) || usdAmount < 0) { result.textContent = activeRates.length ? "Enter a non-negative USD amount." : "Save an active USD/NGN, USD/EUR, or USD/GBP rate to calculate."; return; }
+      const quote = calculateManualExchangeQuote({ usdAmount, rate: Number(rate.rate), bufferPercent: Number(rate.bufferPercent || 0) });
+      const effectiveRate = calculateManualExchangeQuote({ usdAmount: 1, rate: Number(rate.rate), bufferPercent: Number(rate.bufferPercent || 0) });
+      if (quote === null || effectiveRate === null) { result.textContent = "The saved rate is not valid for calculation."; return; }
+      result.textContent = `${rate.quoteCurrency} ${quote.toLocaleString(undefined, { maximumFractionDigits: 2 })} · effective rate ${effectiveRate.toLocaleString(undefined, { maximumFractionDigits: 4 })} · updated ${new Date(rate.updatedAt).toLocaleString()}`;
+    };
+    amount.addEventListener("input", updateResult); target.addEventListener("change", updateResult);
+    fields.append(amountLabel, targetLabel); calculator.append(calculatorHeader, fields, result); metricGrid.after(calculator); updateResult();
+    return () => { refreshButtons.forEach((button) => button.remove()); calculator.remove(); };
+  }, [activeTab, exchangeRates.data, exchangeRates.refetch]);
   const upsertRate = trpc.admin.upsertExchangeRate.useMutation({ onSuccess: async () => { toast.success("Manual exchange rate saved and audit logged. Storefront conversion remains a separate controlled policy."); setRateDraft({ baseCurrency: "USD", quoteCurrency: "NGN", rate: "", bufferPercent: "0", active: true }); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not save the exchange rate.") });
   const upsertContentBlock = trpc.admin.upsertSiteContentBlock.useMutation({ onSuccess: async () => { toast.success("Content block saved and audit logged."); setContentDraft({ blockKey: "", blockType: "hero_slide", title: "", ctaLabel: "", ctaUrl: "", status: "draft", sortOrder: "0", content: "{}" }); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not save the content block.") });
   const createPromotion = trpc.admin.createPromotion.useMutation({ onSuccess: async () => { toast.success("Promotion configuration saved and audit logged. It remains non-operative until checkout rules are separately approved."); setPromotionDraft({ name: "", code: "", discountType: "percentage", discountAmount: "", status: "draft" }); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not create promotion configuration.") });
