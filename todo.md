@@ -290,3 +290,7 @@
 - [x] Make category product drill-down, visibility, edit, hide, and safe archive actions the primary Categories controls, with no empty create-first experience.
 - [x] Move optional new-category creation and manual-product entry to compact secondary controls after the existing category operations.
 - [x] Validate existing category rendering, product drill-downs, operations, responsive layout, tests, and production build before publishing.
+- [x] Redesign the VAMNUX Dashboard as a denser operational overview with recorded user, order, revenue, profit, wallet, and activity signals.
+- [x] Rename the Traffic Sources workspace to Statistics in the Admin navigation and workspace heading.
+- [x] Add recorded registration-source and country analytics for 1 day, 7 days, 14 days, 30 days, and 3 months, with clear limits where raw visitor telemetry is unavailable.
+- [x] Validate Dashboard and Statistics data honesty, responsive presentation, deterministic tests, and production build before publishing.

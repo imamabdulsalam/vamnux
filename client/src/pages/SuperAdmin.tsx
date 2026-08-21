@@ -39,7 +39,7 @@ const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }>
   { id: "products", label: "Products", icon: PackageSearch },
   { id: "categories", label: "Categories", icon: FolderTree },
   { id: "pricing", label: "Pricing engine", icon: BadgeDollarSign },
-  { id: "traffic", label: "Traffic sources", icon: Activity },
+  { id: "traffic", label: "Statistics", icon: Activity },
   { id: "customers", label: "Customers", icon: UsersRound },
   { id: "suppliers", label: "Suppliers", icon: Store },
   { id: "payments", label: "Payment gateways", icon: CircleDollarSign },
