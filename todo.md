@@ -403,3 +403,7 @@
 
 - [x] Repair the missing Mobile Legends and PUBG game-family card imagery using verified supplier-provided artwork where available and a clear neutral fallback otherwise.
 - [x] Validate affected game-family artwork loading, no-empty-image fallback behavior, responsive presentation, deterministic tests, build, and visual review before publishing.
+
+- [x] Redesign every VAMNUX supplier-backed product-family detail page into a compact selectable denomination grid with a focused selected-item summary.
+- [x] Preserve active supplier product data, final customer prices, requirements, regions, delivery formats, active-category boundaries, and saved-cart-only behavior without exposing supplier cost or activating payment/supplier orders.
+- [x] Validate representative Free Fire, PUBG, Telegram Stars, Steam, and other product-family selection pages across desktop/mobile, requirements, cart boundaries, tests, build, and visual presentation before publishing.
