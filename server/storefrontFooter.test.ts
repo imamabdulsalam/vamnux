@@ -22,8 +22,12 @@ describe("VAMNUX storefront footer", () => {
     ["/?category=Top-up#products", "/?category=Voucher#products", "/?category=Subscription#products", "/?category=AI%20tools#products", "/?category=All#products"].forEach((href) => expect(footerSource).toContain(href));
     expect(footerSource).toContain("key={`${title}-${label}`}");
     expect(footerSource).not.toContain("key={href}");
+    expect(footerSource).toContain('new CustomEvent("vamnux:catalog-filter"');
+    expect(footerSource).toContain("window.history.replaceState(null, \"\", href)");
     expect(homeSource).toContain('new URLSearchParams(window.location.search).get("category")');
     expect(homeSource).toContain('document.getElementById("products")?.scrollIntoView');
+    expect(homeSource).toContain('window.addEventListener("vamnux:catalog-filter"');
+    expect(homeSource).toContain("catalogSearchRef.current?.focus");
     expect(homeSource).toContain("if (!publicCategories.data) return;");
   });
 

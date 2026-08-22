@@ -2,7 +2,7 @@
  * VAMNUX Global Exchange: a clean marketplace header, USD-first price display,
  * technology-led colour rotation, and compact transactional product information.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
@@ -201,6 +201,7 @@ export default function Home() {
   const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = useState(false);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const [newsletterEmail, setNewsletterEmail] = useState("");
+  const catalogSearchRef = useRef<HTMLInputElement>(null);
   const subscribeNewsletter = trpc.marketplace.subscribeNewsletter.useMutation({
     onSuccess: () => {
       toast.success("Interest saved", { description: "VAMNUX will only email you after a messaging provider is configured." });
@@ -294,9 +295,26 @@ export default function Home() {
     const nextCategory = requestedCategory === "All" ? "All" : requestedCategory;
     setActiveCategory(nextCategory);
     setQuery("");
-    const scrollTimer = window.setTimeout(() => document.getElementById("products")?.scrollIntoView({ behavior: "auto", block: "start" }), 120);
+    const scrollTimer = window.setTimeout(() => { document.getElementById("products")?.scrollIntoView({ behavior: "auto", block: "start" }); catalogSearchRef.current?.focus({ preventScroll: true }); }, 120);
     return () => window.clearTimeout(scrollTimer);
   }, [location]);
+
+  useEffect(() => {
+    const activateFooterCatalog = (event: Event) => {
+      const detail = (event as CustomEvent<{ category?: string; focusSearch?: boolean }>).detail;
+      const category = detail?.category;
+      if (category !== "All" && !isProductCategory(category)) return;
+      setActiveCategory(category === "All" ? "All" : category);
+      setQuery("");
+      setOpenMegaCategory(null);
+      window.setTimeout(() => {
+        document.getElementById("products")?.scrollIntoView({ behavior: "auto", block: "start" });
+        if (detail?.focusSearch) catalogSearchRef.current?.focus({ preventScroll: true });
+      }, 0);
+    };
+    window.addEventListener("vamnux:catalog-filter", activateFooterCatalog);
+    return () => window.removeEventListener("vamnux:catalog-filter", activateFooterCatalog);
+  }, []);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
   const gameProducts = useMemo(() => filteredProducts.filter((product) => product.category === "Top-up"), [filteredProducts]);
@@ -569,7 +587,7 @@ export default function Home() {
 
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
-          <div className="catalog-keyword-input"><input id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
+          <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
           <p>{query.trim() ? `${compactProducts.length} live ${compactProducts.length === 1 ? "product" : "products"} match “${query.trim()}”` : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
         </div>
 

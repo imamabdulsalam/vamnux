@@ -31,7 +31,15 @@ const legalLinks = [
 ] as const;
 
 function FooterList({ title, links }: { title: string; links: readonly (readonly [string, string])[] }) {
-  return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => <Link key={`${title}-${label}`} href={href}>{label}</Link>)}</section>;
+  const activateCatalogInPlace = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (title !== "Products" || window.location.pathname !== "/") return;
+    const category = new URL(href, window.location.origin).searchParams.get("category");
+    if (!category) return;
+    event.preventDefault();
+    window.history.replaceState(null, "", href);
+    window.dispatchEvent(new CustomEvent("vamnux:catalog-filter", { detail: { category, focusSearch: true } }));
+  };
+  return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => <Link key={`${title}-${label}`} href={href} onClick={(event) => activateCatalogInPlace(event, href)}>{label}</Link>)}</section>;
 }
 
 export default function FooterNavigation() {

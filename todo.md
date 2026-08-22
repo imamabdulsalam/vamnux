@@ -444,3 +444,6 @@
 
 - [x] Fix duplicate React keys for VAMNUX footer product links that now share filtered-catalog destinations, preserving all category navigation behavior.
 - [x] Validate the footer warning is resolved with deterministic tests, runtime diagnostics, production build, and catalog-return links before publishing.
+
+- [x] Make VAMNUX footer product links activate the matching catalog filter in the current storefront view, scroll to the catalog, and focus the product search without opening a separate page or tab.
+- [x] Validate immediate same-page footer catalog activation, category filtering, search focus, accessibility, deterministic tests, and production build before publishing.
