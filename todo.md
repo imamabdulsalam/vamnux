@@ -530,3 +530,7 @@
 - [x] Show complete owner-appropriate context for product favorite/cart activity, including stored customer, product, supplier-safe customer price, product category, activity time, and source reference.
 - [x] Make the VAMNUX Admin top search field provide clickable keyword results for Admin workspaces and authorised stored customer, order, product, ticket, request, and notification records.
 - [x] Validate owner authorization, data minimization, full-detail rendering, Admin search navigation, keyboard accessibility, deterministic tests, and production build before publishing.
+
+- [x] Restore the original VAMNUX account-access introduction, descriptive copy, and account-benefit content above the Sign In and Create Secure Account form card without changing the current colours or account actions.
+- [x] Increase VAMNUX account form labels, fields, supporting text, and moderate headings to improve reading comfort on mobile and desktop without making the layout oversized or overly bold.
+- [x] Validate preserved account navigation, password controls, local-only credential handling, responsive readability, deterministic tests, and production build before publishing.

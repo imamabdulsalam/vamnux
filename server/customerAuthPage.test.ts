@@ -63,7 +63,16 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).toContain("Create secure account");
     expect(authSource).toContain("Forgot password?");
     expect(authSource).toContain("Protected by <strong>VAMNUX</strong> account security");
-    expect(authSource).toContain("customer-auth-banner");
+    expect(authSource).toContain("customer-auth-introduction");
+  });
+
+  it("restores the original VAMNUX account introduction and applies moderate readable form sizing", () => {
+    expect(authSource).toContain("Your digital");
+    expect(authSource).toContain("Account-scoped data");
+    expect(authSource).toContain("Wallet-only purchase policy");
+    expect(authSource).toContain("Server-authorised operations");
+    expect(authSource).toContain('text-[11px]');
+    expect(authSource).toContain('h-10 w-full');
   });
 
   it("provides clear standard destinations for sign-in, registration, and unavailable recovery", () => {
