@@ -67,6 +67,15 @@ async function ensureDraftPolicyPages(db: NonNullable<Awaited<ReturnType<typeof 
   }
 }
 
+async function getCurrentTermsPrivacyConsentVersion(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  await ensureDraftPolicyPages(db);
+  const pages = await db.select({ slug: siteContentPages.slug, version: siteContentPages.version })
+    .from(siteContentPages)
+    .where(inArray(siteContentPages.slug, ["terms-of-service", "privacy-policy"]));
+  const versions = new Map(pages.map((page) => [page.slug, page.version]));
+  return `terms:${versions.get("terms-of-service") || "draft-1"}|privacy:${versions.get("privacy-policy") || "draft-1"}`;
+}
+
 export async function recordCustomerSecurityEvent(input: { userId: number; eventType: string; summary: string; metadata?: Record<string, unknown> }) {
   const db = requireDb(await getDb());
   await db.insert(customerSecurityEvents).values({
@@ -1508,6 +1517,15 @@ export async function getCustomerDashboard(userId: number) {
     version: siteContentPages.version,
     updatedAt: siteContentPages.updatedAt,
   }).from(siteContentPages).orderBy(siteContentPages.title);
+  const currentTermsPrivacyVersion = await getCurrentTermsPrivacyConsentVersion(db);
+  const consentRows = await db.select({
+    consentType: customerConsents.consentType,
+    policyVersion: customerConsents.policyVersion,
+    granted: customerConsents.granted,
+    createdAt: customerConsents.createdAt,
+  }).from(customerConsents).where(eq(customerConsents.userId, userId)).orderBy(desc(customerConsents.createdAt));
+  const latestTermsPrivacyConsent = consentRows.find((consent) => consent.consentType === "terms_privacy") ?? null;
+  const latestMarketingConsent = consentRows.find((consent) => consent.consentType === "marketing") ?? null;
   return {
     profile: profile ?? null,
     wallet: wallet ? { currency: wallet.currency, availableBalance: wallet.availableBalance, status: wallet.status } : { currency: "USD", availableBalance: "0.00", status: "inactive" as const },
@@ -1523,6 +1541,12 @@ export async function getCustomerDashboard(userId: number) {
     tickets,
     privacyRequests,
     policyPages,
+    consents: {
+      termsPrivacy: latestTermsPrivacyConsent,
+      marketing: latestMarketingConsent,
+      currentTermsPrivacyVersion,
+      termsPrivacyAccepted: Boolean(latestTermsPrivacyConsent?.granted && latestTermsPrivacyConsent.policyVersion === currentTermsPrivacyVersion),
+    },
   };
 }
 
@@ -1573,6 +1597,37 @@ export async function updateCustomerNotificationPreferences(input: { userId: num
   const [preferences] = await db.select().from(customerNotificationPreferences).where(eq(customerNotificationPreferences.userId, input.userId)).limit(1);
   if (input.securityAlerts !== undefined) await recordCustomerSecurityEvent({ userId: input.userId, eventType: "security_alert_preference_updated", summary: `Security alerts were ${input.securityAlerts ? "enabled" : "disabled"}.` });
   return preferences;
+}
+
+/** Appends a customer-owned legal or marketing-consent decision; it never sends email or changes provider authentication. */
+export async function recordCustomerConsent(input: { userId: number; consentType: "terms_privacy" | "marketing"; granted: boolean }) {
+  const db = requireDb(await getDb());
+  await ensureCustomerAccountRows(db, input.userId);
+  if (input.consentType === "terms_privacy" && !input.granted) throw new Error("Terms and Privacy acceptance is required before wallet funding or product orders can continue.");
+  const policyVersion = input.consentType === "terms_privacy" ? await getCurrentTermsPrivacyConsentVersion(db) : "marketing-draft-1";
+  await db.insert(customerConsents).values({ userId: input.userId, consentType: input.consentType, policyVersion, granted: input.granted });
+  if (input.consentType === "marketing") {
+    await db.update(customerNotificationPreferences).set({ marketingUpdates: input.granted }).where(eq(customerNotificationPreferences.userId, input.userId));
+  }
+  await recordCustomerSecurityEvent({
+    userId: input.userId,
+    eventType: input.consentType === "terms_privacy" ? "terms_privacy_accepted" : "marketing_consent_updated",
+    summary: input.consentType === "terms_privacy" ? "Current VAMNUX Terms and Privacy drafts were accepted." : `Marketing consent was ${input.granted ? "granted" : "withdrawn"}.`,
+  });
+  return { consentType: input.consentType, granted: input.granted, policyVersion } as const;
+}
+
+export async function assertCustomerTermsPrivacyConsent(userId: number) {
+  const db = requireDb(await getDb());
+  const currentTermsPrivacyVersion = await getCurrentTermsPrivacyConsentVersion(db);
+  const [latestConsent] = await db.select({ granted: customerConsents.granted, policyVersion: customerConsents.policyVersion })
+    .from(customerConsents)
+    .where(and(eq(customerConsents.userId, userId), eq(customerConsents.consentType, "terms_privacy")))
+    .orderBy(desc(customerConsents.createdAt))
+    .limit(1);
+  if (!latestConsent?.granted || latestConsent.policyVersion !== currentTermsPrivacyVersion) {
+    throw new Error("Accept the current VAMNUX Terms and Privacy drafts in Account settings before continuing.");
+  }
 }
 
 export async function markCustomerNotificationRead(input: { userId: number; notificationId: number }) {
@@ -1672,6 +1727,7 @@ function createWalletFundingCode() {
 export async function createCustomerWalletFundingRequest(input: { userId: number; amount: number; currency: "USD" | "EUR" | "GBP" | "NGN"; customerNote?: string }) {
   if (!Number.isFinite(input.amount) || input.amount <= 0 || input.amount > 1_000_000) throw new Error("Enter a valid wallet funding amount.");
   const db = requireDb(await getDb());
+  await assertCustomerTermsPrivacyConsent(input.userId);
   const minimumAmount = fundingMinimumForCurrency(input.currency, await listExchangeRates());
   if (minimumAmount === null) throw new Error(`An active USD/${input.currency} rate is required before funding in ${input.currency}.`);
   if (input.amount < minimumAmount) throw new Error(`The minimum wallet funding amount is ${minimumAmount.toFixed(2)} ${input.currency}, based on the $3.00 USD minimum.`);
@@ -1736,6 +1792,7 @@ export async function createMarketplaceOrder(input: {
   fulfillmentDetails?: Record<string, string>;
 }) {
   const db = requireDb(await getDb());
+  await assertCustomerTermsPrivacyConsent(input.userId);
   const productIds = Array.from(new Set(input.items.map((item) => item.productId)));
   const catalogRows = await db.select().from(products).where(and(inArray(products.id, productIds), eq(products.status, "active")));
   const settings = await ensureMarketplacePricingSettings(db);

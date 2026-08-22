@@ -7,7 +7,7 @@ import { decodeManualProductImage, manualProductImageContentTypes } from "../sha
 import { bulkUpdateSyncedProductMarkup, canRunSupplierCatalogSync, cancelSuperAdminDraftOrder, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminCustomerControlDetail, getSuperAdminFinanceAnalytics, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, getUserById, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminManualDeliveryTasks, listSuperAdminOrders, listSuperAdminSupplierBalances, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordSuperAdminAuditEvent, recordSuperAdminSupplierBalance, reinstateCustomerAccount, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, suspendCustomerAccount, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, updateSuperAdminManualDeliveryTask, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
 import { bulkArchiveAdminManagedCatalogProducts, bulkUpdateProductStorefrontVisibility } from "./db";
 import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } from "./db";
-import { assertCustomerAccountActive } from "./db";
+import { assertCustomerAccountActive, recordCustomerConsent } from "./db";
 import { recordNewsletterInterest } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
@@ -83,6 +83,8 @@ export const appRouter = router({
       marketingUpdates: z.boolean(),
       productAnnouncements: z.boolean(),
     })).mutation(({ ctx, input }) => updateCustomerNotificationPreferences({ userId: ctx.user.id, ...input })),
+    recordCustomerConsent: customerProcedure.input(z.object({ consentType: z.enum(["terms_privacy", "marketing"]), granted: z.boolean() }))
+      .mutation(({ ctx, input }) => recordCustomerConsent({ userId: ctx.user.id, ...input })),
     markNotificationRead: customerProcedure.input(z.object({ notificationId: z.number().int().positive() }))
       .mutation(({ ctx, input }) => markCustomerNotificationRead({ userId: ctx.user.id, ...input })),
     createSupportTicket: customerProcedure.input(z.object({

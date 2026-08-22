@@ -211,8 +211,8 @@
 - [ ] Configure Supabase Auth as the new staged identity provider and Resend as transactional email infrastructure through secure environment configuration, retaining Manus OAuth as the working fallback.
 - [x] Build a parallel VAMNUX account profile, username, country, phone, registration-source, consent, account-status, notification, support, security-event, and identity-link data model without losing existing users.
 - [ ] Build staged Supabase email/password registration, email verification, generic-error login/reset, Google OAuth, secure session, logout-all, and optional customer MFA/TOTP flows without removing Manus OAuth.
-- [ ] Enforce required Terms/Privacy acceptance and independently recorded optional marketing consent, then prepare editable clearly labelled draft Terms, Privacy, Refund, and Cookie policy pages.
-- [ ] Expand the real-data Phase 1 customer dashboard for profile, security, notifications, support tickets, orders/order details, transactions, favorites, and wallet-only quick actions, preserving truthful empty states.
+- [x] Enforce required Terms/Privacy acceptance and independently recorded optional marketing consent, then prepare editable clearly labelled draft Terms, Privacy, Refund, and Cookie policy pages.
+- [x] Expand the real-data Phase 1 customer dashboard for profile, security, notifications, support tickets, orders/order details, transactions, favorites, and wallet-only quick actions, preserving truthful empty states.
 - [x] Connect appropriate customer identity, activity, wallet, order, and support views to Super Admin with server-side authorization and audit logging, never exposing passwords, secrets, or card data.
 - [ ] Test registration, verification, login, password reset, Google, MFA, session invalidation, user migration, account isolation, and existing storefront continuity before any Manus OAuth retirement is proposed.
 - [x] Document the deferred Supabase and Resend activation gate, preserve the existing Manus OAuth fallback, and complete only customer-account improvements that do not require external authentication or email credentials.
@@ -413,3 +413,6 @@
 - [x] Validate public email consent, submission feedback, typography balance, accessibility, desktop/mobile layout, tests, build, and visual presentation before publishing.
 
 - [x] Repair direct VAMNUX Super Admin tab URLs so every valid workspace, including Settings · Authentication, opens the requested protected workspace.
+
+- [x] Repair the VAMNUX User Dashboard hook ordering so authenticated customer account screens render without a React runtime error.
+- [x] Support direct VAMNUX User Dashboard tab URLs for account settings, consent, privacy, wallet, support, and other declared customer workspaces.
