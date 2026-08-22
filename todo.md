@@ -580,3 +580,7 @@
 - [x] Add an owner-only VAMNUX Admin feature named API Access Control that lists verified supplier website, partner/API documentation, available public support channels, and integration readiness metadata.
 - [x] Show safe server-side API credential status indicators and secure-configuration guidance without returning, rendering, copying, logging, or transmitting any live API key, API secret, token, signature secret, or other credential to the browser.
 - [x] Validate owner authorization, supplier metadata accuracy, secret non-exposure, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Correct the verified GamesDrop Telegram contact in VAMNUX API Access Control to @igoryan34 and its official Telegram URL.
+- [x] Clarify the safe credential references in API Access Control while continuing to prevent live API keys, secrets, tokens, and signatures from being displayed, copied, logged, or sent to the browser.
+- [x] Validate contact accuracy, protected credential behavior, deterministic tests, and production build before publishing.

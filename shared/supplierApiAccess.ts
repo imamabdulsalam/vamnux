@@ -22,7 +22,7 @@ export const SUPPLIER_API_ACCESS_METADATA: SupplierApiAccessMetadata[] = [
     documentationUrl: "https://gamesdrop.io/en/docs/partner-api",
     contacts: [
       { label: "Support email", value: "info@gamesdrop.io", href: "mailto:info@gamesdrop.io" },
-      { label: "Telegram", value: "@gigoryan34", href: "https://t.me/gigoryan34" },
+      { label: "Telegram", value: "@igoryan34", href: "https://t.me/igoryan34" },
     ],
     credentials: [{ label: "Shop API token", reference: "GAMESDROP_API_TOKEN", environmentKeys: ["GAMESDROP_API_TOKEN"] }],
   },

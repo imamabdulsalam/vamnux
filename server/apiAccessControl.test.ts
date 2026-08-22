@@ -15,6 +15,7 @@ describe("VAMNUX API Access Control", () => {
     expect(SUPPLIER_API_ACCESS_METADATA.find((supplier) => supplier.key === "gamesdrop")?.documentationUrl).toBe("https://gamesdrop.io/en/docs/partner-api");
     expect(SUPPLIER_API_ACCESS_METADATA.find((supplier) => supplier.key === "flashtopup")?.documentationUrl).toBe("https://flashtopup.com/reseller/api-docs");
     expect(SUPPLIER_API_ACCESS_METADATA.find((supplier) => supplier.key === "foxreload")?.documentationUrl).toBe("https://public-api.foxreload.com/docs");
+    expect(SUPPLIER_API_ACCESS_METADATA.find((supplier) => supplier.key === "gamesdrop")?.contacts).toContainEqual({ label: "Telegram", value: "@igoryan34", href: "https://t.me/igoryan34" });
   });
 
   it("returns only configuration booleans and never raw credential values", () => {
@@ -28,7 +29,7 @@ describe("VAMNUX API Access Control", () => {
 
   it("uses the protected Admin procedure and never presents a secret-copy action", () => {
     expect(routerSource).toContain("apiAccessControlStatus: adminProcedure.query");
-    expect(componentSource).toContain("Server-only credential protected");
+    expect(componentSource).toContain("Secure configuration reference for");
     expect(componentSource).toContain("configuration reference");
     expect(componentSource).not.toContain("Copy API secret");
   });
