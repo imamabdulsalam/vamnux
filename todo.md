@@ -550,8 +550,3 @@
 - [x] Restore the VAMNUX Suppliers workspace to its original compact Supplier Overview table with the existing Products & Prices and Fund Wallet actions, without removing lower supplier controls or sections.
 - [x] Move optional supplier funding guidance behind the existing Fund Wallet action so the default Suppliers overview remains unchanged.
 - [x] Validate original supplier overview density, existing actions, lower-section visibility, deterministic tests, and production build before publishing.
-
-- [x] Make the VAMNUX Admin Products workspace responsive and easy to scan, with a readable selected-product editor, catalog list, search/filter controls, and bulk actions at desktop and mobile widths.
-- [x] Provide reliable independent scrolling for long product lists and product-detail controls so all listings and actions remain reachable without layout overlap.
-- [x] Preserve all existing Admin Product functionality, including add/edit, storefront show/hide, archive, search, selection, bulk controls, pricing settings, manual delivery settings, and supplier-safe product context.
-- [x] Validate responsive layout, scrolling, readability, existing product actions, deterministic tests, and production build before publishing.
