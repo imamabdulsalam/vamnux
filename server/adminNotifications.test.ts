@@ -26,7 +26,7 @@ describe("Admin notification inbox", () => {
     expect(dbSource).toContain("markAllSuperAdminNotificationsRead");
   });
 
-  it("renders a green navigation badge and accessible organized inbox controls", () => {
+  it("renders a green navigation badge, accessible read controls, and an in-place detail review dialog", () => {
     expect(adminSource).toContain("admin-nav-unread");
     expect(inboxSource).toContain("Mark selected as read");
     expect(inboxSource).toContain("Mark all as read");
@@ -34,5 +34,8 @@ describe("Admin notification inbox", () => {
     expect(inboxSource).toContain("Operational review queue");
     expect(inboxSource).toContain("refetchInterval: 30_000");
     expect(adminSource).toContain("admin-nav-unread");
+    expect(inboxSource).toContain("Reviewing this notification stays within the VAMNUX Notifications workspace");
+    expect(inboxSource).toContain("Open source workspace");
+    expect(inboxSource).toContain("DialogContent");
   });
 });

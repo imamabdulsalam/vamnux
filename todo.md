@@ -517,3 +517,6 @@
 - [x] Organize the Admin Notifications workspace into identifiable categories for orders, favorites/cart activity, support tickets, customer requests, subscribers, wallet/supplier readiness, refunds, and other available operational records without fabricating events.
 - [x] Add protected selectable notification rows with working individual Mark as read, selected Mark as read, and Mark all as read actions that update the unread count.
 - [x] Validate notification authorization, unread-count accuracy, bulk read behavior, organized presentation, responsive layout, deterministic tests, and production build before publishing.
+
+- [x] Make each VAMNUX Admin Notifications Review action open full context-specific notification details inside the protected Notifications workspace, without changing the source business record.
+- [x] Validate in-place notification review details, owner authorization, keyboard close behavior, responsive presentation, deterministic tests, and production build before publishing.

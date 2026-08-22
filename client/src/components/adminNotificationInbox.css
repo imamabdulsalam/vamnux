@@ -22,6 +22,16 @@
 .admin-notification-copy small { display: block; color: #8491a7; font-size: 9px; }
 .admin-notification-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 7px; }
 .admin-notification-actions .admin-secondary-action { white-space: nowrap; }
+.admin-notification-review-dialog { max-width: 680px; border-color: rgba(184,255,67,.35); background: #101520; color: #eaf0fa; }
+.admin-notification-review-dialog [data-slot="dialog-close"] { color: #dce8f6; }
+.admin-notification-review-dialog [data-slot="dialog-title"] { padding-right: 30px; color: #fff; font-size: 20px; line-height: 1.22; }
+.admin-notification-dialog-kicker { color: #b8ff43; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.admin-notification-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.admin-notification-detail-grid > div { display: grid; gap: 5px; min-width: 0; padding: 12px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.025); }
+.admin-notification-detail-grid span { color: #8f9bb0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.admin-notification-detail-grid strong { overflow-wrap: anywhere; color: #f4f7fc; font-size: 11px; font-weight: 700; line-height: 1.45; }
+.admin-notification-detail-note { margin: 0; color: #aeb9cc; font-size: 10px; line-height: 1.5; }
+.admin-notification-detail-actions { padding-top: 2px; }
 @media (max-width: 680px) {
   .admin-notification-inbox > header { gap: 12px; }
   .admin-notification-toolbar { display: grid; align-items: stretch; padding: 13px 15px; }
@@ -33,4 +43,8 @@
   .admin-notification-row { flex-wrap: wrap; }
   .admin-notification-row time { width: 100%; margin-left: 0; }
   .admin-notification-actions { grid-column: 3; justify-content: start; }
+  .admin-notification-review-dialog { max-width: calc(100% - 1rem); padding: 18px; }
+  .admin-notification-review-dialog [data-slot="dialog-title"] { font-size: 17px; }
+  .admin-notification-detail-grid { grid-template-columns: 1fr; }
+  .admin-notification-detail-actions { display: grid; grid-template-columns: 1fr; }
 }
