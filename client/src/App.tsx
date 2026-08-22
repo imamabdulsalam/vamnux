@@ -46,9 +46,9 @@ function Router() {
       <Route path="/privacy" component={PolicyPage} />
       <Route path="/cookies" component={PolicyPage} />
       <Route path="/refund-policy" component={PolicyPage} />
-      <Route path="/payment-policy" component={PublicInformationPage} />
-      <Route path="/delivery-policy" component={PublicInformationPage} />
-      <Route path="/acceptable-use" component={PublicInformationPage} />
+      <Route path="/payment-policy" component={PolicyPage} />
+      <Route path="/delivery-policy" component={PolicyPage} />
+      <Route path="/acceptable-use" component={PolicyPage} />
       <Route path="/policies/:slug" component={PolicyPage} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={SuperAdmin} />
