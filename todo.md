@@ -481,3 +481,8 @@
 - [x] Add separate Password and Confirm password fields with live client-side match feedback and transparent weak, medium, strong, and excellent strength guidance before secure account-creation handoff.
 - [x] Add a clearly labelled CAPTCHA readiness boundary and Create secure account action that validates the local form then transfers users to the configured secure identity provider without simulating verification or submitting credentials to VAMNUX.
 - [x] Validate registration interaction, data-boundary messaging, password feedback, accessibility, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Replace the VAMNUX registration Country text input with a searchable list of countries that users can filter by typing and select directly.
+- [x] Display the selected country’s calling prefix automatically beside the optional phone number so users enter only the remaining local number.
+- [x] Replace the registration referral-source text input with structured discovery options including Google, social platforms, blog, referral, advertising, events, and other appropriate sources.
+- [x] Validate selection behavior, country-code mapping, local draft-data boundaries, accessibility, responsive layout, deterministic tests, and production build before publishing.

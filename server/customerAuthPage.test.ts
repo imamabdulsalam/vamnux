@@ -24,6 +24,18 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).toContain("Create secure account");
   });
 
+  it("provides searchable country selection, automatic calling codes, and structured discovery sources", () => {
+    expect(authSource).toContain('list="vamnux-country-options"');
+    expect(authSource).toContain("getCountries()");
+    expect(authSource).toContain("getCountryCallingCode(code)");
+    expect(authSource).toContain("Calling code");
+    expect(authSource).toContain("Choose country first");
+    expect(authSource).toContain("Google Search");
+    expect(authSource).toContain("Instagram");
+    expect(authSource).toContain("Referral link");
+    expect(authSource).toContain("VAMNUX Blog");
+  });
+
   it("preserves the configured secure identity flow and does not fabricate password, CAPTCHA, or email verification", () => {
     expect(authSource).toContain("startLogin()");
     expect(authSource).toContain("not collected by this page");
