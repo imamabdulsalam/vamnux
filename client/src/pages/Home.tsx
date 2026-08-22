@@ -558,11 +558,17 @@ export default function Home() {
       </section>
 
       <section id="support" className="support-cta support-cta-refined">
-        <div className="terminal-stack" aria-hidden="true"><i /><i /><i /></div>
         <div className="section-marker">VAMNUX / DIGITAL MARKETPLACE</div>
         <h2>YOUR NEXT<br /><em>DIGITAL PICK</em><br />STARTS HERE.</h2>
         <p><b>CURATED / CLEAR / READY TO BROWSE</b><br />Explore active products, compare the details, and choose what works for your digital life.</p>
         <div className="support-cta-actions"><a href="#products">Browse digital products <ArrowRight size={18} /></a><a href="/help">Visit Help Center</a></div>
+        <aside className="marketplace-summary" aria-label="Browse VAMNUX by need">
+          <div className="marketplace-summary-head"><span>Browse by need</span><small>Choose a product category</small></div>
+          <button className="summary-choice summary-choice-blue" onClick={() => { setActiveCategory("Top-up"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Gamepad2 size={18} /><span><strong>Games & top-ups</strong><small>Credits, passes, and vouchers</small></span><ArrowRight size={16} /></button>
+          <button className="summary-choice summary-choice-violet" onClick={() => { setActiveCategory("Voucher"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Gift size={18} /><span><strong>Gift cards</strong><small>Digital codes and everyday picks</small></span><ArrowRight size={16} /></button>
+          <button className="summary-choice summary-choice-mint" onClick={() => { setActiveCategory("Subscription"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Tv size={18} /><span><strong>Subscriptions</strong><small>Entertainment and digital access</small></span><ArrowRight size={16} /></button>
+          <button className="summary-choice summary-choice-coral" onClick={() => { setActiveCategory("AI tools"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Sparkles size={18} /><span><strong>Tools & services</strong><small>Software and AI-ready categories</small></span><ArrowRight size={16} /></button>
+        </aside>
       </section>
 
       <FooterNavigation />

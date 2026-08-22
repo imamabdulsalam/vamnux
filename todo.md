@@ -389,3 +389,7 @@
 - [x] Redesign the lower storefront How It Works, trust, and marketplace invitation sections with a calm, credible, mobile-friendly visual hierarchy.
 - [x] Replace the generic account-opening CTA with a functional Browse digital products action and ensure every lower-section action leads to a real VAMNUX destination.
 - [x] Validate lower-section copy, trust boundaries, buttons, accessibility, desktop/mobile layout, deterministic tests, production build, and visual presentation before publishing.
+
+- [x] Balance the complete lower storefront palette with accessible VAMNUX blue, violet, mint, and coral accents without using overly flashy colours.
+- [x] Replace the abstract final-section block graphic with a clear, readable customer-oriented marketplace summary that supports real VAMNUX browsing actions.
+- [x] Validate refined lower-section colour contrast, CTA behavior, desktop/mobile readability, tests, build, and visual presentation before publishing.
