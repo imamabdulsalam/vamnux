@@ -492,3 +492,7 @@
 - [x] Audit every VAMNUX Sign Up, Create Account, Sign In, Log In, Back to Sign In, Forgot Password, and related account-action control across public pages, dashboards, and shared navigation.
 - [x] Route all registration actions to the interactive registration page and all sign-in actions to the secure sign-in page; make password recovery use the configured provider path or a truthful unavailable state until transactional recovery is configured.
 - [x] Validate all account-action destinations, recovery messaging, responsive interactions, deterministic coverage, and production build before publishing.
+
+- [x] Repair the VAMNUX Back to Sign In registration control so it reliably returns to the secure sign-in page.
+- [x] Exercise actual account-page clicks for Sign In, Create Account, Back to Sign In, and Forgot Password, correcting any confirmed navigation defects.
+- [x] Validate interactive account navigation, regression coverage, runtime diagnostics, and production build before publishing.

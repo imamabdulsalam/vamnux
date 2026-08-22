@@ -48,8 +48,11 @@ describe("VAMNUX customer account access", () => {
   });
 
   it("provides clear standard destinations for sign-in, registration, and unavailable recovery", () => {
-    expect(authSource).toContain('setLocation("/login?mode=signup")');
-    expect(authSource).toContain('setLocation("/login?mode=recovery")');
+    expect(authSource).toContain('const SIGN_IN_PATH = "/login"');
+    expect(authSource).toContain('const SIGN_UP_PATH = "/login?mode=signup"');
+    expect(authSource).toContain('const RECOVERY_PATH = "/login?mode=recovery"');
+    expect(authSource).toContain('<Link href={SIGN_IN_PATH} className="user-secondary-action"><ArrowLeft size={15} /> Back to sign in</Link>');
+    expect(authSource).toContain('<Link href={SIGN_IN_PATH} className="user-primary-action">Back to sign in');
     expect(authSource).toContain("PASSWORD RECOVERY");
     expect(authSource).toContain("Recovery status: unavailable");
     expect(authSource).toContain('accountMode === "recovery"');
