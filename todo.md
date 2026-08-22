@@ -556,3 +556,7 @@
 - [x] Report real VAMNUX traffic-source, signup, purchase, and recorded revenue metrics by selected period, with honest zero or unavailable states where source data does not exist.
 - [x] Build a readable responsive Traffic Analytics dashboard with traffic-source performance rows and proportional visual bars inspired by the supplied reference, without fabricating visitors, sources, conversions, or revenue.
 - [x] Validate authorization, period filtering, real-data aggregation, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Add compact editable USD-to-NGN, USD-to-EUR, and USD-to-GBP rate cards at the bottom of the VAMNUX Admin Exchange Rate workspace without changing or removing existing controls.
+- [x] Wire each new rate-card Save action to the existing protected exchange-rate update flow and display currently stored values without inventing exchange data.
+- [x] Validate rate-card updates, existing Exchange Rate controls, responsive presentation, deterministic tests, and production build before publishing.
