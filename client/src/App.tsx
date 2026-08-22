@@ -2,7 +2,8 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { useLayoutEffect } from "react";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DigitalProductDetail from "./pages/DigitalProductDetail";
@@ -58,12 +59,30 @@ function Router() {
   );
 }
 
+function RoutePositionReset() {
+  const [location] = useLocation();
+
+  useLayoutEffect(() => {
+    // Footer product links on the storefront are handled in place by Home.
+    // Every other internal route must open at its own page start, never at the prior footer position.
+    if (location === "/" && window.location.hash === "products") return;
+    const root = document.documentElement;
+    const priorInlineBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    root.style.scrollBehavior = priorInlineBehavior;
+  }, [location]);
+
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster richColors position="top-right" />
+          <RoutePositionReset />
           <Router />
         </TooltipProvider>
       </ThemeProvider>

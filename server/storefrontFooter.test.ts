@@ -34,6 +34,13 @@ describe("VAMNUX storefront footer", () => {
     expect(homeSource).toContain("if (!publicCategories.data) return;");
   });
 
+  it("opens every non-catalog internal footer route at the top of its destination page", () => {
+    expect(appSource).toContain("function RoutePositionReset()");
+    expect(appSource).toContain('if (location === "/" && window.location.hash === "products") return;');
+    expect(appSource).toContain('window.scrollTo({ top: 0, left: 0, behavior: "auto" })');
+    expect(appSource).toContain("<RoutePositionReset />");
+  });
+
   it("does not misrepresent unconfigured payment providers as active checkout methods", () => {
     expect(footerSource).toContain("Payment readiness");
     expect(footerSource).toContain("only after their provider integration and verification are active");

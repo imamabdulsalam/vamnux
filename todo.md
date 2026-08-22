@@ -455,3 +455,7 @@
 
 - [x] Repair VAMNUX footer category navigation so the matching filtered catalog becomes visible in the current viewport immediately, with no manual scrolling required.
 - [x] Validate visible same-page catalog activation, category filtering, focused search, responsive behavior, deterministic tests, and production build before publishing.
+
+- [x] Ensure every VAMNUX Company, Support, Legal, and non-catalog Product footer link opens its internal destination at the top of the page immediately instead of preserving the footer scroll position.
+- [x] Preserve immediate in-page filtered-catalog behavior for Product links while applying reliable top-of-page positioning to every other internal footer destination.
+- [x] Validate footer routes, destination top positioning, catalog activation, responsive navigation, deterministic tests, and production build before publishing.
