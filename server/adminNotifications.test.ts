@@ -22,11 +22,15 @@ describe("Admin notification inbox", () => {
   it("uses protected procedures for unread state and individual or bulk read actions", () => {
     expect(routerSource).toContain("listNotificationInbox: adminProcedure");
     expect(routerSource).toContain("getNotificationDetail: adminProcedure");
+    expect(routerSource).toContain("replyToNotificationCustomer: adminProcedure");
     expect(routerSource).toContain("markNotificationsRead: adminProcedure");
     expect(routerSource).toContain("markAllNotificationsRead: adminProcedure");
     expect(dbSource).toContain("markSuperAdminNotificationsRead");
     expect(dbSource).toContain("markAllSuperAdminNotificationsRead");
     expect(dbSource).toContain("getSuperAdminNotificationDetail");
+    expect(dbSource).toContain("replyToSuperAdminNotification");
+    expect(dbSource).toContain("customer_request.replied");
+    expect(dbSource).toContain("product_activity.replied");
     expect(dbSource).toContain("Customer support ticket");
     expect(dbSource).toContain("Customer product request");
     expect(dbSource).toContain("Current customer price");
@@ -46,6 +50,8 @@ describe("Admin notification inbox", () => {
     expect(inboxSource).toContain("getNotificationDetail.useQuery");
     expect(inboxSource).toContain("Full ticket conversation");
     expect(inboxSource).toContain("Full customer request");
+    expect(inboxSource).toContain("Reply to customer");
+    expect(inboxSource).toContain("Send reply");
     expect(superAdminSource).toContain('label: "Notifications"');
     expect(superAdminSource).toContain("admin-keyword-results");
     expect(superAdminSource).toContain("Admin workspaces");

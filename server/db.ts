@@ -1989,6 +1989,40 @@ export async function getSuperAdminNotificationDetail(notificationKey: string): 
 	throw new Error("This notification type is not available for review.");
 }
 
+/** Sends an owner-authored in-app reply for an existing notification source. It never changes customer requests, favorites, cart activity, or external delivery settings. */
+export async function replyToSuperAdminNotification(input: { adminUserId: number; notificationKey: string; message: string; ticketStatus?: "processing" | "waiting_for_customer" | "resolved" | "closed" }) {
+	const db = requireDb(await getDb());
+	const [kind, sourceId] = input.notificationKey.trim().split(":", 3);
+	const message = input.message.trim().slice(0, 5000);
+	if (!kind || !sourceId || !message) throw new Error("A notification source and reply are required.");
+	if (kind === "ticket") {
+		const result = await replyToSuperAdminSupportTicket({ adminUserId: input.adminUserId, ticketCode: sourceId, message, status: input.ticketStatus || "waiting_for_customer" });
+		return { sourceType: "ticket" as const, reference: result.ticketCode, delivery: "in_app_ticket" as const };
+	}
+	const sourceNumericId = Number(sourceId);
+	if (!Number.isSafeInteger(sourceNumericId) || sourceNumericId <= 0) throw new Error("Notification source is invalid.");
+	if (kind === "request") {
+		const [request] = await db.select({ id: customerProductRequests.id, userId: customerProductRequests.userId, requestCode: customerProductRequests.requestCode, requestedName: customerProductRequests.requestedName }).from(customerProductRequests).where(eq(customerProductRequests.id, sourceNumericId)).limit(1);
+		if (!request) throw new Error("Customer request is no longer available.");
+		await db.transaction(async (tx) => {
+			await tx.insert(customerNotifications).values({ userId: request.userId, category: "support", title: `VAMNUX response to your request · ${request.requestedName}`, body: message, actionUrl: "/account" });
+			await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "customer_request.replied", targetType: "customer_product_request", targetId: request.requestCode, summary: `Sent an in-app reply for request ${request.requestCode}`, metadata: { delivery: "in_app" } });
+		});
+		return { sourceType: "request" as const, reference: request.requestCode, delivery: "in_app" as const };
+	}
+	if (kind === "activity") {
+		const [activity] = await db.select({ id: customerProductActivityEvents.id, userId: customerProductActivityEvents.userId, activityType: customerProductActivityEvents.activityType, productName: products.name }).from(customerProductActivityEvents).innerJoin(products, eq(customerProductActivityEvents.productId, products.id)).where(eq(customerProductActivityEvents.id, sourceNumericId)).limit(1);
+		if (!activity) throw new Error("Product activity is no longer available.");
+		const activityLabel = activity.activityType === "favorite_added" ? "saved product" : "saved cart";
+		await db.transaction(async (tx) => {
+			await tx.insert(customerNotifications).values({ userId: activity.userId, category: "support", title: `VAMNUX message about ${activity.productName}`, body: message, actionUrl: "/account" });
+			await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "product_activity.replied", targetType: "customer_product_activity", targetId: String(activity.id), summary: `Sent an in-app reply about a ${activityLabel} activity`, metadata: { delivery: "in_app", activityType: activity.activityType } });
+		});
+		return { sourceType: "activity" as const, reference: `Activity #${activity.id}`, delivery: "in_app" as const };
+	}
+	throw new Error("Replies are available only for support tickets, customer requests, and product activity.");
+}
+
 export async function markSuperAdminNotificationsRead(input: { adminUserId: number; notificationKeys: string[] }) {
 	const db = requireDb(await getDb());
 	const notificationKeys = Array.from(new Set(input.notificationKeys.map((key) => key.trim()).filter((key) => key.length > 0 && key.length <= 220))).slice(0, 250);

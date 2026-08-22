@@ -1,4 +1,4 @@
-import { Bell, Check, CheckCheck, ChevronRight, CircleHelp, ClipboardList, Heart, MailCheck, MessageSquareMore, RefreshCw, WalletCards } from "lucide-react";
+import { Bell, Check, CheckCheck, ChevronRight, CircleHelp, ClipboardList, Heart, MailCheck, MessageSquareMore, RefreshCw, Send, WalletCards } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -55,6 +55,8 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
   const [group, setGroup] = useState("All");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [reviewItem, setReviewItem] = useState<NotificationItem | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [ticketReplyStatus, setTicketReplyStatus] = useState<"processing" | "waiting_for_customer" | "resolved" | "closed">("waiting_for_customer");
   const notificationDetail = trpc.admin.getNotificationDetail.useQuery({ notificationKey: reviewItem?.key || "unavailable" }, { enabled: Boolean(reviewItem), retry: false });
   const markSelected = trpc.admin.markNotificationsRead.useMutation({
     onSuccess: async ({ marked }) => {
@@ -72,6 +74,14 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
     },
     onError: (error) => toast.error(error.message),
   });
+  const replyToCustomer = trpc.admin.replyToNotificationCustomer.useMutation({
+    onSuccess: async (result) => {
+      setReplyBody("");
+      await Promise.all([notificationDetail.refetch(), utils.marketplace.customerDashboard.invalidate(), utils.admin.listNotificationInbox.invalidate()]);
+      toast.success(result.delivery === "in_app_ticket" ? "Reply added to the support conversation." : "Reply saved as a customer in-app notification.");
+    },
+    onError: (error) => toast.error(error.message),
+  });
   const groups = useMemo(() => ["All", ...Array.from(new Set((inbox.data?.items ?? []).map((item) => item.group)))], [inbox.data?.items]);
   const items = useMemo(() => (inbox.data?.items ?? []).filter((item) => group === "All" || item.group === group), [group, inbox.data?.items]);
   const allVisibleSelected = items.length > 0 && items.every((item) => selectedKeys.includes(item.key));
@@ -81,6 +91,7 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
     if (item.entityType === "ticket") onOpenTicket(item.entityId);
     onNavigate(destinationFor(item.entityType));
   };
+  const canReply = reviewItem?.entityType === "ticket" || reviewItem?.entityType === "request" || reviewItem?.entityType === "activity";
 
   return <section className="admin-panel admin-notification-inbox">
     <header>
@@ -99,7 +110,7 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
       {items.length ? <><label className="admin-notification-select-all"><input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} aria-label="Select all visible notifications" /> Select unread visible</label>{items.map((item) => { const Icon = iconForGroup(item.group); return <article className={item.read ? "read" : "unread"} key={item.key}><label className="admin-notification-check"><input type="checkbox" checked={selectedKeys.includes(item.key)} disabled={item.read} onChange={() => toggleSelected(item.key)} aria-label={`Select ${item.title}`} /></label><span className="admin-notification-icon"><Icon size={16} /></span><div className="admin-notification-copy"><div className="admin-notification-row"><span>{item.group}</span>{!item.read && <b>New</b>}<time>{new Date(item.createdAt).toLocaleString()}</time></div><strong>{item.title}</strong><p>{item.body}</p>{(item.customerName || item.customerEmail) && <small>{item.customerName || "Customer"}{item.customerEmail ? ` · ${item.customerEmail}` : ""}</small>}</div><div className="admin-notification-actions"><button type="button" className="admin-secondary-action" onClick={() => setReviewItem(item)}>Review <ChevronRight size={14} /></button>{!item.read && <button type="button" className="admin-secondary-action" disabled={markSelected.isPending} onClick={() => markSelected.mutate({ notificationKeys: [item.key] })}><Check size={14} /> Mark read</button>}</div></article>; })}</> : <div className="admin-empty"><Bell size={22} /><h3>No notifications in this view</h3><p>New stored orders, product activity, tickets, requests, subscribers, funding, supplier observations, and failed supplier requests will appear here when available.</p></div>}
     </div>}
     <div className="admin-policy-note mt-5"><Bell size={15} /><span>External email, SMS, push, and WhatsApp delivery are not implied by this inbox and remain inactive until separately configured.</span></div>
-    <Dialog open={Boolean(reviewItem)} onOpenChange={(open) => { if (!open) setReviewItem(null); }}>
+      <Dialog open={Boolean(reviewItem)} onOpenChange={(open) => { if (!open) { setReviewItem(null); setReplyBody(""); } }}>
       <DialogContent className="admin-notification-review-dialog">
         {reviewItem && <>
           <DialogHeader>
@@ -123,6 +134,12 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
             {notificationDetail.data.message !== null && <section className="admin-notification-full-message"><span>{reviewItem.entityType === "request" ? "Full customer request" : reviewItem.entityType === "activity" ? "Activity context" : "Full source details"}</span><p>{notificationDetail.data.message}</p></section>}
             {notificationDetail.data.messages.length > 0 && <section className="admin-notification-thread"><span>Full ticket conversation</span><div>{notificationDetail.data.messages.map((message, index) => <article className={message.authorRole} key={`${message.createdAt.getTime()}-${index}`}><strong>{message.authorRole === "admin" ? "VAMNUX Admin" : "Customer"}</strong><time>{new Date(message.createdAt).toLocaleString()}</time><p>{message.body}</p></article>)}</div></section>}
           </div>}
+          {canReply && <form className="admin-notification-reply-form" onSubmit={(event) => { event.preventDefault(); if (!reviewItem) return; replyToCustomer.mutate({ notificationKey: reviewItem.key, message: replyBody, ...(reviewItem.entityType === "ticket" ? { ticketStatus: ticketReplyStatus } : {}) }); }}>
+            <div><span>Reply to customer</span><p>{reviewItem.entityType === "ticket" ? "Your reply is added to this customer’s support conversation and they receive an in-app support alert." : "Your reply is saved as an in-app notification for this customer. It does not edit their original record or send email, SMS, push, or WhatsApp."}</p></div>
+            {reviewItem.entityType === "ticket" && <label>Ticket status<select value={ticketReplyStatus} onChange={(event) => setTicketReplyStatus(event.target.value as typeof ticketReplyStatus)}><option value="processing">Processing</option><option value="waiting_for_customer">Waiting for customer</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label>}
+            <label>Message<textarea required maxLength={5000} value={replyBody} onChange={(event) => setReplyBody(event.target.value)} placeholder="Write a clear, helpful reply for this customer…" /></label>
+            <div className="admin-notification-reply-actions"><small>{replyBody.length}/5000 characters</small><button type="submit" className="admin-primary-action" disabled={!replyBody.trim() || replyToCustomer.isPending}><Send size={14} /> {replyToCustomer.isPending ? "Sending…" : "Send reply"}</button></div>
+          </form>}
           <p className="admin-notification-detail-note">Use the source workspace only if you need to take an authorised next step. Reading or closing this detail view does not mark the item read automatically.</p>
           <DialogFooter className="admin-notification-detail-actions">
             {reviewItem.entityType !== "subscriber" && <button type="button" className="admin-secondary-action" onClick={() => { const item = reviewItem; setReviewItem(null); openSourceWorkspace(item); }}>Open source workspace <ChevronRight size={14} /></button>}

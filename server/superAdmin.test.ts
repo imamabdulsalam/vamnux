@@ -38,6 +38,7 @@ describe("Super Admin authorization", () => {
     await expect(caller.admin.listSiteSettings()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listNotificationTemplates()).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.getNotificationDetail({ notificationKey: "ticket:VS123:1" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.admin.replyToNotificationCustomer({ notificationKey: "request:1:1", message: "Private reply" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listApiRequestLogs({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listSupplierWebhookEvents({ limit: 10 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.admin.listSupplierBalances()).rejects.toMatchObject({ code: "FORBIDDEN" });

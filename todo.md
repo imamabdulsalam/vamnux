@@ -534,3 +534,7 @@
 - [x] Restore the original VAMNUX account-access introduction, descriptive copy, and account-benefit content above the Sign In and Create Secure Account form card without changing the current colours or account actions.
 - [x] Increase VAMNUX account form labels, fields, supporting text, and moderate headings to improve reading comfort on mobile and desktop without making the layout oversized or overly bold.
 - [x] Validate preserved account navigation, password controls, local-only credential handling, responsive readability, deterministic tests, and production build before publishing.
+
+- [x] Make the VAMNUX Admin Notification Review dialog independently scrollable on desktop and mobile so all long source details and messages remain reachable.
+- [x] Add an owner-only Reply to customer control in notification Review: append replies to real support-ticket conversations and create customer-visible in-app notifications for customer requests and product favorite/cart activity without changing the original source record.
+- [x] Validate reply authorization, customer visibility, long-detail scrolling, keyboard accessibility, deterministic tests, and production build before publishing.

@@ -22,7 +22,8 @@
 .admin-notification-copy small { display: block; color: #8491a7; font-size: 9px; }
 .admin-notification-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 7px; }
 .admin-notification-actions .admin-secondary-action { white-space: nowrap; }
-.admin-notification-review-dialog { max-width: 680px; border-color: rgba(184,255,67,.35); background: #101520; color: #eaf0fa; }
+.admin-notification-review-dialog { display:flex; max-width:680px; max-height:calc(100vh - 2rem); flex-direction:column; overflow:hidden; border-color:rgba(184,255,67,.35); background:#101520; color:#eaf0fa; }
+.admin-notification-review-dialog>div:not([data-slot="dialog-close"]) { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-right:6px; scrollbar-color:rgba(184,255,67,.75) #101520; }
 .admin-notification-review-dialog [data-slot="dialog-close"] { color: #dce8f6; }
 .admin-notification-review-dialog [data-slot="dialog-title"] { padding-right: 30px; color: #fff; font-size: 20px; line-height: 1.22; }
 .admin-notification-dialog-kicker { color: #b8ff43; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
@@ -46,6 +47,17 @@
 .admin-notification-thread article strong { color:#b8ff43; font-size:9px; letter-spacing:.06em; text-transform:uppercase; }
 .admin-notification-thread article time { color:#8693a9; font-size:9px; }
 .admin-notification-thread article p { margin:0; color:#e6ebf4; font-size:11px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+.admin-notification-reply-form { display:grid; gap:10px; padding:14px; border:1px solid rgba(184,255,67,.35); background:rgba(40,109,255,.08); }
+.admin-notification-reply-form>div:first-child { display:grid; gap:5px; }
+.admin-notification-reply-form>div:first-child span,.admin-notification-reply-form>label { color:#b8ff43; font-size:9px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.admin-notification-reply-form>div:first-child p { margin:0; color:#c7d2e5; font-size:10px; font-weight:500; letter-spacing:0; line-height:1.55; text-transform:none; }
+.admin-notification-reply-form>label { display:grid; gap:6px; }
+.admin-notification-reply-form select,.admin-notification-reply-form textarea { width:100%; border:1px solid rgba(255,255,255,.17); background:#0b1019; color:#fff; padding:10px; outline:0; font:inherit; font-size:11px; letter-spacing:0; text-transform:none; }
+.admin-notification-reply-form select { min-height:38px; }
+.admin-notification-reply-form textarea { min-height:110px; resize:vertical; line-height:1.55; }
+.admin-notification-reply-form select:focus,.admin-notification-reply-form textarea:focus { border-color:#b8ff43; }
+.admin-notification-reply-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.admin-notification-reply-actions small { color:#9eabc0; font-size:9px; }
 @media (max-width: 680px) {
   .admin-notification-inbox > header { gap: 12px; }
   .admin-notification-toolbar { display: grid; align-items: stretch; padding: 13px 15px; }
@@ -58,8 +70,10 @@
   .admin-notification-row time { width: 100%; margin-left: 0; }
   .admin-notification-actions { grid-column: 3; justify-content: start; }
   .admin-notification-review-dialog { max-width: calc(100% - 1rem); padding: 18px; }
+  .admin-notification-review-dialog { max-height:calc(100dvh - 1rem); }
   .admin-notification-review-dialog [data-slot="dialog-title"] { font-size: 17px; }
   .admin-notification-detail-grid { grid-template-columns: 1fr; }
   .admin-notification-detail-actions { display: grid; grid-template-columns: 1fr; }
   .admin-notification-full-message p,.admin-notification-thread>div { max-height:260px; }
+  .admin-notification-reply-actions { align-items:stretch; flex-direction:column; }.admin-notification-reply-actions .admin-primary-action { width:100%; }
 }
