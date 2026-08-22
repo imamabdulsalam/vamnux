@@ -23,5 +23,9 @@ describe("VAMNUX User Dashboard layout", () => {
     expect(source).toContain("Referral program not active");
     expect(source).toContain("data.subscription.status");
     expect(source).toContain("data.productRequests");
+    expect(source).toContain("user-mobile-menu-trigger");
+    expect(source).toContain("user-mobile-feature-menu");
+    expect(source).toContain("selectDashboardTab");
+    expect(source).toContain("mobileMenuOpen");
   });
 });

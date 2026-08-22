@@ -508,3 +508,7 @@
 - [x] Add a VAMNUX User Dashboard Request feature that lets authenticated customers submit requested products, services, game top-ups, or digital offerings for Admin review.
 - [x] Store customer product requests securely with customer ownership and add protected request procedures without activating email broadcasts or fabricating catalogue availability.
 - [x] Validate Subscribe and Request navigation, consent boundaries, customer authorization, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Improve the VAMNUX User Dashboard Subscribe panel’s spacing, contrast, button alignment, consent control clarity, and readable responsive presentation.
+- [x] Replace the limited mobile dashboard navigation with a three-line trigger that opens all User Dashboard features, including Subscribe and Request.
+- [x] Validate Subscribe readability, complete mobile feature access, menu interactions, deterministic tests, responsive presentation, and production build before publishing.
