@@ -520,3 +520,7 @@
 
 - [x] Make each VAMNUX Admin Notifications Review action open full context-specific notification details inside the protected Notifications workspace, without changing the source business record.
 - [x] Validate in-place notification review details, owner authorization, keyboard close behavior, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Restructure the VAMNUX Sign In and Create Secure Account views into a compact header-and-card account format inspired by the supplied reference, without changing VAMNUX colours or removing existing account actions.
+- [x] Add accessible show/hide controls to VAMNUX Sign In, Password, and Confirm password fields while preserving local-only credential handling and secure-provider handoff.
+- [x] Validate account routing, local-only password handling, visibility toggles, responsive desktop/mobile presentation, deterministic tests, and production build before publishing.

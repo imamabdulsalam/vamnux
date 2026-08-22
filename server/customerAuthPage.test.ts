@@ -21,7 +21,7 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).toContain("Passwords match");
     expect(authSource).toContain("Weak");
     expect(authSource).toContain("Excellent");
-    expect(authSource).toContain('type="password"');
+    expect(authSource).toContain('type={visible ? "text" : "password"}');
     expect(authSource).toContain("Create secure account");
   });
 
@@ -55,6 +55,15 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).toContain('setPassword("")');
     expect(authSource).toContain('window.setTimeout(() => startLogin(), 0)');
     expect(authSource).toContain("Sign in securely");
+  });
+
+  it("keeps all account actions while adding accessible password visibility controls in the compact VAMNUX account-card layout", () => {
+    expect(authSource).toContain("PasswordField");
+    expect(authSource).toContain('aria-label={`${visible ? "Hide" : "Show"} ${label.toLowerCase()}`}');
+    expect(authSource).toContain("Create secure account");
+    expect(authSource).toContain("Forgot password?");
+    expect(authSource).toContain("Protected by <strong>VAMNUX</strong> account security");
+    expect(authSource).toContain("customer-auth-banner");
   });
 
   it("provides clear standard destinations for sign-in, registration, and unavailable recovery", () => {
