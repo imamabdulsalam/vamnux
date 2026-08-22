@@ -135,7 +135,7 @@ export default function UserDashboard() {
     legacyForm.style.display = "none";
     const calculator = document.createElement("section");
     calculator.className = "user-funding-ready";
-    calculator.innerHTML = `<div class="user-funding-ready__header"><div><span>FUND WALLET</span><h3>Choose your funding amount</h3></div><strong>Minimum $3.00 USD</strong></div><div class="user-funding-ready__fields"><label>Amount in USD<input inputmode="decimal" value="3.00" aria-label="Funding amount in USD" /></label><label>Pay in<select aria-label="Funding payment currency"><option value="NGN">NGN — Nigerian Naira</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option><option value="GBP">GBP — British Pound</option></select></label></div><output class="user-funding-ready__quote" aria-live="polite"></output><p class="user-funding-ready__note">A payment checkout will appear here after VAMNUX configures a provider. Your wallet balance updates only after a verified provider confirmation.</p><button type="button" disabled>Payment checkout unavailable</button>`;
+    calculator.innerHTML = `<div class="user-funding-ready__header"><div><span>FUND WALLET</span><h3>Choose your funding amount</h3></div><strong>Minimum $3.00 USD</strong></div><div class="user-funding-ready__fields"><label>Amount in USD<input inputmode="decimal" value="3.00" aria-label="Funding amount in USD" /></label><label>Pay in<select aria-label="Funding payment currency"><option value="NGN">NGN — Nigerian Naira</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option><option value="GBP">GBP — British Pound</option></select></label></div><output class="user-funding-ready__quote" aria-live="polite"></output><p class="user-funding-ready__note">When VAMNUX configures a supported payment provider, checkout appears here. Your wallet will credit automatically after that provider’s verified payment webhook confirms the transaction—no funding request or Admin approval is required.</p><button type="button" disabled>Payment checkout unavailable</button>`;
     const amountInput = calculator.querySelector<HTMLInputElement>("input");
     const currencySelect = calculator.querySelector<HTMLSelectElement>("select");
     const quoteOutput = calculator.querySelector<HTMLOutputElement>("output");
@@ -151,7 +151,18 @@ export default function UserDashboard() {
     };
     amountInput?.addEventListener("input", refreshQuote); currencySelect?.addEventListener("change", refreshQuote); refreshQuote();
     legacyForm.before(calculator);
-    return () => { amountInput?.removeEventListener("input", refreshQuote); currencySelect?.removeEventListener("change", refreshQuote); calculator.remove(); legacyForm.style.display = ""; };
+    const walletPanel = legacyForm.parentElement;
+    const walletFeature = walletPanel?.querySelector<HTMLElement>(".user-wallet-feature");
+    const legacyTitle = walletFeature?.querySelector("h3");
+    const legacyDescription = walletFeature?.querySelectorAll<HTMLParagraphElement>("p")[1];
+    const legacyHistory = Array.from(walletPanel?.querySelectorAll<HTMLElement>(".user-wallet-section") ?? []).find((section) => section.textContent?.includes("TOP-UP REQUESTS"));
+    const previousTitle = legacyTitle?.textContent;
+    const previousDescription = legacyDescription?.textContent;
+    const previousHistoryDisplay = legacyHistory?.style.display;
+    if (legacyTitle) legacyTitle.textContent = "Fund your wallet";
+    if (legacyDescription) legacyDescription.textContent = "A secure checkout becomes available after VAMNUX configures a payment provider. Verified provider confirmation credits your wallet automatically.";
+    if (legacyHistory) legacyHistory.style.display = "none";
+    return () => { amountInput?.removeEventListener("input", refreshQuote); currencySelect?.removeEventListener("change", refreshQuote); calculator.remove(); legacyForm.style.display = ""; if (legacyTitle) legacyTitle.textContent = previousTitle || ""; if (legacyDescription) legacyDescription.textContent = previousDescription || ""; if (legacyHistory) legacyHistory.style.display = previousHistoryDisplay || ""; };
   }, [activeTab, dashboard.data]);
 
   const orderStats = useMemo(() => {

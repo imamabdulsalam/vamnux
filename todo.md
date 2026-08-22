@@ -541,3 +541,8 @@
 
 - [x] Repair the VAMNUX Admin Notification Review dialog so its full body, reply form, and footer actions use a visible, reliable independent scroll container on desktop and mobile.
 - [x] Validate mouse-wheel, touch, keyboard, and scrollbar access to long review details and reply controls before publishing.
+
+- [x] Research the current documented owner funding options for each configured VAMNUX supplier and present only verified supplier-wallet funding guidance in the owner Admin workspace.
+- [x] Refine VAMNUX customer wallet-funding language so customers are not asked to submit manual funding requests; make clear that automatic wallet credit occurs only after a configured payment gateway and verified payment webhook confirm the transaction.
+- [x] Preserve the safety boundary that VAMNUX cannot initiate supplier payments or automatically credit customer wallets until the respective supplier funding path and payment gateway/webhook are securely configured.
+- [x] Validate supplier funding guidance accuracy, customer funding wording, authorization boundaries, deterministic tests, and production build before publishing.
