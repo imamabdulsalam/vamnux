@@ -65,7 +65,7 @@ function RoutePositionReset() {
   useLayoutEffect(() => {
     // Footer product links on the storefront are handled in place by Home.
     // Every other internal route must open at its own page start, never at the prior footer position.
-    if (location === "/" && window.location.hash === "products") return;
+    if (location === "/" && ["products", "why-us"].includes(window.location.hash)) return;
     const root = document.documentElement;
     const priorInlineBehavior = root.style.scrollBehavior;
     root.style.scrollBehavior = "auto";

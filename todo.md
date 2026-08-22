@@ -467,3 +467,7 @@
 - [x] Route every VAMNUX Browse products, Explore products, View all products, and equivalent public action to the visible on-site catalog with search ready for immediate use.
 - [x] Update public-page headers and product-browsing calls to use the focused catalog destination instead of generic product information pages where appropriate.
 - [x] Validate catalog visibility, search readiness, internal routing, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Replace Blog, Become a Reseller, and Affiliate Program in the VAMNUX Company footer with Why Us and Sign Up.
+- [x] Make Why Us reveal the existing VAMNUX trust section immediately and make Sign Up open the normal new-account registration flow.
+- [x] Validate the revised Company footer, trust-section visibility, registration routing, deterministic tests, responsive presentation, and production build before publishing.

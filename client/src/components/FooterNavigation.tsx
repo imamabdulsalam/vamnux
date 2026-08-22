@@ -31,7 +31,13 @@ const legalLinks = [
 ] as const;
 
 function FooterList({ title, links }: { title: string; links: readonly (readonly [string, string])[] }) {
-  const activateCatalogInPlace = (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  const activateDestinationInPlace = (event: React.MouseEvent<HTMLAnchorElement>, label: string, href: string) => {
+    if (title === "Company" && label === "Why Us" && window.location.pathname === "/") {
+      event.preventDefault();
+      window.history.replaceState(null, "", "/#why-us");
+      window.dispatchEvent(new Event("vamnux:why-us"));
+      return;
+    }
     if (title !== "Products" || window.location.pathname !== "/") return;
     const category = new URL(href, window.location.origin).searchParams.get("category");
     if (!category) return;
@@ -41,7 +47,7 @@ function FooterList({ title, links }: { title: string; links: readonly (readonly
     window.location.hash = "products";
     window.dispatchEvent(new CustomEvent("vamnux:catalog-filter", { detail: { category, focusSearch: true } }));
   };
-  return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => <Link key={`${title}-${label}`} href={href} onClick={(event) => activateCatalogInPlace(event, href)}>{label}</Link>)}</section>;
+  return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => label === "Why Us" ? <a key={`${title}-${label}`} href={href} onClick={(event) => activateDestinationInPlace(event, label, href)}>{label}</a> : <Link key={`${title}-${label}`} href={href} onClick={(event) => activateDestinationInPlace(event, label, href)}>{label}</Link>)}</section>;
 }
 
 export default function FooterNavigation() {
@@ -65,7 +71,7 @@ export default function FooterNavigation() {
       </div>
 
       <div className="site-footer-grid">
-        <FooterList title="Company" links={[["About Us", "/about"], ["Contact Us", "/contact"], ["Blog", "/blog"], ["Become a Reseller", "/reseller"], ["Affiliate Program", "/affiliate"]]} />
+        <FooterList title="Company" links={[["About Us", "/about"], ["Contact Us", "/contact"], ["Why Us", "/#why-us"], ["Sign Up", "/login"]]} />
         <FooterList title="Products" links={productLinks} />
         <FooterList title="Support" links={supportLinks} />
         <FooterList title="Legal" links={legalLinks} />

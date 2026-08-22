@@ -299,7 +299,19 @@ export default function Home() {
   }, [activeCategory, publicCategories.data, visibleCategories]);
 
   useLayoutEffect(() => {
-    const requestedCategory = new URLSearchParams(window.location.search).get("category");
+    const routeParams = new URLSearchParams(window.location.search);
+    if (routeParams.get("section") === "why-us" || window.location.hash === "#why-us") {
+      const revealWhyUs = () => {
+        const target = document.getElementById("why-us");
+        if (!target) return;
+        target.scrollIntoView({ block: "start", behavior: "auto" });
+      };
+      revealWhyUs();
+      const confirmScroll = window.requestAnimationFrame(revealWhyUs);
+      const postRouteScroll = window.setTimeout(revealWhyUs, 90);
+      return () => { window.cancelAnimationFrame(confirmScroll); window.clearTimeout(postRouteScroll); };
+    }
+    const requestedCategory = routeParams.get("category");
     if (requestedCategory !== "All" && !isProductCategory(requestedCategory)) return;
     const nextCategory = requestedCategory === "All" ? "All" : requestedCategory;
     setActiveCategory(nextCategory);
@@ -322,6 +334,17 @@ export default function Home() {
     };
     window.addEventListener("vamnux:catalog-filter", activateFooterCatalog);
     return () => window.removeEventListener("vamnux:catalog-filter", activateFooterCatalog);
+  }, []);
+
+  useEffect(() => {
+    const revealWhyUs = () => {
+      const target = document.getElementById("why-us");
+      if (!target) return;
+      target.scrollIntoView({ block: "start", behavior: "auto" });
+      window.requestAnimationFrame(() => target.scrollIntoView({ block: "start", behavior: "auto" }));
+    };
+    window.addEventListener("vamnux:why-us", revealWhyUs);
+    return () => window.removeEventListener("vamnux:why-us", revealWhyUs);
   }, []);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
@@ -621,7 +644,7 @@ export default function Home() {
           <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX SUPPLIER NOTE:</strong> Listings are synchronised from configured suppliers. Display conversion is informational only; customer payment, wallet funding, and supplier fulfilment remain inactive.</p>
       </section>
 
-      <section className="why-vamnux-section" aria-labelledby="why-vamnux-title">
+      <section id="why-us" className="why-vamnux-section" aria-labelledby="why-vamnux-title">
         <div className="why-vamnux-heading">
           <div><p className="section-marker">WHY VAMNUX</p><h2 id="why-vamnux-title">TRUST, MADE<br /><em>PRACTICAL.</em></h2></div>
           <div><p>VAMNUX makes the important parts of a digital purchase visible before you move forward: product requirements, final display pricing, account records, and the operational status of checkout.</p><div className="why-vamnux-actions"><button type="button" onClick={() => { setActiveCategory("All"); setQuery(""); revealCatalog(true); }}>Browse active products <ArrowRight size={16} /></button><button type="button" onClick={() => setLocation("/help")}>Visit Help Center</button></div></div>
