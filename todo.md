@@ -400,3 +400,6 @@
 
 - [x] Add a mobile-only three-line VAMNUX category menu with active-visible categories and relevant browse options, leaving desktop navigation unchanged.
 - [x] Validate mobile menu accessibility, hide/archive/show/restore propagation, internal category navigation, responsive isolation from desktop, deterministic tests, build, and visual presentation before publishing.
+
+- [x] Repair the missing Mobile Legends and PUBG game-family card imagery using verified supplier-provided artwork where available and a clear neutral fallback otherwise.
+- [x] Validate affected game-family artwork loading, no-empty-image fallback behavior, responsive presentation, deterministic tests, build, and visual review before publishing.

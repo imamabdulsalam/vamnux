@@ -49,6 +49,23 @@ const supplierCategoryLabels: Record<string, ProductCategory> = {
 
 const productTones = ["ember", "ice", "lime", "coral", "cobalt"];
 
+/**
+ * These images are already stored on active authorized FlashTopUp catalog
+ * records. GamesDrop currently returns no artwork for some equivalent
+ * Mobile Legends and PUBG services, so retain the supplier-verified family
+ * identity rather than rendering a letter placeholder on the public card.
+ */
+const verifiedFamilyArtworkFallbacks = [
+  { keyword: "mobile legends", image: "/manus-storage/mobile-legends_da301a0e.webp" },
+  { keyword: "pubg", image: "/manus-storage/pubg-mobile_66e3513a.webp" },
+] as const;
+
+function customerSafeImage(item: Pick<CatalogSourceRow, "name" | "imageUrl">) {
+  if (item.imageUrl?.trim()) return item.imageUrl;
+  const normalizedName = item.name.toLowerCase();
+  return verifiedFamilyArtworkFallbacks.find(({ keyword }) => normalizedName.includes(keyword))?.image ?? "";
+}
+
 function supplierDeliveryLabel(item: Pick<CatalogSourceRow, "requiresPlayerId" | "requiresServerId" | "deliveryType">) {
   if (item.requiresPlayerId && item.requiresServerId) return "Player ID + Server required";
   if (item.requiresPlayerId) return "Player ID required";
@@ -77,7 +94,7 @@ export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): Liv
     priceNote: customerPriceLabel(item),
     region: item.regionLabel || "Supplier region rules",
     delivery: supplierDeliveryLabel(item),
-    image: item.imageUrl || "",
+    image: customerSafeImage(item),
     tone: productTones[index % productTones.length],
     badge: item.category === "game_key" ? "Game key" : category === "Voucher" ? "Gift card" : category,
     inputRequirements: fields.filter((field): field is { key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string } => typeof field.key === "string" && typeof field.label === "string" && (field.type === "text" || field.type === "email" || field.type === "select")),
