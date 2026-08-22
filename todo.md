@@ -426,3 +426,6 @@
 - [x] Add protected Admin risk analysis that flags review candidates for multiple-account, wallet, payment, order-velocity, spending, chargeback, IP, supplier-order, and refund signals, where records exist.
 - [x] Rebuild the Super Admin Fraud & Risk workspace with transparent Low, Medium, and High risk levels, signal explanations, data-availability states, and working review links without automatic bans or suspensions.
 - [x] Validate risk scoring transparency, Admin authorization, non-automatic enforcement, deterministic tests, production build, and responsive visual presentation before publishing.
+
+- [x] Add a well-structured, customer-focused Why VAMNUX trust section after catalog discovery that explains payment readiness, digital order processing, pricing clarity, order visibility, and support without unsupported claims.
+- [x] Validate trust-section copy against VAMNUX’s current payment, supplier fulfilment, wallet, order-tracking, and support capability boundaries, then confirm responsive storefront presentation before publishing.

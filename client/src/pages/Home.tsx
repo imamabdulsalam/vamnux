@@ -584,6 +584,20 @@ export default function Home() {
           <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX SUPPLIER NOTE:</strong> Listings are synchronised from configured suppliers. Display conversion is informational only; customer payment, wallet funding, and supplier fulfilment remain inactive.</p>
       </section>
 
+      <section className="why-vamnux-section" aria-labelledby="why-vamnux-title">
+        <div className="why-vamnux-heading">
+          <div><p className="section-marker">WHY VAMNUX</p><h2 id="why-vamnux-title">TRUST, MADE<br /><em>PRACTICAL.</em></h2></div>
+          <div><p>VAMNUX makes the important parts of a digital purchase visible before you move forward: product requirements, final display pricing, account records, and the operational status of checkout.</p><div className="why-vamnux-actions"><button type="button" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Browse active products <ArrowRight size={16} /></button><button type="button" onClick={() => setLocation("/help")}>Visit Help Center</button></div></div>
+        </div>
+        <div className="why-vamnux-grid">
+          <article className="why-vamnux-card trust-payment"><span className="why-vamnux-icon"><ShieldCheck size={21} /></span><div><p>PAYMENT READINESS</p><h3>Secure payment pathway</h3><span>Checkout is enabled only through configured supported providers. VAMNUX does not treat an unverified payment as wallet funding.</span></div></article>
+          <article className="why-vamnux-card trust-fulfillment"><span className="why-vamnux-icon"><Zap size={21} /></span><div><p>DIGITAL ORDER FLOW</p><h3>Clear fulfilment status</h3><span>Each product shows its delivery format and requirements. Eligible automation begins only after payment and supplier operations are approved.</span></div></article>
+          <article className="why-vamnux-card trust-pricing"><span className="why-vamnux-icon"><CircleDollarSign size={21} /></span><div><p>TRANSPARENT PRICING</p><h3>Know the final display price</h3><span>Review the customer price, currency display, region, and account requirements before you add a product to your cart.</span></div></article>
+          <article className="why-vamnux-card trust-orders"><span className="why-vamnux-icon"><Ticket size={21} /></span><div><p>ORDER VISIBILITY</p><h3>Keep your activity together</h3><span>Your VAMNUX account keeps saved products, qualifying order records, wallet context, and support history in one protected place.</span></div></article>
+          <article className="why-vamnux-card trust-support"><span className="why-vamnux-icon"><Headphones size={21} /></span><div><p>CUSTOMER SUPPORT</p><h3>Help when you need it</h3><span>Use the Help Center or your account support area to ask questions, receive updates, and retain ticket history.</span></div></article>
+        </div>
+      </section>
+
       <section id="how-it-works" className="process-section process-section-refined" aria-labelledby="process-title">
         <div className="process-intro">
           <div className="section-marker">A CLEARER WAY TO BUY DIGITAL</div>
