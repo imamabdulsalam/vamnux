@@ -8,6 +8,7 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import SelectedProductBrowser from "@/components/SelectedProductBrowser";
 import FooterNavigation from "@/components/FooterNavigation";
+import "./lowerStorefront.css";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope, filterPrimaryMarketProducts } from "@shared/catalogVisibility";
@@ -524,44 +525,44 @@ export default function Home() {
           <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX SUPPLIER NOTE:</strong> Listings are synchronised from configured suppliers. Display conversion is informational only; customer payment, wallet funding, and supplier fulfilment remain inactive.</p>
       </section>
 
-      <section id="how-it-works" className="process-section" aria-labelledby="process-title">
+      <section id="how-it-works" className="process-section process-section-refined" aria-labelledby="process-title">
         <div className="process-intro">
-          <div className="section-marker">HOW IT WORKS / CLEAR BY DESIGN</div>
-          <h2 id="process-title">CHOOSE.<br />CHECK.<br /><em>RECEIVE.</em></h2>
-          <p>VAMNUX keeps each digital purchase specific: choose the product, confirm the delivery requirements, then proceed using the available checkout method.</p>
-          <a href="#products">Choose your product <ArrowRight size={18} /></a>
+          <div className="section-marker">A CLEARER WAY TO BUY DIGITAL</div>
+          <h2 id="process-title">FIND.<br /><em>CHECK.</em><br />CHOOSE.</h2>
+          <p>Browse active digital products, review the listed region and requirements, then save the option that fits your account before checkout is available.</p>
+          <a href="#products">Browse digital products <ArrowRight size={18} /></a>
         </div>
         <div className="steps-list">
           <article className="step-item">
             <span>01</span>
-            <div><h3>Choose a product</h3><p>Browse game credit, digital vouchers, subscriptions, AI tools, and software from one marketplace.</p></div>
+            <div><h3>Find your match</h3><p>Search live games, gift cards, subscriptions, software, and more from one focused marketplace.</p></div>
             <Gamepad2 size={29} />
           </article>
           <article className="step-item">
             <span>02</span>
-            <div><h3>Check region & format</h3><p>Confirm your region and whether your product is a code, activation link, licence, or account top-up.</p></div>
+            <div><h3>Check the details</h3><p>Review region, product requirements, delivery format, and the final VAMNUX price before adding an item.</p></div>
             <Smartphone size={29} />
           </article>
           <article className="step-item">
             <span>03</span>
-            <div><h3>Complete & receive</h3><p>Checkout confirms the final order details and directs your digital delivery through its specified route.</p></div>
+            <div><h3>Stay in control</h3><p>Your saved product and order information remain in your VAMNUX account, with support available when needed.</p></div>
             <ShieldCheck size={29} />
           </article>
         </div>
       </section>
 
-      <section className="trust-section" aria-label="Service principles">
-        <div className="trust-card trust-dark"><ShieldCheck size={27} /><span className="trust-ticket">PRICE / CLARITY</span><h3>USD first. Clearer choice.</h3><p>Start with a consistent USD base and switch your display currency manually whenever it helps you compare.</p></div>
-        <div className="trust-card trust-lime"><Zap size={27} fill="currentColor" /><span className="trust-ticket">FORMAT / FIRST</span><h3>Delivery type upfront</h3><p>Products label their expected delivery format so you know what you are selecting before the order flow begins.</p></div>
-        <div className="trust-card trust-coral"><Headphones size={27} /><span className="trust-ticket">GLOBAL / READY</span><h3>Region-aware buying</h3><p>Gift cards, licences, and subscriptions keep the intended region visible alongside their price and delivery information.</p></div>
+      <section className="trust-section trust-section-refined" aria-label="VAMNUX marketplace principles">
+        <div className="trust-card trust-dark"><ShieldCheck size={24} /><span className="trust-ticket">PRICE CLARITY</span><h3>Final price, up front.</h3><p>Customer views show the final VAMNUX price with an optional display-currency estimate.</p></div>
+        <div className="trust-card trust-lime"><Zap size={24} /><span className="trust-ticket">PRODUCT DETAILS</span><h3>Know what you need.</h3><p>Requirements and delivery format stay close to each product so there are fewer surprises.</p></div>
+        <div className="trust-card trust-coral"><Headphones size={24} /><span className="trust-ticket">ACCOUNT SUPPORT</span><h3>Help when it matters.</h3><p>Use the Help Center or your account support area for clear next steps and protected ticket history.</p></div>
       </section>
 
-      <section id="support" className="support-cta">
+      <section id="support" className="support-cta support-cta-refined">
         <div className="terminal-stack" aria-hidden="true"><i /><i /><i /></div>
         <div className="section-marker">VAMNUX / DIGITAL MARKETPLACE</div>
-        <h2>ONE MARKET.<br /><em>MANY WAYS</em><br />TO GO DIGITAL.</h2>
-        <p><b>USD / GLOBAL / READY</b><br />One destination for game time, gift giving, AI tools, subscriptions, and everyday software.</p>
-        <button onClick={openAccount}>{isAuthenticated ? "Open my account" : "Create an account"} <ArrowRight size={18} /></button>
+        <h2>YOUR NEXT<br /><em>DIGITAL PICK</em><br />STARTS HERE.</h2>
+        <p><b>CURATED / CLEAR / READY TO BROWSE</b><br />Explore active products, compare the details, and choose what works for your digital life.</p>
+        <div className="support-cta-actions"><a href="#products">Browse digital products <ArrowRight size={18} /></a><a href="/help">Visit Help Center</a></div>
       </section>
 
       <FooterNavigation />

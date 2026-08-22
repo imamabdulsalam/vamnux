@@ -385,3 +385,7 @@
 - [x] Preserve active-visible category controls, real supplier product images or neutral fallbacks, final customer display prices, product requirements, and direct internal product-detail routes without exposing Admin markup or supplier cost.
 - [x] Review the GamesDrop sync path and, if safely available, perform only a bounded read-only catalog synchronization without creating a supplier order, checkout, payment, wallet credit, or fabricated inventory.
 - [x] Validate product browsing, filtering, preview selection, safe image fallbacks, responsive layout, deterministic tests, production build, and visual presentation before publishing.
+
+- [x] Redesign the lower storefront How It Works, trust, and marketplace invitation sections with a calm, credible, mobile-friendly visual hierarchy.
+- [x] Replace the generic account-opening CTA with a functional Browse digital products action and ensure every lower-section action leads to a real VAMNUX destination.
+- [x] Validate lower-section copy, trust boundaries, buttons, accessibility, desktop/mobile layout, deterministic tests, production build, and visual presentation before publishing.
