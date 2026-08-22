@@ -524,3 +524,9 @@
 - [x] Restructure the VAMNUX Sign In and Create Secure Account views into a compact header-and-card account format inspired by the supplied reference, without changing VAMNUX colours or removing existing account actions.
 - [x] Add accessible show/hide controls to VAMNUX Sign In, Password, and Confirm password fields while preserving local-only credential handling and secure-provider handoff.
 - [x] Validate account routing, local-only password handling, visibility toggles, responsive desktop/mobile presentation, deterministic tests, and production build before publishing.
+
+- [x] Move the VAMNUX Admin Notifications workspace to a high-priority position near the top of the Admin navigation.
+- [x] Expand VAMNUX Admin notification Review to retrieve and show full authorised source-record details in place, including full support-ticket and customer-request messages up to the stored safe limit, without exposing secrets or digital fulfilment data.
+- [x] Show complete owner-appropriate context for product favorite/cart activity, including stored customer, product, supplier-safe customer price, product category, activity time, and source reference.
+- [x] Make the VAMNUX Admin top search field provide clickable keyword results for Admin workspaces and authorised stored customer, order, product, ticket, request, and notification records.
+- [x] Validate owner authorization, data minimization, full-detail rendering, Admin search navigation, keyboard accessibility, deterministic tests, and production build before publishing.

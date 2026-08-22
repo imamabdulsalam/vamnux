@@ -55,6 +55,7 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
   const [group, setGroup] = useState("All");
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [reviewItem, setReviewItem] = useState<NotificationItem | null>(null);
+  const notificationDetail = trpc.admin.getNotificationDetail.useQuery({ notificationKey: reviewItem?.key || "unavailable" }, { enabled: Boolean(reviewItem), retry: false });
   const markSelected = trpc.admin.markNotificationsRead.useMutation({
     onSuccess: async ({ marked }) => {
       setSelectedKeys([]);
@@ -114,6 +115,14 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
             <div><span>Customer</span><strong>{reviewItem.customerName || "No customer name recorded"}</strong></div>
             <div><span>Customer email</span><strong>{reviewItem.customerEmail || "No customer email recorded"}</strong></div>
           </div>
+          {notificationDetail.isLoading && <p className="admin-notification-detail-loading">Loading the complete authorised source record…</p>}
+          {notificationDetail.error && <p className="admin-notification-detail-error">The complete source record could not be loaded: {notificationDetail.error.message}</p>}
+          {notificationDetail.data && <div className="admin-notification-detail-source">
+            <div className="admin-notification-detail-source-heading"><span>Complete source details</span><strong>{notificationDetail.data.sourceLabel} · {notificationDetail.data.reference}</strong></div>
+            <div className="admin-notification-detail-grid">{notificationDetail.data.fields.map((field) => <div key={field.label}><span>{field.label}</span><strong>{field.value}</strong></div>)}</div>
+            {notificationDetail.data.message !== null && <section className="admin-notification-full-message"><span>{reviewItem.entityType === "request" ? "Full customer request" : reviewItem.entityType === "activity" ? "Activity context" : "Full source details"}</span><p>{notificationDetail.data.message}</p></section>}
+            {notificationDetail.data.messages.length > 0 && <section className="admin-notification-thread"><span>Full ticket conversation</span><div>{notificationDetail.data.messages.map((message, index) => <article className={message.authorRole} key={`${message.createdAt.getTime()}-${index}`}><strong>{message.authorRole === "admin" ? "VAMNUX Admin" : "Customer"}</strong><time>{new Date(message.createdAt).toLocaleString()}</time><p>{message.body}</p></article>)}</div></section>}
+          </div>}
           <p className="admin-notification-detail-note">Use the source workspace only if you need to take an authorised next step. Reading or closing this detail view does not mark the item read automatically.</p>
           <DialogFooter className="admin-notification-detail-actions">
             {reviewItem.entityType !== "subscriber" && <button type="button" className="admin-secondary-action" onClick={() => { const item = reviewItem; setReviewItem(null); openSourceWorkspace(item); }}>Open source workspace <ChevronRight size={14} /></button>}

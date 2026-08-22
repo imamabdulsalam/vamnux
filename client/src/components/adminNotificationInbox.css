@@ -32,6 +32,20 @@
 .admin-notification-detail-grid strong { overflow-wrap: anywhere; color: #f4f7fc; font-size: 11px; font-weight: 700; line-height: 1.45; }
 .admin-notification-detail-note { margin: 0; color: #aeb9cc; font-size: 10px; line-height: 1.5; }
 .admin-notification-detail-actions { padding-top: 2px; }
+.admin-notification-detail-loading,.admin-notification-detail-error { margin:0; padding:11px 12px; border:1px solid rgba(255,255,255,.13); color:#c8d4e7; font-size:10px; line-height:1.5; }
+.admin-notification-detail-error { border-color:rgba(255,126,145,.4); color:#ffb5c2; }
+.admin-notification-detail-source { display:grid; gap:12px; }
+.admin-notification-detail-source-heading { display:grid; gap:4px; padding-top:2px; }
+.admin-notification-detail-source-heading span,.admin-notification-full-message>span,.admin-notification-thread>span { color:#b8ff43; font-size:8px; font-weight:900; letter-spacing:.09em; text-transform:uppercase; }
+.admin-notification-detail-source-heading strong { color:#fff; font-size:12px; }
+.admin-notification-full-message,.admin-notification-thread { display:grid; gap:8px; padding:13px; border:1px solid rgba(184,255,67,.25); background:rgba(184,255,67,.035); }
+.admin-notification-full-message p { max-height:300px; margin:0; overflow:auto; color:#e7edf7; font-size:11px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+.admin-notification-thread>div { display:grid; gap:8px; max-height:380px; overflow:auto; padding-right:3px; }
+.admin-notification-thread article { display:grid; gap:4px; max-width:94%; padding:11px; border:1px solid rgba(255,255,255,.12); background:#0d111a; }
+.admin-notification-thread article.admin { justify-self:end; border-color:rgba(184,255,67,.35); background:rgba(184,255,67,.075); }
+.admin-notification-thread article strong { color:#b8ff43; font-size:9px; letter-spacing:.06em; text-transform:uppercase; }
+.admin-notification-thread article time { color:#8693a9; font-size:9px; }
+.admin-notification-thread article p { margin:0; color:#e6ebf4; font-size:11px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
 @media (max-width: 680px) {
   .admin-notification-inbox > header { gap: 12px; }
   .admin-notification-toolbar { display: grid; align-items: stretch; padding: 13px 15px; }
@@ -47,4 +61,5 @@
   .admin-notification-review-dialog [data-slot="dialog-title"] { font-size: 17px; }
   .admin-notification-detail-grid { grid-template-columns: 1fr; }
   .admin-notification-detail-actions { display: grid; grid-template-columns: 1fr; }
+  .admin-notification-full-message p,.admin-notification-thread>div { max-height:260px; }
 }

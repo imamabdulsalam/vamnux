@@ -10,7 +10,7 @@ import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } fro
 import { assertCustomerAccountActive, recordCustomerConsent } from "./db";
 import { createCustomerProductRequest, recordNewsletterInterest, subscribeCustomerToNewsletterInterest } from "./db";
 import { listAdminPolicyPages, updateAdminPolicyPage } from "./db";
-import { listSuperAdminNotificationInbox, markAllSuperAdminNotificationsRead, markSuperAdminNotificationsRead } from "./db";
+import { getSuperAdminNotificationDetail, listSuperAdminNotificationInbox, markAllSuperAdminNotificationsRead, markSuperAdminNotificationsRead } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -230,6 +230,7 @@ export const appRouter = router({
     upsertNotificationTemplate: adminProcedure.input(z.object({ templateKey: z.string().trim().min(1).max(120), channel: z.enum(["in_app", "email", "sms", "whatsapp"]), eventType: z.string().trim().min(1).max(120), subject: z.string().trim().max(180).nullable().optional(), body: z.string().trim().min(1).max(10_000), status: z.enum(["draft", "active", "archived"]) }))
       .mutation(({ ctx, input }) => upsertNotificationTemplate({ ...input, adminUserId: ctx.user.id })),
     listNotificationInbox: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(250) }).optional()).query(({ ctx, input }) => listSuperAdminNotificationInbox({ adminUserId: ctx.user.id, limit: input?.limit })),
+    getNotificationDetail: adminProcedure.input(z.object({ notificationKey: z.string().trim().min(3).max(220) })).query(({ input }) => getSuperAdminNotificationDetail(input.notificationKey)),
     markNotificationsRead: adminProcedure.input(z.object({ notificationKeys: z.array(z.string().trim().min(1).max(220)).min(1).max(250) }))
       .mutation(({ ctx, input }) => markSuperAdminNotificationsRead({ adminUserId: ctx.user.id, notificationKeys: input.notificationKeys })),
     markAllNotificationsRead: adminProcedure.mutation(({ ctx }) => markAllSuperAdminNotificationsRead(ctx.user.id)),

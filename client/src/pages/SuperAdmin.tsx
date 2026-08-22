@@ -45,6 +45,7 @@ type AdminTab = "overview" | "products" | "categories" | "pricing" | "traffic" |
 const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "Dashboard", icon: LayoutDashboard },
   { id: "products", label: "Products", icon: PackageSearch },
+  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "categories", label: "Categories", icon: FolderTree },
   { id: "pricing", label: "Pricing engine", icon: BadgeDollarSign },
   { id: "traffic", label: "Statistics", icon: Activity },
@@ -56,7 +57,6 @@ const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }>
   { id: "orders", label: "Orders", icon: ClipboardList },
   { id: "manual_delivery", label: "Manual delivery", icon: PackageSearch },
   { id: "funding", label: "Wallet funding", icon: WalletCards },
-  { id: "notifications", label: "Notifications", icon: Bell },
   { id: "auth_settings", label: "Settings · Authentication", icon: Settings2 },
   { id: "risk", label: "Fraud & risk", icon: ShieldAlert },
   { id: "product_sync", label: "Product sync", icon: RefreshCw },
@@ -181,6 +181,37 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const trafficSnapshot = useMemo(() => { const inRange = (customers.data ?? []).filter((customer) => new Date(customer.createdAt) >= trafficStart); const bySource = new Map<string, number>(); const byCountry = new Map<string, number>(); inRange.forEach((customer) => { const source = customer.registrationSource || "Not provided"; const country = customer.countryCode || "Not provided"; bySource.set(source, (bySource.get(source) || 0) + 1); byCountry.set(country, (byCountry.get(country) || 0) + 1); }); return { accounts: inRange.length, sources: Array.from(bySource.entries()).sort((a, b) => b[1] - a[1]), countries: Array.from(byCountry.entries()).sort((a, b) => b[1] - a[1]) }; }, [customers.data, trafficStart]);
   const savedGoals = useMemo(() => { const setting = (siteSettings.data ?? []).find((item) => item.settingKey === "analytics.sales_goals"); if (!setting || !setting.value || typeof setting.value !== "object") return null; const value = setting.value as Record<string, unknown>; return { orders: Number(value.orders || 0), revenue: Number(value.revenue || 0), profit: Number(value.profit || 0) }; }, [siteSettings.data]);
   const savedSyncInterval = useMemo(() => { const setting = (siteSettings.data ?? []).find((item) => item.settingKey === "supplier.sync_interval"); if (!setting || !setting.value || typeof setting.value !== "object") return "off"; const value = setting.value as Record<string, unknown>; return value.interval === "1h" || value.interval === "3h" || value.interval === "12h" ? value.interval : "off"; }, [siteSettings.data]);
+  useEffect(() => {
+    const header = document.querySelector<HTMLElement>(".admin-topbar");
+    const existing = document.querySelector<HTMLElement>("[data-admin-keyword-results]");
+    const term = searchQuery.trim();
+    if (!header || term.length < 2) { existing?.remove(); return; }
+    const panel = existing || document.createElement("section");
+    panel.dataset.adminKeywordResults = "true";
+    panel.className = "admin-keyword-results";
+    panel.replaceChildren();
+    const title = document.createElement("strong"); title.textContent = `Search VAMNUX for “${term}”`; panel.append(title);
+    const helper = document.createElement("p"); helper.textContent = search.isLoading ? "Searching authorised VAMNUX records…" : "Choose a workspace or stored record to continue."; panel.append(helper);
+    const normalized = term.toLowerCase();
+    const section = (heading: string) => { const group = document.createElement("div"); const label = document.createElement("span"); label.textContent = heading; group.append(label); panel.append(group); return group; };
+    const resultButton = (parent: HTMLElement, text: string, click: () => void) => { const button = document.createElement("button"); button.type = "button"; button.textContent = text; button.addEventListener("click", () => { click(); setSearchQuery(""); }); parent.append(button); };
+    const workspaceMatches = tabs.filter((tab) => `${tab.label} ${tab.id.replaceAll("_", " ")}`.toLowerCase().includes(normalized));
+    if (workspaceMatches.length) { const group = section("Admin workspaces"); workspaceMatches.forEach((tab) => resultButton(group, tab.label, () => setActiveTab(tab.id))); }
+    if (!search.isLoading && search.data) {
+      const records = section("Authorised VAMNUX records");
+      let resultCount = 0;
+      search.data.customers.forEach((customer) => { resultCount++; resultButton(records, `Customer · ${customer.username || customer.name || `#${customer.id}`}`, () => { setSelectedCustomerControlId(customer.id); setActiveTab("customers"); }); });
+      search.data.orders.forEach((order) => { resultCount++; resultButton(records, `Order · ${order.orderCode}`, () => setActiveTab("orders")); });
+      search.data.products.forEach((product) => { resultCount++; resultButton(records, `Product · ${product.name}`, () => { setProductOperationsId(String(product.id)); setActiveTab("products"); }); });
+      search.data.tickets.forEach((ticket) => { resultCount++; resultButton(records, `Support ticket · ${ticket.ticketCode} · ${ticket.subject}`, () => { setSelectedSupportTicket(ticket.ticketCode); setActiveTab("notifications"); }); });
+      search.data.requests.forEach((request) => { resultCount++; resultButton(records, `Customer request · ${request.requestCode} · ${request.requestedName}`, () => setActiveTab("notifications")); });
+      search.data.activity.forEach((activity) => { resultCount++; resultButton(records, `${activity.activityType === "favorite_added" ? "Favorite" : "Saved cart"} · ${activity.productName}`, () => setActiveTab("notifications")); });
+      search.data.funding.forEach((funding) => { resultCount++; resultButton(records, `Wallet funding · ${funding.fundingCode}`, () => setActiveTab("funding")); });
+      if (!resultCount) { const empty = document.createElement("small"); empty.textContent = "No authorised stored records matched this keyword."; records.append(empty); }
+    }
+    if (!existing) header.after(panel);
+    return () => { panel.remove(); };
+  }, [search.data, search.isLoading, searchQuery]);
   useEffect(() => { if (pricingSettings.data) setDefaultMarkup(String(pricingSettings.data.defaultMarkupPercent)); }, [pricingSettings.data]);
   useEffect(() => {
     if (!selectedProduct) return;

@@ -1886,6 +1886,109 @@ export async function listSuperAdminNotificationInbox(input: { adminUserId: numb
 	return { items: sorted, unreadCount: sorted.filter((item) => !item.read).length };
 }
 
+export type SuperAdminNotificationDetail = {
+	notificationKey: string;
+	sourceLabel: string;
+	reference: string;
+	fields: Array<{ label: string; value: string }>;
+	message: string | null;
+	messages: Array<{ authorRole: "customer" | "admin"; body: string; createdAt: Date }>;
+};
+
+/** Resolves only the authorised, safe operational context for an existing inbox key. Customer messages are returned in full as stored; secret fulfilment and provider credential data are never returned. */
+export async function getSuperAdminNotificationDetail(notificationKey: string): Promise<SuperAdminNotificationDetail> {
+	const db = requireDb(await getDb());
+	const [kind, sourceId] = notificationKey.trim().split(":", 3);
+	if (!kind || !sourceId) throw new Error("Notification reference is invalid.");
+	const numericId = Number(sourceId);
+	const dateValue = (value: Date | null | undefined) => value ? value.toISOString() : "Not recorded";
+	const personValue = (name: string | null | undefined, email: string | null | undefined) => name || email || "Not recorded";
+	const detail = (sourceLabel: string, reference: string, fields: Array<{ label: string; value: string }>, message: string | null = null, messages: SuperAdminNotificationDetail["messages"] = []): SuperAdminNotificationDetail => ({ notificationKey, sourceLabel, reference, fields, message, messages });
+
+	if (kind === "ticket") {
+		const ticket = await getSuperAdminSupportTicket(sourceId);
+		return detail("Customer support ticket", ticket.ticket.ticketCode, [
+			{ label: "Subject", value: ticket.ticket.subject },
+			{ label: "Category", value: ticket.ticket.category.replaceAll("_", " ") },
+			{ label: "Status", value: ticket.ticket.status.replaceAll("_", " ") },
+			{ label: "Customer", value: personValue(ticket.ticket.customerName, ticket.ticket.customerEmail) },
+			{ label: "Customer email", value: ticket.ticket.customerEmail || "Not recorded" },
+			{ label: "Linked order", value: ticket.ticket.orderId ? `Order record #${ticket.ticket.orderId}` : "Not linked" },
+			{ label: "Created", value: dateValue(ticket.ticket.createdAt) },
+			{ label: "Last updated", value: dateValue(ticket.ticket.updatedAt) },
+		], null, ticket.messages.map((item) => ({ authorRole: item.authorRole, body: item.body, createdAt: item.createdAt })));
+	}
+	if (!Number.isSafeInteger(numericId) || numericId <= 0) throw new Error("Notification source is invalid.");
+
+	if (kind === "request") {
+		const [request] = await db.select({ id: customerProductRequests.id, requestCode: customerProductRequests.requestCode, category: customerProductRequests.category, requestedName: customerProductRequests.requestedName, details: customerProductRequests.details, status: customerProductRequests.status, createdAt: customerProductRequests.createdAt, updatedAt: customerProductRequests.updatedAt, customerName: users.name, customerEmail: users.email, customerUsername: customerProfiles.username }).from(customerProductRequests).leftJoin(users, eq(customerProductRequests.userId, users.id)).leftJoin(customerProfiles, eq(customerProductRequests.userId, customerProfiles.userId)).where(eq(customerProductRequests.id, numericId)).limit(1);
+		if (!request) throw new Error("Customer request is no longer available.");
+		return detail("Customer product request", request.requestCode, [
+			{ label: "Requested product or service", value: request.requestedName },
+			{ label: "Category", value: request.category.replaceAll("_", " ") },
+			{ label: "Status", value: request.status.replaceAll("_", " ") },
+			{ label: "Customer", value: request.customerUsername || personValue(request.customerName, request.customerEmail) },
+			{ label: "Customer email", value: request.customerEmail || "Not recorded" },
+			{ label: "Submitted", value: dateValue(request.createdAt) },
+			{ label: "Last updated", value: dateValue(request.updatedAt) },
+		], request.details || "No additional request message was provided.");
+	}
+	if (kind === "activity") {
+		const [activity] = await db.select({ id: customerProductActivityEvents.id, activityType: customerProductActivityEvents.activityType, createdAt: customerProductActivityEvents.createdAt, customerName: users.name, customerEmail: users.email, customerUsername: customerProfiles.username, productName: products.name, productCategory: products.category, basePrice: products.basePrice, baseCurrency: products.baseCurrency, markupPercentOverride: products.markupPercentOverride, displayPriceOverride: products.displayPriceOverride, productStatus: products.status, supplierKey: products.supplierKey, regionLabel: products.regionLabel, deliveryType: products.deliveryType }).from(customerProductActivityEvents).innerJoin(users, eq(customerProductActivityEvents.userId, users.id)).innerJoin(products, eq(customerProductActivityEvents.productId, products.id)).leftJoin(customerProfiles, eq(customerProfiles.userId, users.id)).where(eq(customerProductActivityEvents.id, numericId)).limit(1);
+		if (!activity) throw new Error("Product activity is no longer available.");
+		const pricing = customerPriceForProduct(activity, await ensureMarketplacePricingSettings(db));
+		return detail("Customer product activity", `Activity #${activity.id}`, [
+			{ label: "Activity", value: activity.activityType === "favorite_added" ? "Added to favorites" : "Added to saved cart" },
+			{ label: "Customer", value: activity.customerUsername || personValue(activity.customerName, activity.customerEmail) },
+			{ label: "Customer email", value: activity.customerEmail || "Not recorded" },
+			{ label: "Product", value: activity.productName },
+			{ label: "Category", value: activity.productCategory.replaceAll("_", " ") },
+			{ label: "Current customer price", value: `${pricing.customerPrice.toFixed(2)} ${activity.baseCurrency}` },
+			{ label: "Product source", value: activity.supplierKey ? "Synchronized catalog listing" : "Admin-managed listing" },
+			{ label: "Region", value: activity.regionLabel || "Not specified" },
+			{ label: "Delivery format", value: activity.deliveryType.replaceAll("_", " ") },
+			{ label: "Product status", value: activity.productStatus },
+			{ label: "Recorded", value: dateValue(activity.createdAt) },
+		]);
+	}
+	if (kind === "order" || kind === "refund") {
+		const [order] = await db.select({ id: orders.id, orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, currency: orders.currency, total: orders.total, createdAt: orders.createdAt, updatedAt: orders.updatedAt, customerName: users.name, customerEmail: users.email }).from(orders).leftJoin(users, eq(orders.userId, users.id)).where(eq(orders.id, numericId)).limit(1);
+		if (!order) throw new Error("Order is no longer available.");
+		const items = await db.select({ productName: orderItems.productName, quantity: orderItems.quantity, unitPrice: orderItems.unitPrice, regionLabel: orderItems.regionLabel, deliveryType: orderItems.deliveryType }).from(orderItems).where(eq(orderItems.orderId, order.id));
+		return detail(kind === "refund" ? "Order failure or refund review" : "VAMNUX order", order.orderCode, [
+			{ label: "Customer", value: personValue(order.customerName, order.customerEmail) },
+			{ label: "Customer email", value: order.customerEmail || "Not recorded" },
+			{ label: "Order status", value: order.status.replaceAll("_", " ") },
+			{ label: "Payment status", value: order.paymentStatus.replaceAll("_", " ") },
+			{ label: "Supplier status", value: order.supplierStatus.replaceAll("_", " ") },
+			{ label: "Order total", value: `${Number(order.total).toFixed(2)} ${order.currency}` },
+			{ label: "Created", value: dateValue(order.createdAt) },
+			{ label: "Last updated", value: dateValue(order.updatedAt) },
+		], items.length ? items.map((item) => `${item.quantity} × ${item.productName} · ${Number(item.unitPrice).toFixed(2)} ${order.currency}${item.regionLabel ? ` · ${item.regionLabel}` : ""} · ${item.deliveryType.replaceAll("_", " ")}`).join("\n") : "No order items are available.");
+	}
+	if (kind === "subscriber") {
+		const [subscriber] = await db.select().from(newsletterInterestSubscribers).where(eq(newsletterInterestSubscribers.id, numericId)).limit(1);
+		if (!subscriber) throw new Error("Subscriber record is no longer available.");
+		return detail("Update-interest consent record", `Subscriber #${subscriber.id}`, [{ label: "Email", value: subscriber.email }, { label: "Source", value: subscriber.source.replaceAll("_", " ") }, { label: "Status", value: subscriber.status }, { label: "Consented", value: dateValue(subscriber.consentedAt) }, { label: "Last updated", value: dateValue(subscriber.updatedAt) }]);
+	}
+	if (kind === "funding") {
+		const [funding] = await db.select({ fundingCode: walletFundingAttempts.fundingCode, amount: walletFundingAttempts.amount, currency: walletFundingAttempts.currency, status: walletFundingAttempts.status, createdAt: walletFundingAttempts.createdAt, updatedAt: walletFundingAttempts.updatedAt, customerName: users.name, customerEmail: users.email }).from(walletFundingAttempts).leftJoin(users, eq(walletFundingAttempts.userId, users.id)).where(eq(walletFundingAttempts.fundingCode, sourceId)).limit(1);
+		if (!funding) throw new Error("Funding record is no longer available.");
+		return detail("Wallet funding review record", funding.fundingCode, [{ label: "Customer", value: personValue(funding.customerName, funding.customerEmail) }, { label: "Customer email", value: funding.customerEmail || "Not recorded" }, { label: "Amount", value: `${Number(funding.amount).toFixed(2)} ${funding.currency}` }, { label: "Status", value: funding.status }, { label: "Created", value: dateValue(funding.createdAt) }, { label: "Last updated", value: dateValue(funding.updatedAt) }]);
+	}
+	if (kind === "supplier") {
+		const [supplier] = await db.select({ id: supplierBalanceObservations.id, providerName: commerceIntegrations.providerName, balance: supplierBalanceObservations.balance, currency: supplierBalanceObservations.currency, source: supplierBalanceObservations.source, note: supplierBalanceObservations.note, observedAt: supplierBalanceObservations.observedAt }).from(supplierBalanceObservations).innerJoin(commerceIntegrations, eq(supplierBalanceObservations.integrationId, commerceIntegrations.id)).where(eq(supplierBalanceObservations.id, numericId)).limit(1);
+		if (!supplier) throw new Error("Supplier balance observation is no longer available.");
+		return detail("Recorded supplier balance observation", `Balance observation #${supplier.id}`, [{ label: "Supplier", value: supplier.providerName }, { label: "Recorded balance", value: `${Number(supplier.balance).toFixed(2)} ${supplier.currency}` }, { label: "Observation source", value: supplier.source.replaceAll("_", " ") }, { label: "Observed", value: dateValue(supplier.observedAt) }], supplier.note || "No balance note was recorded.");
+	}
+	if (kind === "api") {
+		const [api] = await db.select({ id: apiRequestLogs.id, supplierKey: apiRequestLogs.supplierKey, endpoint: apiRequestLogs.endpoint, httpStatus: apiRequestLogs.httpStatus, responseMs: apiRequestLogs.responseMs, errorCode: apiRequestLogs.errorCode, createdAt: apiRequestLogs.createdAt }).from(apiRequestLogs).where(eq(apiRequestLogs.id, numericId)).limit(1);
+		if (!api) throw new Error("Supplier API log is no longer available.");
+		return detail("Recorded supplier API request log", `API log #${api.id}`, [{ label: "Supplier", value: api.supplierKey }, { label: "Endpoint", value: api.endpoint }, { label: "HTTP status", value: api.httpStatus === null ? "Not recorded" : String(api.httpStatus) }, { label: "Response time", value: api.responseMs === null ? "Not recorded" : `${api.responseMs} ms` }, { label: "Error code", value: api.errorCode || "Not recorded" }, { label: "Recorded", value: dateValue(api.createdAt) }]);
+	}
+	throw new Error("This notification type is not available for review.");
+}
+
 export async function markSuperAdminNotificationsRead(input: { adminUserId: number; notificationKeys: string[] }) {
 	const db = requireDb(await getDb());
 	const notificationKeys = Array.from(new Set(input.notificationKeys.map((key) => key.trim()).filter((key) => key.length > 0 && key.length <= 220))).slice(0, 250);
@@ -2189,14 +2292,16 @@ export async function listRedactedSupplierWebhookEvents(limit = 100) {
 export async function globalAdminSearch(query: string) {
   const db = requireDb(await getDb());
   const term = query.trim().slice(0, 120);
-  if (term.length < 2) return { customers: [], orders: [], products: [], tickets: [], funding: [] };
+  if (term.length < 2) return { customers: [], orders: [], products: [], tickets: [], funding: [], requests: [], activity: [] };
   const pattern = `%${term}%`;
-  const [customers, foundOrders, foundProducts, tickets, funding] = await Promise.all([
+  const [customers, foundOrders, foundProducts, tickets, funding, requests, activity] = await Promise.all([
     db.select({ id: users.id, name: users.name, email: users.email, username: customerProfiles.username, accountStatus: customerProfiles.accountStatus }).from(users).leftJoin(customerProfiles, eq(users.id, customerProfiles.userId)).where(or(like(users.name, pattern), like(users.email, pattern), like(customerProfiles.username, pattern), like(customerProfiles.phone, pattern))).limit(10),
     db.select({ orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, total: orders.total, currency: orders.currency, userId: orders.userId, createdAt: orders.createdAt }).from(orders).where(or(like(orders.orderCode, pattern), like(orders.supplierOrderId, pattern))).limit(10),
     db.select({ id: products.id, name: products.name, slug: products.slug, supplierKey: products.supplierKey, supplierSku: products.supplierSku, status: products.status }).from(products).where(or(like(products.name, pattern), like(products.slug, pattern), like(products.supplierSku, pattern))).limit(10),
     db.select({ ticketCode: supportTickets.ticketCode, subject: supportTickets.subject, status: supportTickets.status, userId: supportTickets.userId, updatedAt: supportTickets.updatedAt }).from(supportTickets).where(or(like(supportTickets.ticketCode, pattern), like(supportTickets.subject, pattern))).limit(10),
     db.select({ fundingCode: walletFundingAttempts.fundingCode, providerReference: walletFundingAttempts.providerReference, status: walletFundingAttempts.status, amount: walletFundingAttempts.amount, currency: walletFundingAttempts.currency, userId: walletFundingAttempts.userId, createdAt: walletFundingAttempts.createdAt }).from(walletFundingAttempts).where(or(like(walletFundingAttempts.fundingCode, pattern), like(walletFundingAttempts.providerReference, pattern))).limit(10),
+    db.select({ id: customerProductRequests.id, requestCode: customerProductRequests.requestCode, requestedName: customerProductRequests.requestedName, status: customerProductRequests.status, category: customerProductRequests.category, updatedAt: customerProductRequests.updatedAt }).from(customerProductRequests).where(or(like(customerProductRequests.requestCode, pattern), like(customerProductRequests.requestedName, pattern), like(customerProductRequests.details, pattern))).limit(10),
+    db.select({ id: customerProductActivityEvents.id, activityType: customerProductActivityEvents.activityType, productName: products.name, customerName: users.name, customerEmail: users.email, createdAt: customerProductActivityEvents.createdAt }).from(customerProductActivityEvents).innerJoin(products, eq(customerProductActivityEvents.productId, products.id)).innerJoin(users, eq(customerProductActivityEvents.userId, users.id)).where(or(like(products.name, pattern), like(users.name, pattern), like(users.email, pattern))).limit(10),
   ]);
-  return { customers, orders: foundOrders, products: foundProducts, tickets, funding };
+  return { customers, orders: foundOrders, products: foundProducts, tickets, funding, requests, activity };
 }
