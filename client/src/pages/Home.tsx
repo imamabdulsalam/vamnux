@@ -367,14 +367,14 @@ export default function Home() {
     setActiveCategory(category);
     setQuery("");
     setOpenMegaCategory(null);
-    document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.requestAnimationFrame(() => revealCatalog(true));
   };
 
   const chooseQuickLink = (category: ProductCategory, label: string) => {
     setActiveCategory(category);
     setQuery(label);
     setOpenMegaCategory(null);
-    document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.requestAnimationFrame(() => revealCatalog(true));
   };
 
   const openCompactProduct = (product: Product) => {
@@ -580,7 +580,7 @@ export default function Home() {
           </div>
           <div className="section-heading-right">
             <p>Search or use a category menu to go straight to real supplier products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
-            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); }}>Browse VAMNUX products <ArrowRight size={17} /></button>
+            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); window.requestAnimationFrame(() => revealCatalog(true)); }}>Browse VAMNUX products <ArrowRight size={17} /></button>
           </div>
         </div>
 
@@ -624,7 +624,7 @@ export default function Home() {
       <section className="why-vamnux-section" aria-labelledby="why-vamnux-title">
         <div className="why-vamnux-heading">
           <div><p className="section-marker">WHY VAMNUX</p><h2 id="why-vamnux-title">TRUST, MADE<br /><em>PRACTICAL.</em></h2></div>
-          <div><p>VAMNUX makes the important parts of a digital purchase visible before you move forward: product requirements, final display pricing, account records, and the operational status of checkout.</p><div className="why-vamnux-actions"><button type="button" onClick={() => document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Browse active products <ArrowRight size={16} /></button><button type="button" onClick={() => setLocation("/help")}>Visit Help Center</button></div></div>
+          <div><p>VAMNUX makes the important parts of a digital purchase visible before you move forward: product requirements, final display pricing, account records, and the operational status of checkout.</p><div className="why-vamnux-actions"><button type="button" onClick={() => { setActiveCategory("All"); setQuery(""); revealCatalog(true); }}>Browse active products <ArrowRight size={16} /></button><button type="button" onClick={() => setLocation("/help")}>Visit Help Center</button></div></div>
         </div>
         <div className="why-vamnux-grid">
           <article className="why-vamnux-card trust-payment"><span className="why-vamnux-icon"><ShieldCheck size={21} /></span><div><p>PAYMENT READINESS</p><h3>Secure payment pathway</h3><span>Checkout is enabled only through configured supported providers. VAMNUX does not treat an unverified payment as wallet funding.</span></div></article>
@@ -640,7 +640,7 @@ export default function Home() {
           <div className="section-marker">A CLEARER WAY TO BUY DIGITAL</div>
           <h2 id="process-title">FIND.<br /><em>CHECK.</em><br />CHOOSE.</h2>
           <p>Browse active digital products, review the listed region and requirements, then save the option that fits your account before checkout is available.</p>
-          <a href="#products">Browse digital products <ArrowRight size={18} /></a>
+          <a href="#products" onClick={(event) => { event.preventDefault(); setActiveCategory("All"); setQuery(""); revealCatalog(true); }}>Browse digital products <ArrowRight size={18} /></a>
         </div>
         <div className="steps-list">
           <article className="step-item">
@@ -677,7 +677,7 @@ export default function Home() {
           <label className="email-consent"><input type="checkbox" required /> <span>I agree to receive future VAMNUX product updates.</span></label>
           <button type="submit" disabled={subscribeNewsletter.isPending}>{subscribeNewsletter.isPending ? "Saving…" : "Save my interest"} <ArrowRight size={16} /></button>
         </form>
-        <div className="support-cta-actions"><a href="#products">Browse digital products <ArrowRight size={18} /></a><a href="/help">Visit Help Center</a></div>
+        <div className="support-cta-actions"><a href="#products" onClick={(event) => { event.preventDefault(); setActiveCategory("All"); setQuery(""); revealCatalog(true); }}>Browse digital products <ArrowRight size={18} /></a><a href="/help">Visit Help Center</a></div>
         <aside className="marketplace-summary" aria-label="Browse VAMNUX by need">
           <div className="marketplace-summary-head"><span>Browse by need</span><small>Choose a product category</small></div>
           <button className="summary-choice summary-choice-blue" onClick={() => { setActiveCategory("Top-up"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Gamepad2 size={18} /><span><strong>Games & top-ups</strong><small>Credits, passes, and vouchers</small></span><ArrowRight size={16} /></button>
@@ -693,7 +693,7 @@ export default function Home() {
       <aside className={cartOpen ? "cart-drawer open" : "cart-drawer"} aria-label="Shopping cart" aria-hidden={!cartOpen}>
         <div className="cart-drawer-head"><div><span className="section-marker">YOUR SELECTION</span><h2>Cart <em>({cart.length})</em></h2></div><button onClick={() => setCartOpen(false)} aria-label="Close cart"><X size={22} /></button></div>
         <div className="cart-items">
-          {cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={35} /><h3>Your cart is clear.</h3><p>Pick a digital product and it will appear here.</p><button onClick={() => { setCartOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}>Browse products</button></div> : cart.map((item, index) => (
+          {cart.length === 0 ? <div className="cart-empty"><ShoppingBag size={35} /><h3>Your cart is clear.</h3><p>Pick a digital product and it will appear here.</p><button onClick={() => { setCartOpen(false); setActiveCategory("All"); setQuery(""); window.requestAnimationFrame(() => revealCatalog(true)); }}>Browse products</button></div> : cart.map((item, index) => (
             <div className="cart-item" key={`${item.id}-${index}`}>{item.image ? <img src={item.image} alt="" /> : <span className="cart-item-fallback">{item.name.slice(0, 1)}</span>}<div><span>{item.name}</span><strong>{item.product}</strong><small>{formatPrice(item.price)}</small></div><button onClick={() => setCart((current) => current.filter((_, i) => i !== index))} aria-label={`Remove ${item.product}`}><X size={16} /></button></div>
           ))}
         </div>

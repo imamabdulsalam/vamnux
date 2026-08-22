@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 
 type CatalogCategory = "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "telegram_stars";
+const CATALOG_HREF = "/?category=All#products";
 
 type PageDefinition = {
   title: string;
@@ -73,7 +74,7 @@ export function PublicHeader() {
     setLocation("/account");
   };
 
-  return <header className="public-info-header"><div><Link href="/" className="public-info-brand"><span>V</span>VAM<em>NUX</em></Link><nav aria-label="Primary information navigation"><Link href="/products">Browse products</Link><Link href="/help">Help center</Link><Link href="/about">About</Link></nav></div><button type="button" onClick={openAccount}>{isAuthenticated ? "My account" : "Sign in"}<ArrowRight size={15} /></button></header>;
+  return <header className="public-info-header"><div><Link href="/" className="public-info-brand"><span>V</span>VAM<em>NUX</em></Link><nav aria-label="Primary information navigation"><Link href={CATALOG_HREF}>Browse products</Link><Link href="/help">Help center</Link><Link href="/about">About</Link></nav></div><button type="button" onClick={openAccount}>{isAuthenticated ? "My account" : "Sign in"}<ArrowRight size={15} /></button></header>;
 }
 
 function CatalogShelf({ category, pagePath }: { category?: CatalogCategory; pagePath: string }) {
@@ -87,8 +88,8 @@ function CatalogShelf({ category, pagePath }: { category?: CatalogCategory; page
 
   if (catalog.isLoading) return <div className="info-state">Loading the active VAMNUX catalog…</div>;
   if (catalog.error) return <div className="info-state error">The catalog could not be loaded right now. Return to the marketplace and try again.</div>;
-  if (!products.length) return <div className="info-state"><PackageCheck size={22} /><strong>No active listings are available in this view.</strong><span>VAMNUX shows only synchronized or authorized products that are currently available.</span><Link href="/products">Browse all active products <ArrowRight size={14} /></Link></div>;
-  return <section className="info-catalog-shelf" aria-label="Active VAMNUX product listings"><div className="info-section-heading"><span>Current availability</span><Link href="/products">View all products <ArrowRight size={14} /></Link></div><div>{products.slice(0, 8).map((product) => <Link key={product.id} href={product.category === "top_up" ? `/games/${encodeURIComponent(product.name)}` : `/products/${product.slug}`}><span>{product.category.replace("_", " ")}</span><strong>{product.name}</strong><small>{product.regionLabel || "Region shown on product"} · {product.baseCurrency} {Number(product.customerPrice).toFixed(2)}</small><ChevronRight size={16} /></Link>)}</div></section>;
+  if (!products.length) return <div className="info-state"><PackageCheck size={22} /><strong>No active listings are available in this view.</strong><span>VAMNUX shows only synchronized or authorized products that are currently available.</span><Link href={CATALOG_HREF}>Browse all active products <ArrowRight size={14} /></Link></div>;
+  return <section className="info-catalog-shelf" aria-label="Active VAMNUX product listings"><div className="info-section-heading"><span>Current availability</span><Link href={CATALOG_HREF}>View all products <ArrowRight size={14} /></Link></div><div>{products.slice(0, 8).map((product) => <Link key={product.id} href={product.category === "top_up" ? `/games/${encodeURIComponent(product.name)}` : `/products/${product.slug}`}><span>{product.category.replace("_", " ")}</span><strong>{product.name}</strong><small>{product.regionLabel || "Region shown on product"} · {product.baseCurrency} {Number(product.customerPrice).toFixed(2)}</small><ChevronRight size={16} /></Link>)}</div></section>;
 }
 
 function SupportAction({ ticket }: { ticket: boolean }) {
@@ -128,8 +129,8 @@ function PageBody({ definition, path }: { definition: PageDefinition; path: stri
   if (definition.kind === "support") return <><InfoSections sections={definition.sections} /><section className="info-callout"><Ticket size={24} /><div><strong>Real account support workflow</strong><p>VAMNUX support tickets use the existing account-scoped ticket system. For privacy, guest tickets and file uploads are not enabled until the owner configures a verified support-delivery workflow.</p></div></section><SupportAction ticket={path === "/support/ticket"} /></>;
   if (definition.kind === "track") return <><InfoSections sections={definition.sections} /><SupportAction ticket={false} /></>;
   if (definition.kind === "contact") return <><InfoSections sections={definition.sections} /><div className="info-callout"><LockKeyhole size={24} /><div><strong>Keep your support request safe</strong><p>Order, wallet, and account support requests require sign-in so private information does not pass through an unverified public form.</p></div></div><SupportAction ticket={true} /></>;
-  if (definition.kind === "about") return <><InfoSections sections={definition.sections} /><div className="info-cta-row"><Link href="/products" className="info-primary-action">Explore products <ArrowRight size={16} /></Link><Link href="/login" className="info-secondary-action">Create account <ArrowRight size={16} /></Link></div></>;
-  if (definition.kind === "reseller" || definition.kind === "affiliate" || definition.kind === "blog" || definition.kind === "policy") return <><InfoSections sections={definition.sections} /><div className="info-cta-row"><Link href="/products" className="info-primary-action">Explore products <ArrowRight size={16} /></Link><Link href="/support" className="info-secondary-action">Contact support <Headphones size={16} /></Link></div></>;
+  if (definition.kind === "about") return <><InfoSections sections={definition.sections} /><div className="info-cta-row"><Link href={CATALOG_HREF} className="info-primary-action">Explore products <ArrowRight size={16} /></Link><Link href="/login" className="info-secondary-action">Create account <ArrowRight size={16} /></Link></div></>;
+  if (definition.kind === "reseller" || definition.kind === "affiliate" || definition.kind === "blog" || definition.kind === "policy") return <><InfoSections sections={definition.sections} /><div className="info-cta-row"><Link href={CATALOG_HREF} className="info-primary-action">Explore products <ArrowRight size={16} /></Link><Link href="/support" className="info-secondary-action">Contact support <Headphones size={16} /></Link></div></>;
   return <InfoSections sections={definition.sections} />;
 }
 

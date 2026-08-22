@@ -463,3 +463,7 @@
 - [x] Replace the VAMNUX About Us page with the owner-provided marketplace story, vision, digital-product overview, security framing, and capability-accurate Why VAMNUX content.
 - [x] Add clear internal Explore Products and Create Account actions to the revised About Us page without claiming unconfigured payments or supplier fulfilment are active.
 - [x] Validate About Us content accuracy, internal navigation, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Route every VAMNUX Browse products, Explore products, View all products, and equivalent public action to the visible on-site catalog with search ready for immediate use.
+- [x] Update public-page headers and product-browsing calls to use the focused catalog destination instead of generic product information pages where appropriate.
+- [x] Validate catalog visibility, search readiness, internal routing, responsive presentation, deterministic tests, and production build before publishing.

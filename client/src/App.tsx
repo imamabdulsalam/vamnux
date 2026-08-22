@@ -37,7 +37,7 @@ function Router() {
       <Route path="/subscriptions" component={PublicInformationPage} />
       <Route path="/ai-tools" component={PublicInformationPage} />
       <Route path="/deals" component={PublicInformationPage} />
-      <Route path="/products" component={PublicInformationPage} />
+      <Route path="/products" component={CatalogRedirect} />
       <Route path="/help" component={PublicInformationPage} />
       <Route path="/faq" component={PublicInformationPage} />
       <Route path="/support/ticket" component={PublicInformationPage} />
@@ -72,6 +72,16 @@ function RoutePositionReset() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     root.style.scrollBehavior = priorInlineBehavior;
   }, [location]);
+
+  return null;
+}
+
+function CatalogRedirect() {
+  const [, setLocation] = useLocation();
+
+  useLayoutEffect(() => {
+    setLocation("/?category=All#products", { replace: true });
+  }, [setLocation]);
 
   return null;
 }
