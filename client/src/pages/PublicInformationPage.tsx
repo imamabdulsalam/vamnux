@@ -1,6 +1,5 @@
 import FooterNavigation from "@/components/FooterNavigation";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
 import { helpArticles, helpSections } from "@/lib/helpCenter";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, BadgeHelp, BookOpen, CheckCircle2, ChevronRight, CircleAlert, FileText, Headphones, Info, Landmark, LockKeyhole, PackageCheck, Search, ShieldCheck, ShoppingBag, Ticket, WalletCards } from "lucide-react";
@@ -67,10 +66,7 @@ export function PublicHeader() {
   const [, setLocation] = useLocation();
   const openAccount = () => {
     if (loading) return;
-    if (!isAuthenticated) {
-      startLogin();
-      return;
-    }
+    if (!isAuthenticated) { setLocation("/login"); return; }
     setLocation("/account");
   };
 
@@ -97,7 +93,7 @@ function SupportAction({ ticket }: { ticket: boolean }) {
   const [, setLocation] = useLocation();
   const open = () => {
     if (loading) return;
-    if (!isAuthenticated) { startLogin(); return; }
+    if (!isAuthenticated) { setLocation("/login"); return; }
     setLocation(`/account${ticket ? "?tab=support" : "?tab=support"}`);
   };
   return <button type="button" className="info-primary-action" onClick={open}>{isAuthenticated ? (ticket ? "Open secure ticket form" : "Open my support tickets") : "Sign in for secure support"}<ArrowRight size={16} /></button>;

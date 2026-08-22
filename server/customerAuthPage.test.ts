@@ -8,7 +8,8 @@ const footerSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/com
 
 describe("VAMNUX customer account access", () => {
   it("provides distinct secure sign-in and interactive registration views", () => {
-    expect(authSource).toContain('get("mode") === "signup"');
+    expect(authSource).toContain('get("mode")');
+    expect(authSource).toContain('accountMode === "signup"');
     expect(authSource).toContain("SECURE SIGN IN");
     expect(authSource).toContain("CREATE SECURE ACCOUNT");
     expect(authSource).toContain("First name");
@@ -44,6 +45,14 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).toContain("server-side token verification");
     expect(authSource).not.toContain("trpc.auth.register");
     expect(authSource).not.toContain("trpc.auth.loginWithPassword");
+  });
+
+  it("provides clear standard destinations for sign-in, registration, and unavailable recovery", () => {
+    expect(authSource).toContain('setLocation("/login?mode=signup")');
+    expect(authSource).toContain('setLocation("/login?mode=recovery")');
+    expect(authSource).toContain("PASSWORD RECOVERY");
+    expect(authSource).toContain("Recovery status: unavailable");
+    expect(authSource).toContain('accountMode === "recovery"');
   });
 
   it("routes Create Account actions to the registration-readiness view", () => {

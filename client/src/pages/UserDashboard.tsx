@@ -1,5 +1,4 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import {
   ArrowRight,
@@ -25,7 +24,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 
 type DashboardTab = "overview" | "categories" | "orders" | "saved" | "wallet" | "referral" | "account" | "profile" | "notifications" | "support" | "security" | "settings";
@@ -63,6 +62,7 @@ function UserDashboardLoading() {
 
 export default function UserDashboard() {
   const { user, loading, logout } = useAuth();
+  const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
     return dashboardTabs.includes(requestedTab as DashboardTab) ? requestedTab as DashboardTab : "overview";
@@ -146,7 +146,7 @@ export default function UserDashboard() {
   }, [dashboard.data?.orders]);
 
   if (loading) return <UserDashboardLoading />;
-  if (!user) return <div className="user-dashboard-loading"><div className="user-loader-mark">V</div><h1>Your VAMNUX account</h1><p>Sign in securely to view your personal orders, saved products, wallet activity, and settings.</p><button type="button" onClick={() => startLogin()} className="user-primary-action">Sign in to continue <ArrowRight size={15} /></button><Link href="/" className="user-text-link">Return to marketplace</Link></div>;
+  if (!user) return <div className="user-dashboard-loading"><div className="user-loader-mark">V</div><h1>Your VAMNUX account</h1><p>Sign in securely to view your personal orders, saved products, wallet activity, and settings.</p><button type="button" onClick={() => setLocation("/login")} className="user-primary-action">Sign in to continue <ArrowRight size={15} /></button><Link href="/" className="user-text-link">Return to marketplace</Link></div>;
   if (dashboard.isLoading) return <UserDashboardLoading />;
   if (dashboard.error || !dashboard.data) return <div className="user-dashboard-loading"><div className="user-loader-mark">V</div><h1>We could not load your account</h1><p>Your account details have not been changed. Please retry the secure account request.</p><button type="button" onClick={() => void dashboard.refetch()} className="user-primary-action">Retry account loading <ArrowRight size={15} /></button><Link href="/" className="user-text-link">Return to marketplace</Link></div>;
 
