@@ -407,3 +407,7 @@
 - [x] Redesign every VAMNUX supplier-backed product-family detail page into a compact selectable denomination grid with a focused selected-item summary.
 - [x] Preserve active supplier product data, final customer prices, requirements, regions, delivery formats, active-category boundaries, and saved-cart-only behavior without exposing supplier cost or activating payment/supplier orders.
 - [x] Validate representative Free Fire, PUBG, Telegram Stars, Steam, and other product-family selection pages across desktop/mobile, requirements, cart boundaries, tests, build, and visual presentation before publishing.
+
+- [x] Reduce the oversized lower storefront heading and add a compact mobile-friendly VAMNUX email-interest panel with useful marketplace messaging.
+- [x] Store consented public email-interest submissions securely without claiming newsletters or marketing email are delivered before a sending provider is configured.
+- [x] Validate public email consent, submission feedback, typography balance, accessibility, desktop/mobile layout, tests, build, and visual presentation before publishing.

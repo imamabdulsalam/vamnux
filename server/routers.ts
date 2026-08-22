@@ -8,6 +8,7 @@ import { bulkUpdateSyncedProductMarkup, canRunSupplierCatalogSync, cancelSuperAd
 import { bulkArchiveAdminManagedCatalogProducts, bulkUpdateProductStorefrontVisibility } from "./db";
 import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } from "./db";
 import { assertCustomerAccountActive } from "./db";
+import { recordNewsletterInterest } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -54,6 +55,8 @@ export const appRouter = router({
     catalog: publicProcedure.query(() => listActiveCatalogProducts()),
     categories: publicProcedure.query(() => listMarketplaceCategories()),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
+    subscribeNewsletter: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), consent: z.literal(true) }))
+      .mutation(({ input }) => recordNewsletterInterest(input.email)),
     policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "refund-policy", "cookie-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
     accountSummary: customerProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
     customerDashboard: customerProcedure.query(({ ctx }) => getCustomerDashboard(ctx.user.id)),

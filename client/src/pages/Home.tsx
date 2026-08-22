@@ -200,6 +200,14 @@ export default function Home() {
   const [openMegaCategory, setOpenMegaCategory] = useState<ProductCategory | null>(null);
   const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = useState(false);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const subscribeNewsletter = trpc.marketplace.subscribeNewsletter.useMutation({
+    onSuccess: () => {
+      toast.success("Interest saved", { description: "VAMNUX will only email you after a messaging provider is configured." });
+      setNewsletterEmail("");
+    },
+    onError: (error) => toast.error(error.message || "We could not save your email interest."),
+  });
   const createDraftOrder = trpc.marketplace.createOrder.useMutation({
     onSuccess: (result) => {
       toast.success(`Draft order ${result.orderCode} created`, { description: "Wallet balance eligibility was confirmed. No wallet debit or supplier order has been sent." });
@@ -594,6 +602,12 @@ export default function Home() {
         <div className="section-marker">VAMNUX / DIGITAL MARKETPLACE</div>
         <h2>YOUR NEXT<br /><em>DIGITAL PICK</em><br />STARTS HERE.</h2>
         <p><b>CURATED / CLEAR / READY TO BROWSE</b><br />Explore active products, compare the details, and choose what works for your digital life.</p>
+        <form className="storefront-email-interest" onSubmit={(event) => { event.preventDefault(); subscribeNewsletter.mutate({ email: newsletterEmail, consent: true }); }}>
+          <div><span>STAY IN THE LOOP</span><strong>Product availability and VAMNUX updates</strong><small>We record your interest only. Marketing emails are not active until delivery is configured.</small></div>
+          <label><span className="sr-only">Email address</span><input type="email" value={newsletterEmail} onChange={(event) => setNewsletterEmail(event.target.value)} placeholder="you@email.com" autoComplete="email" required /></label>
+          <label className="email-consent"><input type="checkbox" required /> <span>I agree to receive future VAMNUX product updates.</span></label>
+          <button type="submit" disabled={subscribeNewsletter.isPending}>{subscribeNewsletter.isPending ? "Saving…" : "Save my interest"} <ArrowRight size={16} /></button>
+        </form>
         <div className="support-cta-actions"><a href="#products">Browse digital products <ArrowRight size={18} /></a><a href="/help">Visit Help Center</a></div>
         <aside className="marketplace-summary" aria-label="Browse VAMNUX by need">
           <div className="marketplace-summary-head"><span>Browse by need</span><small>Choose a product category</small></div>

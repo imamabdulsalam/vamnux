@@ -8,6 +8,7 @@ import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDe
 import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
+import { newsletterInterestSubscribers } from "../drizzle/schema";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -74,6 +75,25 @@ export async function recordCustomerSecurityEvent(input: { userId: number; event
     summary: input.summary.slice(0, 255),
     metadata: input.metadata,
   });
+}
+
+/** Records explicit public email-interest consent only. Delivery remains disabled until a sender is configured separately. */
+export async function recordNewsletterInterest(email: string) {
+  const db = requireDb(await getDb());
+  const normalizedEmail = email.trim().toLowerCase();
+  await db.insert(newsletterInterestSubscribers).values({
+    email: normalizedEmail,
+    source: "storefront_lower_cta",
+    status: "subscribed",
+    consentedAt: new Date(),
+  }).onDuplicateKeyUpdate({
+    set: {
+      source: "storefront_lower_cta",
+      status: "subscribed",
+      consentedAt: new Date(),
+    },
+  });
+  return { recorded: true } as const;
 }
 
 export async function linkManusOAuthIdentity(input: { userId: number; openId: string; email?: string | null }) {

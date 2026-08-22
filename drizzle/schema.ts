@@ -79,6 +79,20 @@ export const customerConsents = mysqlTable("customer_consents", {
   userConsentCreatedIndex: index("customer_consents_user_type_created_idx").on(table.userId, table.consentType, table.createdAt),
 }));
 
+/** Public email-interest records. This is a consent ledger only; it does not send email or activate a delivery provider. */
+export const newsletterInterestSubscribers = mysqlTable("newsletter_interest_subscribers", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  source: varchar("source", { length: 80 }).default("storefront_lower_cta").notNull(),
+  status: mysqlEnum("status", ["subscribed", "unsubscribed"]).default("subscribed").notNull(),
+  consentedAt: timestamp("consentedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  emailUnique: uniqueIndex("newsletter_interest_email_unique").on(table.email),
+  statusUpdatedIndex: index("newsletter_interest_status_updated_idx").on(table.status, table.updatedAt),
+}));
+
 /** Customer-visible security events. Metadata is intentionally limited to non-sensitive session context. */
 export const customerSecurityEvents = mysqlTable("customer_security_events", {
   id: int("id").autoincrement().primaryKey(),
