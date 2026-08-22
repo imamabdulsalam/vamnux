@@ -560,3 +560,8 @@
 - [x] Add compact editable USD-to-NGN, USD-to-EUR, and USD-to-GBP rate cards at the bottom of the VAMNUX Admin Exchange Rate workspace without changing or removing existing controls.
 - [x] Wire each new rate-card Save action to the existing protected exchange-rate update flow and display currently stored values without inventing exchange data.
 - [x] Validate rate-card updates, existing Exchange Rate controls, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Rename the VAMNUX Admin Settings · Authentication navigation label and workspace heading to Settings without removing authentication or MFA controls.
+- [x] Organize the Admin General Profile workspace into clear, comfortably spaced editable fields for owner profile details while preserving provider-owned email and current authorization boundaries.
+- [x] Add a password-reset readiness section beneath Security alerts in the requested form style, including current, new, and confirm password fields with visibility controls, without storing or simulating native password changes when the secure identity provider remains the authentication source.
+- [x] Validate Settings navigation, profile-field saving, password-reset secure-provider handoff, MFA controls, responsive layout, deterministic tests, and production build before publishing.

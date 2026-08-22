@@ -6,7 +6,7 @@ import { calculateManualExchangeQuote } from "@shared/exchangeRates";
 import { buildReviewOnlyRiskAnalysis, type RiskLevel } from "@shared/reviewOnlyRisk";
 import { ManualCatalogManager } from "./Account";
 import { ManualDeliveryProductSetup } from "@/components/ManualDeliveryProductSetup";
-import { AdminAuthenticationSettings } from "@/components/AdminAuthenticationSettings";
+import { AdminAuthenticationSettings } from "@/components/AdminSettingsWorkspace";
 import { AdminPolicyManager } from "@/components/AdminPolicyManager";
 import { AdminNotificationInbox } from "@/components/AdminNotificationInbox";
 import { CategoryOperationsWorkspace } from "@/components/CategoryOperationsWorkspace";
@@ -59,7 +59,7 @@ const tabs: Array<{ id: AdminTab; label: string; icon: typeof LayoutDashboard }>
   { id: "orders", label: "Orders", icon: ClipboardList },
   { id: "manual_delivery", label: "Manual delivery", icon: PackageSearch },
   { id: "funding", label: "Wallet funding", icon: WalletCards },
-  { id: "auth_settings", label: "Settings · Authentication", icon: Settings2 },
+  { id: "auth_settings", label: "Settings", icon: Settings2 },
   { id: "risk", label: "Fraud & risk", icon: ShieldAlert },
   { id: "product_sync", label: "Product sync", icon: RefreshCw },
   { id: "health", label: "System health", icon: Activity },
