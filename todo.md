@@ -476,3 +476,8 @@
 - [x] Add a comprehensive registration-readiness form with first name, last name, email, optional phone, country, referral source, password confirmation, live password-strength guidance, consent, and truthful email-verification messaging.
 - [x] Represent CAPTCHA and native email/password account creation truthfully as unavailable until a real verified identity and CAPTCHA provider is configured; do not fabricate verification or accept credentials locally.
 - [x] Validate account-access routing, password guidance, accessibility, responsive layout, deterministic tests, and production build before publishing.
+
+- [x] Make the VAMNUX registration details editable in the browser with local required-field checks, optional phone, country, referral source, and no persistence of incomplete registration data.
+- [x] Add separate Password and Confirm password fields with live client-side match feedback and transparent weak, medium, strong, and excellent strength guidance before secure account-creation handoff.
+- [x] Add a clearly labelled CAPTCHA readiness boundary and Create secure account action that validates the local form then transfers users to the configured secure identity provider without simulating verification or submitting credentials to VAMNUX.
+- [x] Validate registration interaction, data-boundary messaging, password feedback, accessibility, responsive presentation, deterministic tests, and production build before publishing.
