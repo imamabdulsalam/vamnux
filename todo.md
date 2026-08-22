@@ -393,3 +393,7 @@
 - [x] Balance the complete lower storefront palette with accessible VAMNUX blue, violet, mint, and coral accents without using overly flashy colours.
 - [x] Replace the abstract final-section block graphic with a clear, readable customer-oriented marketplace summary that supports real VAMNUX browsing actions.
 - [x] Validate refined lower-section colour contrast, CTA behavior, desktop/mobile readability, tests, build, and visual presentation before publishing.
+
+- [x] Repair the VAMNUX top search with immediate keyword results for real products, active-visible categories, Help/FAQ topics, and relevant internal pages.
+- [x] Make every top-search result keyboard-accessible and route it directly to the correct product, category filter, Help/FAQ, or policy destination without exposing hidden categories or Admin data.
+- [x] Validate search relevance, no-result behavior, active-category privacy, popup responsiveness, deterministic tests, production build, and visual presentation before publishing.

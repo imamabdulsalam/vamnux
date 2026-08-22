@@ -8,6 +8,7 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import SelectedProductBrowser from "@/components/SelectedProductBrowser";
 import FooterNavigation from "@/components/FooterNavigation";
+import UniversalMarketplaceSearch from "@/components/UniversalMarketplaceSearch";
 import "./lowerStorefront.css";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
@@ -373,11 +374,18 @@ export default function Home() {
       <header className="commerce-header">
         <div className="commerce-top">
           <Logo />
-          <label className="market-search" aria-label="Search VAMNUX product catalog">
-            <Search size={21} />
-            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search games, gift cards, subscriptions, software & AI tools" />
-            <span className="search-category">All products <ChevronDown size={15} /></span>
-          </label>
+          <UniversalMarketplaceSearch
+            value={query}
+            onValueChange={setQuery}
+            products={publicProducts}
+            categories={visibleCategories.map(({ label, filter }) => ({ label, filter }))}
+            onChooseCategory={(category) => chooseCategory(category as ProductCategory)}
+            onOpenProduct={(product) => {
+              const matchingProduct = publicProducts.find((candidate) => candidate.id === product.id);
+              if (matchingProduct) openCompactProduct(matchingProduct);
+            }}
+            onNavigate={setLocation}
+          />
           <div className="header-actions">
             <div className="header-socials" aria-label="VAMNUX social channels">
               <button type="button" className="header-social-button" onClick={() => toast.message("VAMNUX social channel links are awaiting the official account URLs.")} aria-label="VAMNUX on Instagram" title="Instagram"><Instagram size={17} /></button>
