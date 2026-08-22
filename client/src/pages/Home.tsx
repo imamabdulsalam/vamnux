@@ -10,6 +10,7 @@ import SelectedProductBrowser from "@/components/SelectedProductBrowser";
 import FooterNavigation from "@/components/FooterNavigation";
 import UniversalMarketplaceSearch from "@/components/UniversalMarketplaceSearch";
 import "./lowerStorefront.css";
+import "./mobileCategoryMenu.css";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope, filterPrimaryMarketProducts } from "@shared/catalogVisibility";
@@ -197,6 +198,7 @@ export default function Home() {
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [activeSlide, setActiveSlide] = useState(0);
   const [openMegaCategory, setOpenMegaCategory] = useState<ProductCategory | null>(null);
+  const [mobileCategoryMenuOpen, setMobileCategoryMenuOpen] = useState(false);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const createDraftOrder = trpc.marketplace.createOrder.useMutation({
     onSuccess: (result) => {
@@ -419,6 +421,29 @@ export default function Home() {
           <button className="compact-all-categories" type="button" onClick={() => { setActiveCategory("All"); setQuery(""); setOpenMegaCategory(null); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><Search size={17} /> All catalog</button>
           <span className="scope-status"><ShieldCheck size={16} /> Verified supplier inventory</span>
         </nav>
+        <section className="mobile-category-menu" aria-label="Mobile marketplace category menu">
+          <button type="button" className="mobile-category-trigger" aria-expanded={mobileCategoryMenuOpen} aria-controls="mobile-category-drawer" onClick={() => setMobileCategoryMenuOpen((open) => !open)}>
+            <span className="mobile-category-lines" aria-hidden="true"><i /><i /><i /></span>
+            <span>Browse categories</span>
+            <ChevronDown size={17} className={mobileCategoryMenuOpen ? "mobile-category-chevron open" : "mobile-category-chevron"} />
+          </button>
+          <div id="mobile-category-drawer" className="mobile-category-drawer" data-open={mobileCategoryMenuOpen}>
+            <button type="button" className="mobile-category-all" onClick={() => { setActiveCategory("All"); setQuery(""); setMobileCategoryMenuOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><Search size={16} /> All active products <ArrowRight size={15} /></button>
+            <div className="mobile-category-list">
+              {visibleCategories.map(({ label, icon: Icon, filter }) => {
+                const links = catalogQuickLinks.get(filter) ?? [];
+                return <details key={filter}>
+                  <summary><span><Icon size={17} /> {label}</span><ChevronDown size={15} /></summary>
+                  <div>
+                    <button type="button" onClick={() => { chooseCategory(filter); setMobileCategoryMenuOpen(false); }}>Browse {label}<ArrowRight size={14} /></button>
+                    {links.length ? <div className="mobile-category-quick-links">{links.slice(0, 8).map((link) => <button type="button" key={link} onClick={() => { chooseQuickLink(filter, link); setMobileCategoryMenuOpen(false); }}>{link}</button>)}</div> : <p>Browse current active products in this category.</p>}
+                  </div>
+                </details>;
+              })}
+            </div>
+            <span className="mobile-category-status"><ShieldCheck size={14} /> Categories update with Admin visibility settings.</span>
+          </div>
+        </section>
       </header>
 
       <section className="commerce-carousel" aria-label="VAMNUX marketplace highlights">

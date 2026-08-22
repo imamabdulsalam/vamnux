@@ -397,3 +397,6 @@
 - [x] Repair the VAMNUX top search with immediate keyword results for real products, active-visible categories, Help/FAQ topics, and relevant internal pages.
 - [x] Make every top-search result keyboard-accessible and route it directly to the correct product, category filter, Help/FAQ, or policy destination without exposing hidden categories or Admin data.
 - [x] Validate search relevance, no-result behavior, active-category privacy, popup responsiveness, deterministic tests, production build, and visual presentation before publishing.
+
+- [x] Add a mobile-only three-line VAMNUX category menu with active-visible categories and relevant browse options, leaving desktop navigation unchanged.
+- [x] Validate mobile menu accessibility, hide/archive/show/restore propagation, internal category navigation, responsive isolation from desktop, deterministic tests, build, and visual presentation before publishing.
