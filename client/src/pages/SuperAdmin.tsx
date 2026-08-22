@@ -10,6 +10,7 @@ import { AdminAuthenticationSettings } from "@/components/AdminAuthenticationSet
 import { AdminPolicyManager } from "@/components/AdminPolicyManager";
 import { AdminNotificationInbox } from "@/components/AdminNotificationInbox";
 import { CategoryOperationsWorkspace } from "@/components/CategoryOperationsWorkspace";
+import "@/components/adminProductWorkspace.css";
 import {
   Activity,
   ArrowRight,
