@@ -61,8 +61,10 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).toContain('const SIGN_IN_PATH = "/login"');
     expect(authSource).toContain('const SIGN_UP_PATH = "/login?mode=signup"');
     expect(authSource).toContain('const RECOVERY_PATH = "/login?mode=recovery"');
-    expect(authSource).toContain('<Link href={SIGN_IN_PATH} className="user-secondary-action"><ArrowLeft size={15} /> Back to sign in</Link>');
-    expect(authSource).toContain('<Link href={SIGN_IN_PATH} className="user-primary-action">Back to sign in');
+    expect(authSource).toContain('href={SIGN_IN_PATH}');
+    expect(authSource).toContain('href={SIGN_UP_PATH}');
+    expect(authSource).toContain('href={RECOVERY_PATH}');
+    expect(authSource).not.toContain('openAccountRoute');
     expect(authSource).toContain("PASSWORD RECOVERY");
     expect(authSource).toContain("Recovery status: unavailable");
     expect(authSource).toContain('accountMode === "recovery"');

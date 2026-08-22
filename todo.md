@@ -500,3 +500,6 @@
 - [x] Add editable VAMNUX sign-in email and password inputs with local required-field validation and no local credential persistence.
 - [x] Clear local sign-in field values before handing customers to the configured secure identity provider, without pretending native password authentication is active.
 - [x] Validate sign-in field interaction, safety messaging, provider handoff, responsive layout, deterministic tests, and production build before publishing.
+
+- [x] Repair the rendered VAMNUX Create Secure Account and Back to Sign In controls with direct browser navigation after the prior internal-link implementation failed in the user-facing page.
+- [x] Verify rendered sign-up, sign-in, and recovery destination behavior from the visible account controls, along with regression coverage and production build, before publishing.

@@ -125,9 +125,9 @@ function SecureSignIn() {
       <div className="mt-3 flex gap-2 border border-white/10 bg-white/5 p-3 text-[10px] text-slate-300"><ShieldCheck className="mt-0.5 shrink-0 text-[#b8ff43]" size={15} /><p><strong className="block text-[10px] uppercase tracking-[.06em] text-white">Human verification</strong>Verified by the identity provider where enabled; no simulated CAPTCHA is shown here.</p></div>
       <div className="customer-auth-choices">
         <button type="submit" className="user-primary-action">Sign in securely <ArrowRight size={15} /></button>
-        <Link href={SIGN_UP_PATH} className="user-secondary-action">Create secure account <UserRound size={15} /></Link>
+        <a href={SIGN_UP_PATH} className="user-secondary-action">Create secure account <UserRound size={15} /></a>
       </div>
-      <Link href={RECOVERY_PATH} className="mt-3 text-[10px] font-bold text-[#b8ff43] underline underline-offset-4">Forgot password?</Link>
+      <a href={RECOVERY_PATH} className="mt-3 text-[10px] font-bold text-[#b8ff43] underline underline-offset-4">Forgot password?</a>
       <small>Forgot-password and email verification are provided only through configured identity and email services. VAMNUX does not imitate these security checks locally.</small>
     </form>
   );
@@ -142,8 +142,8 @@ function PasswordRecovery() {
       <span>Password-recovery email is not configured for VAMNUX yet. A reset link cannot be sent until a verified transactional-email and identity provider is activated.</span>
       <div className="mt-2 w-full border border-amber-300/30 bg-amber-300/5 p-3 text-[10px] leading-4 text-amber-100"><strong className="block uppercase tracking-[.06em]">Recovery status: unavailable</strong>Do not enter an email address here. When recovery is configured, this page will direct you to the verified recovery flow instead of collecting account details locally.</div>
       <div className="customer-auth-choices">
-        <Link href={SIGN_IN_PATH} className="user-primary-action">Back to sign in <ArrowLeft size={15} /></Link>
-        <Link href={SIGN_UP_PATH} className="user-secondary-action">Create secure account <UserRound size={15} /></Link>
+        <a href={SIGN_IN_PATH} className="user-primary-action">Back to sign in <ArrowLeft size={15} /></a>
+        <a href={SIGN_UP_PATH} className="user-secondary-action">Create secure account <UserRound size={15} /></a>
       </div>
     </div>
   );
@@ -192,7 +192,7 @@ function RegistrationReadiness() {
       <section className="mt-3 w-full border border-white/10 bg-white/5 p-3"><div className="flex items-center gap-2"><KeyRound className="text-[#b8ff43]" size={15} /><strong className="text-[9px] uppercase tracking-[.07em] text-white">Password requirements · {strength.label}</strong></div><p className="mt-2 text-[9px] leading-4 text-slate-300">Use at least 12 characters with uppercase and lowercase letters, a number, and a symbol. The two password fields must match.</p><div className="mt-2 grid grid-cols-4 gap-1 text-center text-[7px]"><span className={strength.score >= 1 ? "border-t-2 border-rose-400 pt-1 text-rose-300" : "border-t-2 border-slate-600 pt-1 text-slate-400"}>Weak</span><span className={strength.score >= 2 ? "border-t-2 border-amber-300 pt-1 text-amber-200" : "border-t-2 border-slate-600 pt-1 text-slate-400"}>Medium</span><span className={strength.score >= 3 ? "border-t-2 border-[#b8ff43] pt-1 text-[#b8ff43]" : "border-t-2 border-slate-600 pt-1 text-slate-400"}>Strong</span><span className={strength.score >= 4 ? "border-t-2 border-sky-300 pt-1 text-sky-300" : "border-t-2 border-slate-600 pt-1 text-slate-400"}>Excellent</span></div>{draft.passwordConfirmation && <p className={passwordMatch ? "mt-2 flex items-center gap-1 text-[8px] text-[#b8ff43]" : "mt-2 text-[8px] text-rose-300"}>{passwordMatch ? <><CheckCircle2 size={11} /> Passwords match</> : "Passwords do not match"}</p>}</section>
       <section className="mt-2 w-full border border-white/10 bg-white/5 p-3 text-[9px] leading-4 text-slate-300"><div className="flex gap-2"><ShieldCheck className="shrink-0 text-[#b8ff43]" size={16} /><p><strong className="text-white">I’m not a robot verification.</strong> A real CAPTCHA widget appears only after VAMNUX configures a provider and server-side token verification. This page does not imitate or bypass a CAPTCHA challenge.</p></div></section>
       <label className="mt-3 flex w-full items-start gap-2 text-[9px] leading-4 text-slate-300"><input required checked={draft.acceptsTerms} onChange={(event) => update("acceptsTerms", event.target.checked)} type="checkbox" className="mt-0.5 accent-[#b8ff43]" />I agree to the VAMNUX Terms of Service and Privacy Policy.</label>
-      <div className="customer-auth-choices"><button type="submit" className="user-primary-action">Create secure account <ArrowRight size={15} /></button><Link href={SIGN_IN_PATH} className="user-secondary-action"><ArrowLeft size={15} /> Back to sign in</Link></div>
+      <div className="customer-auth-choices"><button type="submit" className="user-primary-action">Create secure account <ArrowRight size={15} /></button><a href={SIGN_IN_PATH} className="user-secondary-action"><ArrowLeft size={15} /> Back to sign in</a></div>
       <small>When you continue, VAMNUX clears local password values and hands off to the configured secure identity provider. Do not enter supplier, wallet, payment, or recovery credentials here.</small>
     </form>
   );
