@@ -380,3 +380,8 @@
 - [x] Redesign the marketplace hero into a compact 5–7 slide VAMNUX trust and discovery carousel with calm visual treatment and mobile-friendly typography.
 - [x] Use only truthful platform messages and a clearly review-ready state; do not fabricate customer testimonials, names, countries, profile identities, or review content.
 - [x] Validate hero content, slide navigation, Admin-visible content controls, responsive layout, accessibility, tests, build, and visual presentation before publishing.
+
+- [x] Redesign the storefront product browser into a compact category-and-search workspace with selectable real product rows and a responsive selected-product preview.
+- [x] Preserve active-visible category controls, real supplier product images or neutral fallbacks, final customer display prices, product requirements, and direct internal product-detail routes without exposing Admin markup or supplier cost.
+- [x] Review the GamesDrop sync path and, if safely available, perform only a bounded read-only catalog synchronization without creating a supplier order, checkout, payment, wallet credit, or fabricated inventory.
+- [x] Validate product browsing, filtering, preview selection, safe image fallbacks, responsive layout, deterministic tests, production build, and visual presentation before publishing.

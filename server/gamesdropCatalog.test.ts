@@ -17,4 +17,9 @@ describe("GamesDrop catalog mapper", () => {
     const mapped = mapGamesDropOffer({ offerGroupId: 40, productName: "PUBG Mobile Gift Card", offerGroupName: "PUBG Mobile 60 UC", price: 0.91, currency: "USD", inStock: true });
     expect(mapped).toMatchObject({ category: "top_up", deliveryType: "instant" });
   });
+
+  it("excludes unrecognised supplier records rather than treating them as top-ups", () => {
+    const mapped = mapGamesDropOffer({ offerGroupId: 99, productName: "Mystery Item", offerGroupName: "Limited drop", price: 4.5, currency: "USD", inStock: true });
+    expect(mapped).toBeNull();
+  });
 });

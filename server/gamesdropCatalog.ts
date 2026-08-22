@@ -7,7 +7,7 @@ function stableSlug(value: string) {
   return `gd-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 170)}`;
 }
 
-function categoryFor(offer: GamesDropOffer): SupplierCatalogRow["category"] {
+function categoryFor(offer: GamesDropOffer): SupplierCatalogRow["category"] | null {
   const terms = `${offer.productName} ${offer.offerGroupName} ${offer.platformCode ?? ""} ${offer.platformName ?? ""}`.toLowerCase();
   if (/telegram\s+stars?/.test(terms)) return "telegram_stars";
   if (offer.platformCode?.toLowerCase() === "steam" || /\bsteam\b/.test(terms)) return "steam";
@@ -17,14 +17,15 @@ function categoryFor(offer: GamesDropOffer): SupplierCatalogRow["category"] {
   if (/subscription|premium|membership|netflix|spotify|youtube|discord nitro/.test(terms)) return "subscription";
   if (/gift\s*card|voucher|wallet/.test(terms)) return "gift_card";
   if (/cd key|game key|activation key|steam key/.test(terms)) return "game_key";
-  return "top_up";
+  return null;
 }
 
-function isInitialPublicGamesDropOffer(offer: GamesDropOffer, category: SupplierCatalogRow["category"]) {
+function isPublicGamesDropOffer(offer: GamesDropOffer, category: SupplierCatalogRow["category"]) {
   if (!offer.inStock) return false;
-  if (category === "telegram_stars") return true;
+  if (offer.countryCompatibility?.toLowerCase() === "blocked") return false;
+  if (offer.excludedCountryCodes?.some((code) => code.toUpperCase() === "NG")) return false;
   if (category === "steam") return offer.regionCode?.toUpperCase() === "GLB";
-  return category === "top_up" && ["GLB", "GLOBAL", ""].includes((offer.regionCode ?? "").toUpperCase());
+  return true;
 }
 
 function inputRequirementsFor(offer: GamesDropOffer, category: SupplierCatalogRow["category"]): CustomerInputRequirement[] {
@@ -39,6 +40,7 @@ export function mapGamesDropOffer(offer: GamesDropOffer): SupplierCatalogRow | n
   const price = Number(offer.price);
   if (!Number.isInteger(offer.offerGroupId) || !offer.productName?.trim() || !offer.offerGroupName?.trim() || !Number.isFinite(price) || price <= 0) return null;
   const category = categoryFor(offer);
+  if (!category) return null;
   const inputRequirements = inputRequirementsFor(offer, category);
   const offerName = offer.offerGroupName.trim();
   const productName = offer.productName.trim();
@@ -78,28 +80,34 @@ export function mapGamesDropOffer(offer: GamesDropOffer): SupplierCatalogRow | n
   };
 }
 
-export async function syncGamesDropCatalog(input: { searches?: string[]; page?: number; limit?: number; countryCode?: string } = {}) {
+export async function syncGamesDropCatalog(input: { searches?: string[]; page?: number; limit?: number; countryCode?: string; fullCatalog?: boolean; maxPages?: number } = {}) {
   const client = getGamesDropClient();
-  const searches = Array.from(new Set(input.searches?.map((value) => value.trim()).filter(Boolean) ?? ["Telegram Stars", "Steam", "PUBG Mobile", "Free Fire"])).slice(0, 12);
+  const searches = input.fullCatalog ? [undefined] : Array.from(new Set(input.searches?.map((value) => value.trim()).filter(Boolean) ?? ["Telegram Stars", "Steam", "PUBG Mobile", "Free Fire"])).slice(0, 12);
   const page = Math.max(1, input.page ?? 1);
   const limit = Math.min(250, Math.max(1, input.limit ?? 50));
+  const maxPages = Math.min(20, Math.max(1, input.maxPages ?? 1));
   const rows: SupplierCatalogRow[] = [];
   const seen = new Set<string>();
   const currencies = new Set<string>();
   const failures: Array<{ search: string; message: string }> = [];
   for (const search of searches) {
     try {
-      const result = await client.syncOffers({ page, limit, search, countryCode: input.countryCode ?? "NG" });
-      for (const offer of result.rows) {
-        const mapped = mapGamesDropOffer(offer);
-        if (mapped && isInitialPublicGamesDropOffer(offer, mapped.category) && !seen.has(mapped.supplierOfferId)) {
-          seen.add(mapped.supplierOfferId);
-          rows.push(mapped);
-          currencies.add(mapped.baseCurrency);
+      let pagesToRead = maxPages;
+      for (let currentPage = page; currentPage < page + pagesToRead; currentPage += 1) {
+        const result = await client.syncOffers({ page: currentPage, limit, search, countryCode: input.countryCode ?? "NG" });
+        if (currentPage === page && input.fullCatalog) pagesToRead = Math.min(maxPages, Math.max(1, Math.ceil(result.count / limit)));
+        for (const offer of result.rows) {
+          const mapped = mapGamesDropOffer(offer);
+          if (mapped && isPublicGamesDropOffer(offer, mapped.category) && !seen.has(mapped.supplierOfferId)) {
+            seen.add(mapped.supplierOfferId);
+            rows.push(mapped);
+            currencies.add(mapped.baseCurrency);
+          }
         }
+        if (result.rows.length < limit) break;
       }
     } catch (error) {
-      failures.push({ search, message: error instanceof Error ? error.message.slice(0, 180) : "GamesDrop catalog lookup failed" });
+      failures.push({ search: search ?? "all offers", message: error instanceof Error ? error.message.slice(0, 180) : "GamesDrop catalog lookup failed" });
     }
   }
   await upsertGamesDropCatalogRows(rows);
@@ -111,5 +119,5 @@ export async function syncGamesDropCatalog(input: { searches?: string[]; page?: 
     supportedCurrencies: Array.from(currencies).sort(),
     syncStatus: failures.length === 0 ? "ready" : "error",
   });
-  return { page, searches, productCount: rows.length, currencies: Array.from(currencies).sort(), failures };
+  return { page, searches: searches.map((search) => search ?? "all offers"), productCount: rows.length, currencies: Array.from(currencies).sort(), failures };
 }
