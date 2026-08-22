@@ -512,3 +512,8 @@
 - [x] Improve the VAMNUX User Dashboard Subscribe panel’s spacing, contrast, button alignment, consent control clarity, and readable responsive presentation.
 - [x] Replace the limited mobile dashboard navigation with a three-line trigger that opens all User Dashboard features, including Subscribe and Request.
 - [x] Validate Subscribe readability, complete mobile feature access, menu interactions, deterministic tests, responsive presentation, and production build before publishing.
+
+- [x] Add a green unread notification badge to the VAMNUX Admin Notifications navigation item that counts unread operational notifications and caps display appropriately.
+- [x] Organize the Admin Notifications workspace into identifiable categories for orders, favorites/cart activity, support tickets, customer requests, subscribers, wallet/supplier readiness, refunds, and other available operational records without fabricating events.
+- [x] Add protected selectable notification rows with working individual Mark as read, selected Mark as read, and Mark all as read actions that update the unread count.
+- [x] Validate notification authorization, unread-count accuracy, bulk read behavior, organized presentation, responsive layout, deterministic tests, and production build before publishing.

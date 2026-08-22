@@ -8,7 +8,7 @@ import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDe
 import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
-import { newsletterInterestSubscribers } from "../drizzle/schema";
+import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzle/schema";
 import { customerProductRequests } from "../drizzle/schema";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
@@ -1835,7 +1835,72 @@ export async function listSuperAdminProductActivityEvents(input: { limit?: numbe
     .innerJoin(products, eq(customerProductActivityEvents.productId, products.id))
     .leftJoin(customerProfiles, eq(customerProfiles.userId, users.id))
     .orderBy(desc(customerProductActivityEvents.createdAt))
-    .limit(limit);
+		.limit(limit);
+}
+
+export type SuperAdminNotificationGroup = "Orders" | "Favorites & cart" | "Support tickets" | "Customer requests" | "Subscribers" | "Wallet funding" | "Supplier readiness" | "Refunds & failures";
+export type SuperAdminNotificationItem = {
+	key: string;
+	group: SuperAdminNotificationGroup;
+	title: string;
+	body: string;
+	createdAt: Date;
+	read: boolean;
+	customerName?: string | null;
+	customerEmail?: string | null;
+	entityType: "order" | "activity" | "ticket" | "request" | "subscriber" | "funding" | "supplier" | "refund" | "api";
+	entityId: string;
+};
+
+/** Owner-only notification view assembled from persisted VAMNUX records. It does not invent orders, payment events, or external delivery. */
+export async function listSuperAdminNotificationInbox(input: { adminUserId: number; limit?: number }) {
+	const db = requireDb(await getDb());
+	const limit = Math.min(Math.max(input.limit ?? 250, 1), 250);
+	const [orderRows, ticketRows, activityRows, requestRows, subscriberRows, fundingRows, supplierRows, failedApiRows, readRows] = await Promise.all([
+		listSuperAdminOrders(limit),
+		listSuperAdminSupportTickets(limit),
+		listSuperAdminProductActivityEvents({ limit }),
+		db.select({ id: customerProductRequests.id, requestCode: customerProductRequests.requestCode, category: customerProductRequests.category, requestedName: customerProductRequests.requestedName, status: customerProductRequests.status, createdAt: customerProductRequests.createdAt, updatedAt: customerProductRequests.updatedAt, customerName: users.name, customerEmail: users.email, customerUsername: customerProfiles.username }).from(customerProductRequests).leftJoin(users, eq(customerProductRequests.userId, users.id)).leftJoin(customerProfiles, eq(customerProductRequests.userId, customerProfiles.userId)).orderBy(desc(customerProductRequests.updatedAt)).limit(limit),
+		db.select({ id: newsletterInterestSubscribers.id, email: newsletterInterestSubscribers.email, source: newsletterInterestSubscribers.source, status: newsletterInterestSubscribers.status, consentedAt: newsletterInterestSubscribers.consentedAt, updatedAt: newsletterInterestSubscribers.updatedAt }).from(newsletterInterestSubscribers).where(eq(newsletterInterestSubscribers.status, "subscribed")).orderBy(desc(newsletterInterestSubscribers.updatedAt)).limit(limit),
+		listSuperAdminWalletFundingRequests(limit),
+		db.select({ id: supplierBalanceObservations.id, providerName: commerceIntegrations.providerName, balance: supplierBalanceObservations.balance, currency: supplierBalanceObservations.currency, observedAt: supplierBalanceObservations.observedAt }).from(supplierBalanceObservations).innerJoin(commerceIntegrations, eq(supplierBalanceObservations.integrationId, commerceIntegrations.id)).where(and(eq(supplierBalanceObservations.currency, "USD"), lte(supplierBalanceObservations.balance, "5"))).orderBy(desc(supplierBalanceObservations.observedAt)).limit(limit),
+		db.select({ id: apiRequestLogs.id, supplierKey: apiRequestLogs.supplierKey, endpoint: apiRequestLogs.endpoint, errorCode: apiRequestLogs.errorCode, createdAt: apiRequestLogs.createdAt }).from(apiRequestLogs).where(eq(apiRequestLogs.success, false)).orderBy(desc(apiRequestLogs.createdAt)).limit(limit),
+		db.select({ notificationKey: adminNotificationReads.notificationKey }).from(adminNotificationReads).where(eq(adminNotificationReads.adminUserId, input.adminUserId)),
+	]);
+	const readKeys = new Set(readRows.map((row) => row.notificationKey));
+	const items: SuperAdminNotificationItem[] = [];
+	const add = (item: Omit<SuperAdminNotificationItem, "read">) => items.push({ ...item, read: readKeys.has(item.key) });
+	for (const order of orderRows) {
+		const isRefund = order.status === "failed" || order.status === "refunded" || order.paymentStatus === "failed" || order.paymentStatus === "refunded";
+		const version = order.updatedAt.getTime();
+		add({ key: `${isRefund ? "refund" : "order"}:${order.id}:${version}`, group: isRefund ? "Refunds & failures" : "Orders", title: isRefund ? `Order needs review · ${order.orderCode}` : `New or updated order · ${order.orderCode}`, body: `${order.customerName || "Customer"} · ${order.paymentStatus.replaceAll("_", " ")} · ${order.status.replaceAll("_", " ")}`, createdAt: order.updatedAt, customerName: order.customerName, customerEmail: order.customerEmail, entityType: isRefund ? "refund" : "order", entityId: String(order.id) });
+	}
+	for (const activity of activityRows) add({ key: `activity:${activity.id}`, group: "Favorites & cart", title: activity.activityType === "favorite_added" ? "Product favorited" : "Product added to cart", body: `${activity.customerUsername || activity.customerName || "Customer"} · ${activity.productName}`, createdAt: activity.createdAt, customerName: activity.customerName, customerEmail: activity.customerEmail, entityType: "activity", entityId: String(activity.id) });
+	for (const ticket of ticketRows) add({ key: `ticket:${ticket.ticketCode}:${ticket.updatedAt.getTime()}`, group: "Support tickets", title: `Support ticket · ${ticket.ticketCode}`, body: `${ticket.subject} · ${ticket.status.replaceAll("_", " ")}`, createdAt: ticket.updatedAt, customerName: ticket.customerUsername || ticket.customerName, customerEmail: ticket.customerEmail, entityType: "ticket", entityId: ticket.ticketCode });
+	for (const request of requestRows) add({ key: `request:${request.id}:${request.updatedAt.getTime()}`, group: "Customer requests", title: `Requested product · ${request.requestedName}`, body: `${request.category.replaceAll("_", " ")} · ${request.status.replaceAll("_", " ")}`, createdAt: request.updatedAt, customerName: request.customerUsername || request.customerName, customerEmail: request.customerEmail, entityType: "request", entityId: request.requestCode });
+	for (const subscriber of subscriberRows) add({ key: `subscriber:${subscriber.id}:${subscriber.updatedAt.getTime()}`, group: "Subscribers", title: "New update-interest subscriber", body: `${subscriber.email} · ${subscriber.source.replaceAll("_", " ")}`, createdAt: subscriber.updatedAt, customerEmail: subscriber.email, entityType: "subscriber", entityId: String(subscriber.id) });
+	for (const funding of fundingRows.filter((row) => row.status === "pending")) add({ key: `funding:${funding.fundingCode}:${funding.createdAt.getTime()}`, group: "Wallet funding", title: `Funding review · ${funding.fundingCode}`, body: `${funding.customerName || "Customer"} · ${funding.amount} ${funding.currency}`, createdAt: funding.createdAt, customerName: funding.customerName, customerEmail: funding.customerEmail, entityType: "funding", entityId: funding.fundingCode });
+	for (const supplier of supplierRows) add({ key: `supplier:${supplier.id}:${supplier.observedAt.getTime()}`, group: "Supplier readiness", title: `Low supplier balance · ${supplier.providerName}`, body: `${supplier.balance ?? 0} ${supplier.currency || "USD"} recorded at or below the owner threshold`, createdAt: supplier.observedAt, entityType: "supplier", entityId: String(supplier.id) });
+	for (const api of failedApiRows) add({ key: `api:${api.id}`, group: "Supplier readiness", title: `Supplier request failed · ${api.supplierKey}`, body: `${api.endpoint} · ${api.errorCode || "Error details unavailable"}`, createdAt: api.createdAt, entityType: "api", entityId: String(api.id) });
+	const sorted = items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+	return { items: sorted, unreadCount: sorted.filter((item) => !item.read).length };
+}
+
+export async function markSuperAdminNotificationsRead(input: { adminUserId: number; notificationKeys: string[] }) {
+	const db = requireDb(await getDb());
+	const notificationKeys = Array.from(new Set(input.notificationKeys.map((key) => key.trim()).filter((key) => key.length > 0 && key.length <= 220))).slice(0, 250);
+	if (!notificationKeys.length) return { marked: 0 } as const;
+	const readAt = new Date();
+	await db.transaction(async (tx) => {
+		await tx.insert(adminNotificationReads).values(notificationKeys.map((notificationKey) => ({ adminUserId: input.adminUserId, notificationKey, readAt }))).onDuplicateKeyUpdate({ set: { readAt } });
+		await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "admin_notifications.marked_read", targetType: "admin_notification", targetId: notificationKeys.length === 1 ? notificationKeys[0] : "bulk", summary: `Marked ${notificationKeys.length} Admin notification${notificationKeys.length === 1 ? "" : "s"} as read`, metadata: { count: notificationKeys.length } });
+	});
+	return { marked: notificationKeys.length } as const;
+}
+
+export async function markAllSuperAdminNotificationsRead(adminUserId: number) {
+	const inbox = await listSuperAdminNotificationInbox({ adminUserId, limit: 250 });
+	return markSuperAdminNotificationsRead({ adminUserId, notificationKeys: inbox.items.filter((item) => !item.read).map((item) => item.key) });
 }
 
 function createWalletFundingCode() {

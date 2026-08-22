@@ -107,7 +107,18 @@ export const customerProductRequests = mysqlTable("customer_product_requests", {
 }, (table) => ({
   requestCodeUnique: uniqueIndex("customer_product_requests_code_unique").on(table.requestCode),
   userUpdatedIndex: index("customer_product_requests_user_updated_idx").on(table.userId, table.updatedAt),
-  statusUpdatedIndex: index("customer_product_requests_status_updated_idx").on(table.status, table.updatedAt),
+	statusUpdatedIndex: index("customer_product_requests_status_updated_idx").on(table.status, table.updatedAt),
+}));
+
+/** Owner-only read state for operational notification items. Source records remain authoritative and no customer data is duplicated here. */
+export const adminNotificationReads = mysqlTable("admin_notification_reads", {
+	id: int("id").autoincrement().primaryKey(),
+	adminUserId: int("adminUserId").notNull(),
+	notificationKey: varchar("notificationKey", { length: 220 }).notNull(),
+	readAt: timestamp("readAt").defaultNow().notNull(),
+}, (table) => ({
+	adminNotificationUnique: uniqueIndex("admin_notification_reads_admin_key_unique").on(table.adminUserId, table.notificationKey),
+	adminReadAtIndex: index("admin_notification_reads_admin_read_at_idx").on(table.adminUserId, table.readAt),
 }));
 
 /** Customer-visible security events. Metadata is intentionally limited to non-sensitive session context. */
