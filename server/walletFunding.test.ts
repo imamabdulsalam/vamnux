@@ -53,12 +53,10 @@ describe("funding flow readiness copy", () => {
     expect(adminSource).toContain("Customer wallets credit automatically only after a configured payment gateway verifies a payment");
   });
 
-  it("lists only source-verified supplier funding guidance for the configured suppliers", () => {
+  it("keeps supplier funding sources available for the original Fund Wallet path without replacing the compact overview", () => {
     expect(adminSource).toContain("supplierFundingGuides");
-    expect(adminSource).toContain("Partner-enabled USDT balance top-up");
-    expect(adminSource).toContain("Card, mobile payment, or crypto where enabled for the account region");
-    expect(adminSource).toContain("SWIFT wire — $1,000 documented minimum");
-    expect(adminSource).toContain("SEPA (EUR) — €500 documented minimum");
-    expect(adminSource).toContain("VAMNUX does not collect supplier payment credentials, send funds");
+    expect(adminSource).toContain("Read-only catalog operations");
+    expect(adminSource).toContain("data-supplier-overview");
+    expect(adminSource).not.toContain("admin-supplier-funding-guide");
   });
 });

@@ -546,3 +546,7 @@
 - [x] Refine VAMNUX customer wallet-funding language so customers are not asked to submit manual funding requests; make clear that automatic wallet credit occurs only after a configured payment gateway and verified payment webhook confirm the transaction.
 - [x] Preserve the safety boundary that VAMNUX cannot initiate supplier payments or automatically credit customer wallets until the respective supplier funding path and payment gateway/webhook are securely configured.
 - [x] Validate supplier funding guidance accuracy, customer funding wording, authorization boundaries, deterministic tests, and production build before publishing.
+
+- [x] Restore the VAMNUX Suppliers workspace to its original compact Supplier Overview table with the existing Products & Prices and Fund Wallet actions, without removing lower supplier controls or sections.
+- [x] Move optional supplier funding guidance behind the existing Fund Wallet action so the default Suppliers overview remains unchanged.
+- [x] Validate original supplier overview density, existing actions, lower-section visibility, deterministic tests, and production build before publishing.
