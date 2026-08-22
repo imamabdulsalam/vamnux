@@ -441,3 +441,6 @@
 
 - [x] Route every VAMNUX footer product link back to the marketplace catalog section with the matching active category filter, including Game Top-Up, Gift Cards, Subscriptions, AI Tools, Steam, Telegram Stars, and safe fallbacks for generic product links.
 - [x] Validate footer catalog-return links, matching category filters, category visibility boundaries, responsive navigation, deterministic tests, and production build before publishing.
+
+- [x] Fix duplicate React keys for VAMNUX footer product links that now share filtered-catalog destinations, preserving all category navigation behavior.
+- [x] Validate the footer warning is resolved with deterministic tests, runtime diagnostics, production build, and catalog-return links before publishing.

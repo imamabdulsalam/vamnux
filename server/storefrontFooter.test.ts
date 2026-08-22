@@ -20,6 +20,8 @@ describe("VAMNUX storefront footer", () => {
 
   it("returns every footer product link to the matching filtered catalog section", () => {
     ["/?category=Top-up#products", "/?category=Voucher#products", "/?category=Subscription#products", "/?category=AI%20tools#products", "/?category=All#products"].forEach((href) => expect(footerSource).toContain(href));
+    expect(footerSource).toContain("key={`${title}-${label}`}");
+    expect(footerSource).not.toContain("key={href}");
     expect(homeSource).toContain('new URLSearchParams(window.location.search).get("category")');
     expect(homeSource).toContain('document.getElementById("products")?.scrollIntoView');
     expect(homeSource).toContain("if (!publicCategories.data) return;");

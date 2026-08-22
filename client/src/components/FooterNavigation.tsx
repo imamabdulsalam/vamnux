@@ -31,7 +31,7 @@ const legalLinks = [
 ] as const;
 
 function FooterList({ title, links }: { title: string; links: readonly (readonly [string, string])[] }) {
-  return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}</section>;
+  return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => <Link key={`${title}-${label}`} href={href}>{label}</Link>)}</section>;
 }
 
 export default function FooterNavigation() {
