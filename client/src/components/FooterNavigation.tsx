@@ -71,7 +71,7 @@ export default function FooterNavigation() {
       </div>
 
       <div className="site-footer-grid">
-        <FooterList title="Company" links={[["About Us", "/about"], ["Contact Us", "/contact"], ["Why Us", "/#why-us"], ["Sign Up", "/login"]]} />
+        <FooterList title="Company" links={[["About Us", "/about"], ["Contact Us", "/contact"], ["Why Us", "/#why-us"], ["Sign Up", "/login?mode=signup"]]} />
         <FooterList title="Products" links={productLinks} />
         <FooterList title="Support" links={supportLinks} />
         <FooterList title="Legal" links={legalLinks} />

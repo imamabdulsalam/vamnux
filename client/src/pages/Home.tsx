@@ -487,7 +487,7 @@ export default function Home() {
                 {Object.entries(currencies).map(([code, details]) => <option key={code} value={code}>{details.label}</option>)}
               </select>
             </label>
-            {isAuthenticated ? <button className="header-icon" onClick={openAccount} aria-label="Open account"><UserRound size={20} /><span>Account</span></button> : <div className="header-auth-actions"><button className="header-signin" type="button" onClick={() => setLocation("/login")}>Sign in</button><button className="header-create-account" type="button" onClick={() => setLocation("/login")}>Create account</button></div>}
+            {isAuthenticated ? <button className="header-icon" onClick={openAccount} aria-label="Open account"><UserRound size={20} /><span>Account</span></button> : <div className="header-auth-actions"><button className="header-signin" type="button" onClick={() => setLocation("/login")}>Sign in</button><button className="header-create-account" type="button" onClick={() => setLocation("/login?mode=signup")}>Create account</button></div>}
             <button className="header-icon favourite-button" onClick={() => isAuthenticated ? setLocation("/account?tab=saved") : startLogin()} aria-label="Open favorites"><Heart size={20} /><span>Favorites</span></button>
             <button className="header-cart" onClick={openCart} aria-label="Open cart"><ShoppingBag size={21} /><span>Cart</span>{cart.length > 0 && <b>{cart.length}</b>}</button>
           </div>

@@ -471,3 +471,8 @@
 - [x] Replace Blog, Become a Reseller, and Affiliate Program in the VAMNUX Company footer with Why Us and Sign Up.
 - [x] Make Why Us reveal the existing VAMNUX trust section immediately and make Sign Up open the normal new-account registration flow.
 - [x] Validate the revised Company footer, trust-section visibility, registration routing, deterministic tests, responsive presentation, and production build before publishing.
+
+- [x] Rebuild the VAMNUX account-access page with clear Sign In and Create Account destinations that preserve the current secure authentication provider.
+- [x] Add a comprehensive registration-readiness form with first name, last name, email, optional phone, country, referral source, password confirmation, live password-strength guidance, consent, and truthful email-verification messaging.
+- [x] Represent CAPTCHA and native email/password account creation truthfully as unavailable until a real verified identity and CAPTCHA provider is configured; do not fabricate verification or accept credentials locally.
+- [x] Validate account-access routing, password guidance, accessibility, responsive layout, deterministic tests, and production build before publishing.
