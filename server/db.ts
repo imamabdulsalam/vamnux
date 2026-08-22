@@ -2197,6 +2197,71 @@ export async function getSuperAdminFinanceAnalytics(range?: { start?: Date; end?
   return { finance: { settledRevenue: revenue, recordedSupplierCost: supplierCost, paymentFees: null as number | null, refunds: 0, grossProfit, estimatedNetProfit: null as number | null, grossMarginPercent: revenue > 0 ? (grossProfit / revenue) * 100 : null as number | null, currency: "USD", note: "Revenue and supplier cost include only orders marked paid within the selected period. Provider fees, automatic refunds, and supplier fulfilment remain inactive or unavailable." }, orders: { total: numeric(orderSummary?.totalOrders), settled: numeric(orderSummary?.settledOrders), refunded: numeric(orderSummary?.refundedOrders), failed: numeric(orderSummary?.failedOrders) }, customers: { total: numeric(customerSummary?.totalCustomers), active: numeric(customerSummary?.activeCustomers), restrictedOrSuspended: numeric(customerSummary?.restrictedOrSuspended), newInPeriod: numeric(newCustomerSummary?.newCustomers) }, wallets: { totalBalance: numeric(walletSummary?.totalBalance), activeWallets: numeric(walletSummary?.activeWallets), pendingFundingRequests: numeric(fundingSummary?.pendingFunding), manuallySettledFunding: numeric(fundingSummary?.settledFunding) }, performance: { topProducts: productPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })), topCategories: categoryPerformance.map((row) => ({ ...row, units: numeric(row.units), revenue: numeric(row.revenue), profit: null as number | null })) }, period: { start: range?.start ?? null, end: range?.end ?? null } };
 }
 
+/** Owner-only attribution reporting. It uses customer-provided registration source and stored paid orders; it does not infer visitors, referrers, or search performance. */
+export async function getSuperAdminTrafficAnalytics(window: "1d" | "3d" | "7d" | "14d" | "1m" | "3m" | "1y") {
+  const db = requireDb(await getDb());
+  const end = new Date();
+  const start = new Date(end);
+  if (window === "1d") start.setDate(start.getDate() - 1);
+  if (window === "3d") start.setDate(start.getDate() - 3);
+  if (window === "7d") start.setDate(start.getDate() - 7);
+  if (window === "14d") start.setDate(start.getDate() - 14);
+  if (window === "1m") start.setMonth(start.getMonth() - 1);
+  if (window === "3m") start.setMonth(start.getMonth() - 3);
+  if (window === "1y") start.setFullYear(start.getFullYear() - 1);
+
+  const [profilesInPeriod, allProfiles, paidOrders] = await Promise.all([
+    db.select({ userId: customerProfiles.userId, registrationSource: customerProfiles.registrationSource, countryCode: customerProfiles.countryCode }).from(customerProfiles).where(and(gte(customerProfiles.createdAt, start), lte(customerProfiles.createdAt, end))),
+    db.select({ userId: customerProfiles.userId, registrationSource: customerProfiles.registrationSource }).from(customerProfiles),
+    db.select({ userId: orders.userId, total: orders.total, currency: orders.currency }).from(orders).where(and(eq(orders.paymentStatus, "paid"), gte(orders.createdAt, start), lte(orders.createdAt, end))),
+  ]);
+
+  type SourceRollup = { signups: number; purchases: number; revenue: Record<string, number> };
+  const sourceFor = (value: string | null) => value?.trim() || "Direct / unknown";
+  const sourceRows = new Map<string, SourceRollup>();
+  const countryRows = new Map<string, number>();
+  const profileSourceByUser = new Map(allProfiles.map((profile) => [profile.userId, sourceFor(profile.registrationSource)]));
+  const rollupFor = (source: string) => {
+    const current = sourceRows.get(source) || { signups: 0, purchases: 0, revenue: {} };
+    sourceRows.set(source, current);
+    return current;
+  };
+
+  for (const profile of profilesInPeriod) {
+    rollupFor(sourceFor(profile.registrationSource)).signups += 1;
+    const country = profile.countryCode?.trim().toUpperCase() || "Not provided";
+    countryRows.set(country, (countryRows.get(country) || 0) + 1);
+  }
+  for (const order of paidOrders) {
+    const rollup = rollupFor(profileSourceByUser.get(order.userId) || "Direct / unknown");
+    const currency = order.currency || "USD";
+    rollup.purchases += 1;
+    rollup.revenue[currency] = (rollup.revenue[currency] || 0) + numeric(order.total);
+  }
+
+  const totalRevenue: Record<string, number> = {};
+  for (const order of paidOrders) {
+    const currency = order.currency || "USD";
+    totalRevenue[currency] = (totalRevenue[currency] || 0) + numeric(order.total);
+  }
+  const totalSignups = profilesInPeriod.length;
+  const sources = Array.from(sourceRows.entries()).map(([source, row]) => ({
+    source,
+    signups: row.signups,
+    purchases: row.purchases,
+    revenue: Object.entries(row.revenue).map(([currency, total]) => ({ currency, total })).sort((a, b) => a.currency.localeCompare(b.currency)),
+    signupShare: totalSignups ? (row.signups / totalSignups) * 100 : 0,
+  })).sort((a, b) => b.signups - a.signups || b.purchases - a.purchases || a.source.localeCompare(b.source));
+
+  return {
+    period: { start, end, window },
+    metrics: { signups: totalSignups, purchases: paidOrders.length, revenue: Object.entries(totalRevenue).map(([currency, total]) => ({ currency, total })).sort((a, b) => a.currency.localeCompare(b.currency)), sourceCount: sources.length, countryCount: countryRows.size },
+    sources,
+    countries: Array.from(countryRows.entries()).map(([country, signups]) => ({ country, signups, signupShare: totalSignups ? (signups / totalSignups) * 100 : 0 })).sort((a, b) => b.signups - a.signups || a.country.localeCompare(b.country)),
+    note: "Traffic source reflects stored customer registration attribution. Visitor counts, external referrers, Google ranking, impressions, and clicks are unavailable until a privacy-reviewed analytics or search integration is connected.",
+  };
+}
+
 export async function listPromotions() {
   const db = requireDb(await getDb());
   const rows = await db.select().from(promotions).orderBy(desc(promotions.updatedAt));

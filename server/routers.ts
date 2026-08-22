@@ -12,6 +12,7 @@ import { createCustomerProductRequest, recordNewsletterInterest, subscribeCustom
 import { listAdminPolicyPages, updateAdminPolicyPage } from "./db";
 import { getSuperAdminNotificationDetail, listSuperAdminNotificationInbox, markAllSuperAdminNotificationsRead, markSuperAdminNotificationsRead } from "./db";
 import { replyToSuperAdminNotification } from "./db";
+import { getSuperAdminTrafficAnalytics } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -170,6 +171,7 @@ export const appRouter = router({
     listAuditEvents: adminProcedure.query(() => listSuperAdminAuditEvents()),
     search: adminProcedure.input(z.object({ query: z.string().trim().min(2).max(120) })).query(({ input }) => globalAdminSearch(input.query)),
     getFinanceAnalytics: adminProcedure.input(z.object({ start: z.coerce.date().optional(), end: z.coerce.date().optional() }).refine((input) => !input.start || !input.end || input.start <= input.end, { message: "Analytics start time must be before end time" }).optional()).query(({ input }) => getSuperAdminFinanceAnalytics(input)),
+    getTrafficAnalytics: adminProcedure.input(z.object({ window: z.enum(["1d", "3d", "7d", "14d", "1m", "3m", "1y"]) })).query(({ input }) => getSuperAdminTrafficAnalytics(input.window)),
     getMarketplacePricingSettings: adminProcedure.query(() => getMarketplacePricingSettings()),
     listCatalogPricing: adminProcedure.query(() => listCatalogPricing()),
     listPriceChangeHistory: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPriceChangeHistory(input?.limit)),

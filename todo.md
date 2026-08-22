@@ -550,3 +550,9 @@
 - [x] Restore the VAMNUX Suppliers workspace to its original compact Supplier Overview table with the existing Products & Prices and Fund Wallet actions, without removing lower supplier controls or sections.
 - [x] Move optional supplier funding guidance behind the existing Fund Wallet action so the default Suppliers overview remains unchanged.
 - [x] Validate original supplier overview density, existing actions, lower-section visibility, deterministic tests, and production build before publishing.
+
+- [x] Rename the VAMNUX Admin Statistics navigation item and workspace to Traffic Analytics.
+- [x] Add protected period controls for 1 day, 3 days, 7 days, 2 weeks, 1 month, 3 months, and 1 year.
+- [x] Report real VAMNUX traffic-source, signup, purchase, and recorded revenue metrics by selected period, with honest zero or unavailable states where source data does not exist.
+- [x] Build a readable responsive Traffic Analytics dashboard with traffic-source performance rows and proportional visual bars inspired by the supplied reference, without fabricating visitors, sources, conversions, or revenue.
+- [x] Validate authorization, period filtering, real-data aggregation, responsive presentation, deterministic tests, and production build before publishing.
