@@ -486,3 +486,5 @@
 - [x] Display the selected country’s calling prefix automatically beside the optional phone number so users enter only the remaining local number.
 - [x] Replace the registration referral-source text input with structured discovery options including Google, social platforms, blog, referral, advertising, events, and other appropriate sources.
 - [x] Validate selection behavior, country-code mapping, local draft-data boundaries, accessibility, responsive layout, deterministic tests, and production build before publishing.
+
+- [x] Reorder the VAMNUX registration fields so Country appears before the dependent country-code Phone number field without changing registration behavior.

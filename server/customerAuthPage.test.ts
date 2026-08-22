@@ -34,6 +34,7 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).toContain("Instagram");
     expect(authSource).toContain("Referral link");
     expect(authSource).toContain("VAMNUX Blog");
+    expect(authSource.indexOf('label="Country"')).toBeLessThan(authSource.indexOf('label="Phone number · optional"'));
   });
 
   it("preserves the configured secure identity flow and does not fabricate password, CAPTCHA, or email verification", () => {
