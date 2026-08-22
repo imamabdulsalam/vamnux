@@ -246,6 +246,19 @@ export const savedProducts = mysqlTable("saved_products", {
   productIndex: index("saved_products_product_idx").on(table.productId),
 }));
 
+/** Customer product interactions for the protected Super Admin activity inbox. No cart contents, payment data, or fulfilment fields are stored here. */
+export const customerProductActivityEvents = mysqlTable("customer_product_activity_events", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  productId: int("productId").notNull(),
+  activityType: mysqlEnum("activityType", ["favorite_added", "cart_added"]).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  customerCreatedIndex: index("customer_product_activity_events_customer_created_idx").on(table.userId, table.createdAt),
+  productCreatedIndex: index("customer_product_activity_events_product_created_idx").on(table.productId, table.createdAt),
+  activityCreatedIndex: index("customer_product_activity_events_activity_created_idx").on(table.activityType, table.createdAt),
+}));
+
 /** Append-only record of privileged VAMNUX operations. Metadata must never contain credentials or raw customer fulfilment details. */
 export const adminAuditEvents = mysqlTable("admin_audit_events", {
   id: int("id").autoincrement().primaryKey(),

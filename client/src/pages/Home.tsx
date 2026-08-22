@@ -218,6 +218,14 @@ export default function Home() {
     },
     onError: (orderError) => toast.error(orderError.message || "We could not create your draft order."),
   });
+  const toggleSavedProduct = trpc.marketplace.toggleSavedProduct.useMutation({
+    onSuccess: async (result) => {
+      toast.success(result.saved ? "Product added to your favorites." : "Product removed from your favorites.");
+      await customerDashboard.refetch();
+    },
+    onError: (error) => toast.error(error.message || "Could not update your favorites."),
+  });
+  const recordCartAddition = trpc.marketplace.recordCartAddition.useMutation();
 
   const carouselSlides = useMemo(() => {
     const heroBlocks = (publishedContentBlocks.data ?? []).filter((block) => block.blockType === "hero_slide");
@@ -303,9 +311,19 @@ export default function Home() {
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
+    if (isAuthenticated) recordCartAddition.mutate({ productId: item.id });
     toast.success(`${item.product} added to your cart`, {
       description: `${formatPrice(item.price)} shown in ${currency}. VAMNUX products use wallet-only purchase; no direct payment is offered.`,
     });
+  };
+
+  const toggleFavorite = (item: Product) => {
+    if (!isAuthenticated) {
+      toast.message("Sign in to favorite products", { description: "Favorites are private to your VAMNUX account." });
+      startLogin();
+      return;
+    }
+    toggleSavedProduct.mutate({ productId: item.id });
   };
 
   const chooseCategory = (category: ProductCategory) => {
@@ -410,7 +428,7 @@ export default function Home() {
               </select>
             </label>
             {isAuthenticated ? <button className="header-icon" onClick={openAccount} aria-label="Open account"><UserRound size={20} /><span>Account</span></button> : <div className="header-auth-actions"><button className="header-signin" type="button" onClick={() => setLocation("/login")}>Sign in</button><button className="header-create-account" type="button" onClick={() => setLocation("/login")}>Create account</button></div>}
-            <button className="header-icon favourite-button" onClick={() => toast.message("Favourites are ready to connect", { description: "Add customer accounts to save products between visits." })} aria-label="Favourites"><Heart size={20} /></button>
+            <button className="header-icon favourite-button" onClick={() => isAuthenticated ? setLocation("/account?tab=saved") : startLogin()} aria-label="Open favorites"><Heart size={20} /><span>Favorites</span></button>
             <button className="header-cart" onClick={openCart} aria-label="Open cart"><ShoppingBag size={21} /><span>Cart</span>{cart.length > 0 && <b>{cart.length}</b>}</button>
           </div>
         </div>
@@ -547,7 +565,7 @@ export default function Home() {
         <div className="product-family-list compact-catalog-results">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving active availability from configured suppliers.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} />}
+          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />

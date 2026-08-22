@@ -59,9 +59,11 @@ export default function DigitalProductDetail() {
     },
     onError: (error) => toast.error(error.message || "Could not update your saved products."),
   });
+  const recordCartAddition = trpc.marketplace.recordCartAddition.useMutation();
   const addToCart = (item = selectedItem) => {
     if (!item) return;
     setCart((items) => [...items, item]); setCartOpen(true);
+    if (isAuthenticated) recordCartAddition.mutate({ productId: item.id });
     toast.success(`${item.product} added to your cart`, { description: "VAMNUX products are prepared for wallet-only purchase. No direct payment or supplier fulfilment is available." });
   };
   const saveDraft = () => {

@@ -122,6 +122,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const orders = trpc.admin.listOrders.useQuery();
   const manualDeliveryTasks = trpc.admin.listManualDeliveryTasks.useQuery();
   const supportTickets = trpc.admin.listSupportTickets.useQuery();
+  const productActivityEvents = trpc.admin.listProductActivityEvents.useQuery({ limit: 100 });
   const [selectedSupportTicket, setSelectedSupportTicket] = useState<string | null>(null);
   const supportTicketDetail = trpc.admin.getSupportTicket.useQuery({ ticketCode: selectedSupportTicket || "" }, { enabled: !!selectedSupportTicket });
   const fundingRequests = trpc.admin.listWalletFundingRequests.useQuery();
@@ -204,7 +205,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     setLoyaltyDraft({ pointsPerCurrencyUnit: String(loyaltySettings.data.pointsPerCurrencyUnit), redemptionValuePerPoint: String(loyaltySettings.data.redemptionValuePerPoint), expiryDays: loyaltySettings.data.expiryDays === null ? "" : String(loyaltySettings.data.expiryDays), status: loyaltySettings.data.status });
   }, [loyaltySettings.data]);
   const refreshAdminData = async () => {
-    await Promise.all([utils.admin.getOverview.invalidate(), utils.admin.listAuditEvents.invalidate(), utils.admin.listCustomers.invalidate(), utils.admin.listOrders.invalidate(), utils.admin.listManualDeliveryTasks.invalidate(), utils.admin.listSupplierBalances.invalidate(), utils.admin.listWalletFundingRequests.invalidate(), utils.admin.listSupportTickets.invalidate(), utils.admin.getMarketplacePricingSettings.invalidate(), utils.admin.listCatalogPricing.invalidate(), utils.admin.listPriceChangeHistory.invalidate(), utils.admin.listAdminProductOperations.invalidate(), utils.admin.listMarketplaceCategories.invalidate(), utils.admin.listExchangeRates.invalidate(), utils.admin.listSiteContentBlocks.invalidate(), utils.admin.listSupplierSyncRuns.invalidate(), utils.admin.getFinanceAnalytics.invalidate(), utils.admin.listPromotions.invalidate(), utils.admin.getReferralSettings.invalidate(), utils.admin.getLoyaltySettings.invalidate(), utils.admin.listResellers.invalidate(), utils.admin.listSiteSettings.invalidate(), utils.admin.listNotificationTemplates.invalidate(), utils.admin.listApiRequestLogs.invalidate(), utils.admin.listSupplierWebhookEvents.invalidate(), utils.marketplace.catalog.invalidate()]);
+    await Promise.all([utils.admin.getOverview.invalidate(), utils.admin.listAuditEvents.invalidate(), utils.admin.listCustomers.invalidate(), utils.admin.listOrders.invalidate(), utils.admin.listManualDeliveryTasks.invalidate(), utils.admin.listSupplierBalances.invalidate(), utils.admin.listWalletFundingRequests.invalidate(), utils.admin.listSupportTickets.invalidate(), utils.admin.listProductActivityEvents.invalidate(), utils.admin.getMarketplacePricingSettings.invalidate(), utils.admin.listCatalogPricing.invalidate(), utils.admin.listPriceChangeHistory.invalidate(), utils.admin.listAdminProductOperations.invalidate(), utils.admin.listMarketplaceCategories.invalidate(), utils.admin.listExchangeRates.invalidate(), utils.admin.listSiteContentBlocks.invalidate(), utils.admin.listSupplierSyncRuns.invalidate(), utils.admin.getFinanceAnalytics.invalidate(), utils.admin.listPromotions.invalidate(), utils.admin.getReferralSettings.invalidate(), utils.admin.getLoyaltySettings.invalidate(), utils.admin.listResellers.invalidate(), utils.admin.listSiteSettings.invalidate(), utils.admin.listNotificationTemplates.invalidate(), utils.admin.listApiRequestLogs.invalidate(), utils.admin.listSupplierWebhookEvents.invalidate(), utils.marketplace.catalog.invalidate()]);
   };
   const updateDefaultMarkup = trpc.admin.updateMarketplacePricingSettings.useMutation({ onSuccess: async () => { toast.success("Global VAMNUX markup updated and audit logged."); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not update global markup.") });
   const updateProductPricing = trpc.admin.updateCatalogProductPricing.useMutation({ onSuccess: async () => { toast.success("Product price rule updated and audit logged."); await refreshAdminData(); }, onError: (error) => toast.error(error.message || "Could not update product pricing.") });
@@ -297,6 +298,55 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     refresh();
     return () => { tools.remove(); panel.querySelectorAll("[data-category-select], [data-category-quick-view], [data-category-drag]").forEach((element) => element.remove()); rows.forEach((row) => { row.draggable = false; delete row.dataset.categoryId; }); document.querySelectorAll(".admin-category-quick-overlay").forEach((overlay) => overlay.remove()); };
   }, [activeTab, marketplaceCategories.data, productOperations.data, bulkUpdateCategories, reorderCategories]);
+  useEffect(() => {
+    if (activeTab !== "notifications") return;
+    const panel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.querySelector("h2")?.textContent === "Owner review inbox");
+    if (!panel) return;
+    panel.querySelector("[data-product-activity-inbox]")?.remove();
+    const inbox = document.createElement("section");
+    inbox.dataset.productActivityInbox = "true";
+    inbox.className = "admin-panel m-5 border border-[#286dff]/35 bg-[#0d1325]";
+    const heading = document.createElement("header");
+    const headingCopy = document.createElement("div");
+    const kicker = document.createElement("span"); kicker.textContent = "PRODUCT ACTIVITY";
+    const title = document.createElement("h2"); title.textContent = "Favorites & cart inbox";
+    const description = document.createElement("p"); description.textContent = "Shows authenticated customers who favorited a product or added it to their local VAMNUX cart. These signals do not create an order, wallet debit, payment, or supplier request.";
+    headingCopy.append(kicker, title, description);
+    const refresh = document.createElement("button"); refresh.type = "button"; refresh.className = "admin-secondary-action"; refresh.textContent = "Refresh inbox"; refresh.addEventListener("click", () => void productActivityEvents.refetch());
+    heading.append(headingCopy, refresh);
+    const metrics = document.createElement("section"); metrics.className = "admin-metric-grid";
+    const events = productActivityEvents.data ?? [];
+    const makeMetric = (labelText: string, value: string, detail: string) => { const card = document.createElement("article"); const label = document.createElement("span"); label.textContent = labelText; const strong = document.createElement("strong"); strong.textContent = value; const small = document.createElement("small"); small.textContent = detail; card.append(label, strong, small); return card; };
+    metrics.append(makeMetric("ACTIVITY RECORDS", String(events.length), "Most recent protected records"), makeMetric("FAVORITED", String(events.filter((event) => event.activityType === "favorite_added").length), "Customer favorites"), makeMetric("ADDED TO CART", String(events.filter((event) => event.activityType === "cart_added").length), "Local cart additions"));
+    const toolbar = document.createElement("div"); toolbar.className = "admin-funding-actions";
+    const allButton = document.createElement("button"); allButton.type = "button"; allButton.className = "admin-primary-action"; allButton.textContent = "All activity";
+    const favoritesButton = document.createElement("button"); favoritesButton.type = "button"; favoritesButton.className = "admin-secondary-action"; favoritesButton.textContent = "Favorites";
+    const cartButton = document.createElement("button"); cartButton.type = "button"; cartButton.className = "admin-secondary-action"; cartButton.textContent = "Cart additions";
+    toolbar.append(allButton, favoritesButton, cartButton);
+    const tableWrap = document.createElement("div"); tableWrap.className = "admin-table-wrap";
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Activity</th><th>Customer</th><th>Product</th><th>Time</th><th>Open</th></tr></thead>";
+    const body = document.createElement("tbody"); table.append(body); tableWrap.append(table);
+    const renderEvents = (kind: "all" | "favorite_added" | "cart_added") => {
+      body.replaceChildren();
+      const rows = kind === "all" ? events : events.filter((event) => event.activityType === kind);
+      if (!rows.length) { const row = document.createElement("tr"); const cell = document.createElement("td"); cell.colSpan = 5; cell.textContent = productActivityEvents.isLoading ? "Loading protected customer product activity…" : "No matching favorite or cart activity has been recorded yet."; row.append(cell); body.append(row); return; }
+      rows.forEach((event) => {
+        const row = document.createElement("tr");
+        const activity = document.createElement("td"); activity.textContent = event.activityType === "favorite_added" ? "Favorited" : "Added to cart";
+        const customer = document.createElement("td"); const customerName = document.createElement("strong"); customerName.textContent = event.customerUsername || event.customerName || `Customer #${event.userId}`; const customerEmail = document.createElement("small"); customerEmail.textContent = event.customerEmail || "Email unavailable"; customer.append(customerName, customerEmail);
+        const product = document.createElement("td"); const productName = document.createElement("strong"); productName.textContent = event.productName; const productCategory = document.createElement("small"); productCategory.textContent = label(event.productCategory); product.append(productName, productCategory);
+        const time = document.createElement("td"); time.textContent = new Date(event.createdAt).toLocaleString();
+        const controls = document.createElement("td"); const customerButton = document.createElement("button"); customerButton.type = "button"; customerButton.className = "admin-secondary-action"; customerButton.textContent = "Customer"; customerButton.addEventListener("click", () => { setSelectedCustomerControlId(event.userId); setActiveTab("customers"); }); const productButton = document.createElement("button"); productButton.type = "button"; productButton.className = "admin-secondary-action ml-2"; productButton.textContent = "Product"; productButton.addEventListener("click", () => { setProductOperationsId(String(event.productId)); setActiveTab("products"); }); controls.append(customerButton, productButton);
+        row.append(activity, customer, product, time, controls); body.append(row);
+      });
+    };
+    allButton.addEventListener("click", () => renderEvents("all")); favoritesButton.addEventListener("click", () => renderEvents("favorite_added")); cartButton.addEventListener("click", () => renderEvents("cart_added"));
+    renderEvents("all");
+    inbox.append(heading, metrics, toolbar, tableWrap);
+    panel.prepend(inbox);
+    return () => inbox.remove();
+  }, [activeTab, productActivityEvents.data, productActivityEvents.isLoading]);
   useEffect(() => {
     if (activeTab !== "customers") return;
     const panel = Array.from(document.querySelectorAll<HTMLElement>(".admin-panel")).find((item) => item.textContent?.includes("Authenticated accounts"));

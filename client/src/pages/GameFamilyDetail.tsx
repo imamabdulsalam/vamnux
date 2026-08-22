@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, ArrowRight, CircleDollarSign, Gamepad2, Globe2, Search, ShieldCheck, ShoppingBag, ShoppingCart, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleDollarSign, Gamepad2, Globe2, Heart, Search, ShieldCheck, ShoppingBag, ShoppingCart, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
@@ -42,6 +42,14 @@ export default function GameFamilyDetail() {
     },
     onError: (orderError) => toast.error(orderError.message || "We could not create your draft order."),
   });
+  const toggleSavedProduct = trpc.marketplace.toggleSavedProduct.useMutation({
+    onSuccess: async (result) => {
+      toast.success(result.saved ? "Product added to your favorites." : "Product removed from your favorites.");
+      await customerDashboard.refetch();
+    },
+    onError: (error) => toast.error(error.message || "Could not update your favorites."),
+  });
+  const recordCartAddition = trpc.marketplace.recordCartAddition.useMutation();
 
   const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data]);
   const family = useMemo(() => groupLiveProductFamilies(products.filter((product) => product.name.toLowerCase() === familyName?.toLowerCase()))[0], [familyName, products]);
@@ -56,6 +64,7 @@ export default function GameFamilyDetail() {
   const addToCart = (item: LiveCatalogProduct) => {
     setCart((current) => [...current, item]);
     setCartOpen(true);
+    if (isAuthenticated) recordCartAddition.mutate({ productId: item.id });
     toast.success(`${item.product} added to your cart`, { description: "VAMNUX products are prepared for wallet-only purchase. No direct payment or supplier fulfilment is available." });
   };
 
@@ -79,6 +88,16 @@ export default function GameFamilyDetail() {
 
   if (supplierCatalog.isLoading) return <main className="family-page-loading"><Search size={28} /><p>Loading verified supplier services…</p></main>;
   if (!familyName || !family) return <main className="family-page-loading"><ShieldCheck size={28} /><h1>Game family unavailable.</h1><p>This family is not currently an active synchronised VAMNUX listing.</p><button onClick={() => setLocation("/")}>Back to catalog</button></main>;
+  const isSaved = selectedItem ? customerDashboard.data?.savedProducts.some((savedProduct) => savedProduct.id === selectedItem.id) ?? false : false;
+  const toggleFavorite = () => {
+    if (!selectedItem) return;
+    if (!isAuthenticated) {
+      toast.message("Sign in to favorite products", { description: "Favorites are private to your VAMNUX account." });
+      startLogin();
+      return;
+    }
+    toggleSavedProduct.mutate({ productId: selectedItem.id });
+  };
 
   return (
     <main className="game-family-page">
@@ -102,7 +121,7 @@ export default function GameFamilyDetail() {
         <div className="family-services-heading"><div><p className="detail-eyebrow">Choose a denomination</p><h2>SELECT<br /><em>YOUR ITEM.</em></h2></div><p>Each option is an active supplier-backed denomination. The current VAMNUX price, region, and exact account requirement are shown before it enters your saved cart.</p></div>
         {selectedItem && <div className="family-selection-layout">
           <div className="family-denomination-area"><div className="family-requirement-bar"><span>What’s needed for this top-up</span>{selectedItem.inputRequirements.filter((field) => field.required).length ? selectedItem.inputRequirements.filter((field) => field.required).map((field) => <b key={field.key}>{field.label}</b>) : <b>No account field required</b>}</div><div className="family-denomination-grid">{family.items.map((item) => <button key={item.id} type="button" onClick={() => setSelectedServiceId(item.id)} className={item.id === selectedItem.id ? "family-denomination-card selected" : "family-denomination-card"}><span>{item.product}</span><strong>{formatPrice(item.price)}</strong><small>{item.region} · {item.delivery}</small></button>)}</div></div>
-          <aside className="family-selection-summary"><p className="detail-eyebrow">Your selection</p><h3>{selectedItem.product}</h3><p>{family.name}</p><div className="selection-required-fields">{selectedItem.inputRequirements.filter((field) => field.required).map((field) => { const key = createFulfillmentFieldKey(selectedItem.id, field.key); return <label key={key}><span>{field.label} *</span><input type={field.type === "email" ? "email" : "text"} value={fulfillmentDetails[key] ?? ""} onChange={(event) => setFulfillmentDetails((current) => ({ ...current, [key]: event.target.value }))} placeholder={field.helperText || field.label} /></label>; })}</div><div className="selection-price"><span>VAMNUX price</span><strong>{formatPrice(selectedItem.price)}</strong><small>{selectedItem.priceNote}</small></div><button onClick={() => addToCart(selectedItem)} aria-label={`Add ${family.name} ${selectedItem.product} to cart`} title="Add selected item to cart"><ShoppingCart size={19} /><span>Add selected item</span></button><small className="selection-note">Saved selection only. Payment, wallet funding, supplier ordering, and delivery remain inactive.</small></aside>
+          <aside className="family-selection-summary"><p className="detail-eyebrow">Your selection</p><h3>{selectedItem.product}</h3><p>{family.name}</p><div className="selection-required-fields">{selectedItem.inputRequirements.filter((field) => field.required).map((field) => { const key = createFulfillmentFieldKey(selectedItem.id, field.key); return <label key={key}><span>{field.label} *</span><input type={field.type === "email" ? "email" : "text"} value={fulfillmentDetails[key] ?? ""} onChange={(event) => setFulfillmentDetails((current) => ({ ...current, [key]: event.target.value }))} placeholder={field.helperText || field.label} /></label>; })}</div><div className="selection-price"><span>VAMNUX price</span><strong>{formatPrice(selectedItem.price)}</strong><small>{selectedItem.priceNote}</small></div><div className="digital-selection-actions"><button type="button" onClick={toggleFavorite} disabled={toggleSavedProduct.isPending} className={isSaved ? "saved" : ""}>{isSaved ? "Favorited" : "Favorite"} <Heart size={15} fill={isSaved ? "currentColor" : "none"} /></button><button onClick={() => addToCart(selectedItem)} aria-label={`Add ${family.name} ${selectedItem.product} to cart`} title="Add selected item to cart"><ShoppingCart size={19} /><span>Add selected item</span></button></div><small className="selection-note">Saved selection only. Payment, wallet funding, supplier ordering, and delivery remain inactive.</small></aside>
         </div>}
       </section>
 

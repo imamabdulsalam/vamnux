@@ -416,3 +416,8 @@
 
 - [x] Repair the VAMNUX User Dashboard hook ordering so authenticated customer account screens render without a React runtime error.
 - [x] Support direct VAMNUX User Dashboard tab URLs for account settings, consent, privacy, wallet, support, and other declared customer workspaces.
+
+- [x] Add a working favorite control to every active VAMNUX product presentation while preserving existing cart actions and ensuring new or synchronized products inherit it automatically.
+- [x] Record authenticated product-favorite and saved-cart addition activity with the customer account and product context needed for secure Super Admin notification review.
+- [x] Expand the Super Admin Notifications workspace with a clickable product-activity inbox that identifies the relevant customer and product without exposing secrets or changing orders.
+- [x] Validate favorites, cart persistence, activity-notification authorization, responsive customer/Admin UI, deterministic tests, production build, and visual presentation before publishing.

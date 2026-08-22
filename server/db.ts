@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -1716,8 +1716,45 @@ export async function toggleCustomerSavedProduct(input: { userId: number; produc
   const [product] = await db.select({ id: products.id }).from(products)
     .where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
   if (!product) throw new Error("This VAMNUX product is unavailable to save");
-  await db.insert(savedProducts).values({ userId: input.userId, productId: input.productId });
+  await db.transaction(async (tx) => {
+    await tx.insert(savedProducts).values({ userId: input.userId, productId: input.productId });
+    await tx.insert(customerProductActivityEvents).values({ userId: input.userId, productId: input.productId, activityType: "favorite_added" });
+  });
   return { productId: input.productId, saved: true } as const;
+}
+
+/** Records a signed-in customer's request to add a currently active product to their local VAMNUX cart. */
+export async function recordCustomerCartAddition(input: { userId: number; productId: number }) {
+  const db = requireDb(await getDb());
+  const [product] = await db.select({ id: products.id }).from(products)
+    .where(and(eq(products.id, input.productId), eq(products.status, "active"))).limit(1);
+  if (!product) throw new Error("This VAMNUX product is unavailable to add to cart");
+  await db.insert(customerProductActivityEvents).values({ userId: input.userId, productId: input.productId, activityType: "cart_added" });
+  return { recorded: true, productId: input.productId } as const;
+}
+
+/** Returns only the customer identity and product context needed for the protected Super Admin product-activity inbox. */
+export async function listSuperAdminProductActivityEvents(input: { limit?: number } = {}) {
+  const db = requireDb(await getDb());
+  const limit = Math.min(Math.max(input.limit ?? 100, 1), 250);
+  return db.select({
+    id: customerProductActivityEvents.id,
+    activityType: customerProductActivityEvents.activityType,
+    createdAt: customerProductActivityEvents.createdAt,
+    userId: users.id,
+    customerName: users.name,
+    customerEmail: users.email,
+    customerUsername: customerProfiles.username,
+    productId: products.id,
+    productName: products.name,
+    productSlug: products.slug,
+    productCategory: products.category,
+  }).from(customerProductActivityEvents)
+    .innerJoin(users, eq(customerProductActivityEvents.userId, users.id))
+    .innerJoin(products, eq(customerProductActivityEvents.productId, products.id))
+    .leftJoin(customerProfiles, eq(customerProfiles.userId, users.id))
+    .orderBy(desc(customerProductActivityEvents.createdAt))
+    .limit(limit);
 }
 
 function createWalletFundingCode() {
