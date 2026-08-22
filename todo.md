@@ -376,3 +376,7 @@
 - [x] Redesign the storefront category browser as a compact mobile-first card grid with moderate typography, category icons, real available-product counts, and direct browse actions.
 - [x] Keep category cards driven by active-visible Admin category state and make every card lead customers to the exact available products in that category.
 - [x] Validate category-card counts, hide/archive/show/restore propagation, desktop/mobile layout, navigation, tests, build, and visual presentation before publishing.
+
+- [x] Redesign the marketplace hero into a compact 5–7 slide VAMNUX trust and discovery carousel with calm visual treatment and mobile-friendly typography.
+- [x] Use only truthful platform messages and a clearly review-ready state; do not fabricate customer testimonials, names, countries, profile identities, or review content.
+- [x] Validate hero content, slide navigation, Admin-visible content controls, responsive layout, accessibility, tests, build, and visual presentation before publishing.

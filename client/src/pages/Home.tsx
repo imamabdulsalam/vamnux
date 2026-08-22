@@ -58,36 +58,80 @@ const currencies: Record<CurrencyCode, { label: string; locale: string; rate: nu
 const slides = [
   {
     key: "violet",
-    kicker: "01 / GAMING",
-    title: "LEVEL UP.\nPLAY MORE.",
-    emphasis: "PLAY MORE.",
-    description: "Instant access to game credits, passes and gaming vouchers for the games you love.",
-    cta: "Explore games",
+    kicker: "01 / DIGITAL MARKETPLACE",
+    title: "CLEAR CHOICES.\nREADY TO BROWSE.",
+    emphasis: "READY TO BROWSE.",
+    description: "Explore VAMNUX categories with product details, requirements, and final prices kept easy to understand.",
+    cta: "Browse marketplace",
     category: "Top-up" as ProductCategory,
-    metric: "Gaming",
-    note: "Game credits, passes & vouchers.",
+    metric: "Discover",
+    note: "Digital products in one focused marketplace.",
   },
   {
     key: "jade",
-    kicker: "02 / GIFT CARDS",
-    title: "EVERYTHING DIGITAL.\nONE PLACE.",
-    emphasis: "ONE PLACE.",
-    description: "Browse gift cards and digital vouchers for gaming, entertainment, shopping, and more as approved sources are connected.",
-    cta: "Explore gift cards",
-    category: "Voucher" as ProductCategory,
-    metric: "Gift cards",
-    note: "Approved sources unlock availability.",
+    kicker: "02 / PRODUCT CLARITY",
+    title: "KNOW BEFORE\nYOU SELECT.",
+    emphasis: "YOU SELECT.",
+    description: "See the information that matters—region guidance, account requirements, format, and final payable price.",
+    cta: "View top-ups",
+    category: "Top-up" as ProductCategory,
+    metric: "Details",
+    note: "Requirements stay close to each listing.",
   },
   {
     key: "ember",
-    kicker: "03 / DIGITAL SERVICES",
-    title: "UPGRADE YOUR\nDIGITAL LIFE.",
-    emphasis: "DIGITAL LIFE.",
-    description: "Discover subscriptions, software, AI tools, and premium digital services as their authorised suppliers are added to VAMNUX.",
-    cta: "Explore services",
+    kicker: "03 / CATEGORIES",
+    title: "FIND YOUR\nDIGITAL PICK.",
+    emphasis: "DIGITAL PICK.",
+    description: "Move directly from category browsing to the products currently available in that part of VAMNUX.",
+    cta: "Explore categories",
+    category: "Top-up" as ProductCategory,
+    metric: "Categories",
+    note: "Browse only active marketplace categories.",
+  },
+  {
+    key: "violet",
+    kicker: "04 / WALLET-FIRST",
+    title: "YOUR ACCOUNT.\nONE PLACE.",
+    emphasis: "ONE PLACE.",
+    description: "Your dashboard keeps wallet activity, orders, saved products, account settings, and support within reach.",
+    cta: "Browse VAMNUX",
+    category: "Top-up" as ProductCategory,
+    metric: "Account",
+    note: "A focused view of your VAMNUX activity.",
+  },
+  {
+    key: "jade",
+    kicker: "05 / SUPPORT",
+    title: "GUIDANCE WHEN\nYOU NEED IT.",
+    emphasis: "YOU NEED IT.",
+    description: "Product-specific guidance and a protected support path help keep your VAMNUX journey straightforward.",
+    cta: "Explore VAMNUX",
+    category: "Top-up" as ProductCategory,
+    metric: "Support",
+    note: "Help options are available from your account.",
+  },
+  {
+    key: "ember",
+    kicker: "06 / AVAILABLE NOW",
+    title: "LIVE CATEGORIES.\nREAL OPTIONS.",
+    emphasis: "REAL OPTIONS.",
+    description: "VAMNUX only shows categories and products that are active for customer discovery at the moment you browse.",
+    cta: "See available products",
     category: "Subscription" as ProductCategory,
-    metric: "Digital services",
-    note: "Subscriptions, software & AI tools.",
+    metric: "Availability",
+    note: "Active categories update with marketplace settings.",
+  },
+  {
+    key: "violet",
+    kicker: "07 / REVIEW-READY",
+    title: "FEEDBACK THAT\nCAN BE VERIFIED.",
+    emphasis: "CAN BE VERIFIED.",
+    description: "Verified customer feedback can appear here after it is approved. VAMNUX does not invent reviews or identities.",
+    cta: "Explore VAMNUX",
+    category: "Top-up" as ProductCategory,
+    metric: "Feedback",
+    note: "Approved customer feedback appears here when available.",
   },
 ];
 
@@ -184,7 +228,7 @@ export default function Home() {
         note: typeof content.note === "string" ? content.note : "VAMNUX marketplace selection.",
       };
     }).filter((slide): slide is NonNullable<typeof slide> => Boolean(slide));
-    return validSlides.length ? validSlides : slides;
+    return validSlides.length >= 5 ? validSlides.slice(0, 7) : slides;
   }, [publishedContentBlocks.data]);
 
   useEffect(() => {
@@ -376,15 +420,15 @@ export default function Home() {
             <h1>{slide.title.split("\n")[0]}<br /><em>{slide.emphasis}</em></h1>
             <p className="carousel-copy">{slide.description}</p>
             <div className="carousel-actions">
-              <button onClick={() => chooseCategory(slide.category)} className="carousel-primary">{slide.cta} <ArrowRight size={18} /></button>
-              <button onClick={() => chooseCategory("Top-up")} className="carousel-secondary">Top up a game <ChevronRight size={18} /></button>
+            <button onClick={() => chooseCategory(slide.category)} className="carousel-primary">{slide.cta} <ArrowRight size={18} /></button>
+              <button onClick={() => chooseCategory("Top-up")} className="carousel-secondary">Browse catalogue <ChevronRight size={18} /></button>
             </div>
           </div>
           <div className="carousel-terminal" aria-hidden="true">
-            <div className="terminal-top"><span>LIVE // MARKET VIEW</span><i /></div>
+            <div className="terminal-top"><span>VAMNUX // MARKET VIEW</span><i /></div>
             <div className="terminal-price"><strong>{slide.metric}</strong><span>{slide.note}</span></div>
             <div className="terminal-bars"><i /><i /><i /><i /><i /><i /><i /></div>
-            <div className="terminal-bottom"><span>READY</span><span>01 / 03</span></div>
+            <div className="terminal-bottom"><span>READY</span><span>{String(activeSlide + 1).padStart(2, "0")} / {String(carouselSlides.length).padStart(2, "0")}</span></div>
           </div>
           <div className="carousel-controls" aria-label="Carousel slides">
             {carouselSlides.map((item, index) => <button key={`${item.key}-${index}`} onClick={() => setActiveSlide(index)} aria-label={`Show ${item.kicker}`} className={activeSlide === index ? "active" : ""}>{String(index + 1).padStart(2, "0")}</button>)}

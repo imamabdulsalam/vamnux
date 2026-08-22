@@ -106,6 +106,19 @@ footer { padding:34px 32px 20px; background:#090b11; color:#fff; }.footer-top,.f
 .category-browser-arrow { grid-column:2; justify-self:end; align-self:end; color:#286dff; }
 @media (max-width:1100px) { .category-list.category-browser-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:760px) { .global-category-row { padding:38px 15px 34px; }.category-browser-heading { display:block; margin-bottom:15px; }.category-browser-heading h2 { font-size:24px; }.category-browser-heading>p { margin-top:9px; font-size:11px; }.category-list.category-browser-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }.category-button.category-browser-card { min-height:116px; grid-template-columns:34px minmax(0,1fr); padding:12px; border-radius:12px; gap:0 9px; }.category-browser-icon { width:34px; height:34px; border-radius:10px; }.category-browser-icon svg { width:17px; height:17px; }.category-browser-copy strong { font-size:12px; }.category-browser-copy small { font-size:9px; }.category-browser-arrow { width:15px; height:15px; } }
+
+/* Compact, calm multi-slide marketplace hero */
+.commerce-carousel { padding:20px clamp(18px,4vw,64px) 22px; background:#f7f9fd; }
+.carousel-panel { min-height:354px; border-radius:16px; overflow:hidden; }
+.carousel-content { width:min(59%,690px); padding:46px clamp(28px,5vw,62px) 58px; }
+.carousel-kicker { font-size:9px; letter-spacing:.15em; }
+.carousel-content h1 { max-width:620px; margin:14px 0 12px; font-family:"Nunito Sans",sans-serif; font-size:clamp(39px,5vw,67px); font-weight:800; letter-spacing:-.065em; line-height:.95; }
+.carousel-copy { max-width:470px; font-size:12px; line-height:1.55; }
+.carousel-actions { margin-top:18px; }.carousel-primary,.carousel-secondary { font-size:10px; }
+.carousel-terminal { width:296px; min-height:210px; top:50%; right:clamp(28px,6vw,105px); transform:translateY(-50%); padding:19px; border-color:rgba(255,255,255,.28); background:rgba(12,19,48,.22); backdrop-filter:blur(8px); }
+.terminal-price strong { font-family:"Nunito Sans",sans-serif; font-size:42px; letter-spacing:-.055em; }.terminal-price span { font-size:10px; line-height:1.4; }.terminal-top,.terminal-bottom { font-size:8px; }.terminal-bars { height:42px; }
+@media (max-width:900px) { .carousel-content { width:64%; }.carousel-terminal { right:28px; width:235px; min-height:174px; padding:15px; }.terminal-price strong { font-size:32px; } }
+@media (max-width:760px) { .commerce-carousel { padding:10px 0 15px; }.carousel-panel { min-height:382px; border-radius:0; }.carousel-content { width:100%; padding:36px 21px 94px; }.carousel-kicker { font-size:8px; }.carousel-content h1 { max-width:300px; margin:12px 0 10px; font-size:clamp(36px,11.5vw,47px); line-height:.98; }.carousel-copy { max-width:290px; font-size:11px; }.carousel-actions { gap:13px; margin-top:16px; }.carousel-primary { padding:11px 12px; font-size:9px; }.carousel-secondary { font-size:9px; }.carousel-terminal { right:18px; bottom:55px; top:auto; width:134px; min-height:99px; padding:10px; transform:none; }.terminal-top,.terminal-bottom { font-size:6px; }.terminal-price { margin:10px 0 7px; }.terminal-price strong { font-size:20px; }.terminal-price span { font-size:7px; }.terminal-bars { height:18px; gap:3px; }.carousel-controls { bottom:19px; left:21px; } }
 @media (max-width:390px) { .commerce-categories a:nth-child(n+5) { display:inline-flex; } }
 @media (max-width:390px) { .product-grid { grid-template-columns:1fr; }.product-image-wrap { height:185px; }.product-content { min-height:180px; }.product-description { min-height:auto; }.global-promises { grid-template-columns:1fr; }.global-promises>div { border-right:0; }.commerce-categories a:nth-child(n+5),.commerce-categories button { display:none; } }
 @media (max-width:390px) { .commerce-categories a:nth-child(n+5) { display:inline-flex; } }
