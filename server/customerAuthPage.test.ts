@@ -47,6 +47,16 @@ describe("VAMNUX customer account access", () => {
     expect(authSource).not.toContain("trpc.auth.loginWithPassword");
   });
 
+  it("provides editable local sign-in fields and clears them before the provider handoff", () => {
+    expect(authSource).toContain('autoComplete="current-password"');
+    expect(authSource).toContain('placeholder="Enter your password"');
+    expect(authSource).toContain('event.currentTarget.reset()');
+    expect(authSource).toContain('setEmail("")');
+    expect(authSource).toContain('setPassword("")');
+    expect(authSource).toContain('window.setTimeout(() => startLogin(), 0)');
+    expect(authSource).toContain("Sign in securely");
+  });
+
   it("provides clear standard destinations for sign-in, registration, and unavailable recovery", () => {
     expect(authSource).toContain('const SIGN_IN_PATH = "/login"');
     expect(authSource).toContain('const SIGN_UP_PATH = "/login?mode=signup"');

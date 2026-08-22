@@ -99,23 +99,37 @@ function AccountBenefits() {
 }
 
 function SecureSignIn() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return toast.error("Enter a valid email address before continuing.");
+    if (!password) return toast.error("Enter your password before continuing.");
+    event.currentTarget.reset();
+    setEmail("");
+    setPassword("");
+    toast.message("Continue in the secure sign-in service", { description: "The local fields have been cleared. Complete sign in in the configured secure provider." });
+    window.setTimeout(() => startLogin(), 0);
+  };
+
   return (
-    <div className="customer-auth-card">
+    <form onSubmit={submit} className="customer-auth-card">
       <LockKeyhole size={24} />
       <p>SECURE SIGN IN</p>
       <h2>Access your<br />VAMNUX account.</h2>
-      <span>Continue through VAMNUX’s configured secure identity provider to enter your account. Your email and password are handled by that protected service, not collected by this page.</span>
-      <div className="grid w-full gap-3 border border-white/10 bg-white/5 p-3 text-[10px] text-slate-300">
-        <div className="flex gap-2"><Mail className="mt-0.5 shrink-0 text-[#b8ff43]" size={15} /><p><strong className="block text-[10px] uppercase tracking-[.06em] text-white">Email and password</strong>Enter credentials only in the configured secure sign-in window.</p></div>
-        <div className="flex gap-2"><ShieldCheck className="mt-0.5 shrink-0 text-[#b8ff43]" size={15} /><p><strong className="block text-[10px] uppercase tracking-[.06em] text-white">Human verification</strong>Verified by the identity provider where enabled; no simulated CAPTCHA is shown here.</p></div>
+      <span>Enter your email and password to continue. VAMNUX checks only that the local form is complete, clears it, then opens the configured secure identity provider. Your credentials are not collected by this page for authentication.</span>
+      <div className="grid w-full gap-2">
+        <RegistrationField label="Email address"><input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" className={inputClassName} /></RegistrationField>
+        <RegistrationField label="Password"><input required type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" className={inputClassName} /></RegistrationField>
       </div>
+      <div className="mt-3 flex gap-2 border border-white/10 bg-white/5 p-3 text-[10px] text-slate-300"><ShieldCheck className="mt-0.5 shrink-0 text-[#b8ff43]" size={15} /><p><strong className="block text-[10px] uppercase tracking-[.06em] text-white">Human verification</strong>Verified by the identity provider where enabled; no simulated CAPTCHA is shown here.</p></div>
       <div className="customer-auth-choices">
-        <button type="button" onClick={() => startLogin()} className="user-primary-action">Continue to secure sign in <ArrowRight size={15} /></button>
+        <button type="submit" className="user-primary-action">Sign in securely <ArrowRight size={15} /></button>
         <Link href={SIGN_UP_PATH} className="user-secondary-action">Create secure account <UserRound size={15} /></Link>
       </div>
       <Link href={RECOVERY_PATH} className="mt-3 text-[10px] font-bold text-[#b8ff43] underline underline-offset-4">Forgot password?</Link>
       <small>Forgot-password and email verification are provided only through configured identity and email services. VAMNUX does not imitate these security checks locally.</small>
-    </div>
+    </form>
   );
 }
 

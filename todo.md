@@ -496,3 +496,7 @@
 - [x] Repair the VAMNUX Back to Sign In registration control so it reliably returns to the secure sign-in page.
 - [x] Exercise actual account-page clicks for Sign In, Create Account, Back to Sign In, and Forgot Password, correcting any confirmed navigation defects.
 - [x] Validate interactive account navigation, regression coverage, runtime diagnostics, and production build before publishing.
+
+- [x] Add editable VAMNUX sign-in email and password inputs with local required-field validation and no local credential persistence.
+- [x] Clear local sign-in field values before handing customers to the configured secure identity provider, without pretending native password authentication is active.
+- [x] Validate sign-in field interaction, safety messaging, provider handoff, responsive layout, deterministic tests, and production build before publishing.
