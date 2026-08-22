@@ -576,3 +576,7 @@
 - [x] Move the complete VAMNUX Admin Products Catalog List block—heading, total, search, bulk actions, selected count, and scrollable rows—to the top of the Products workspace directly below its heading.
 - [x] Leave every other Products workspace section unchanged below the relocated Catalog List block, without removing or redesigning any controls.
 - [x] Validate Catalog List placement, preserved controls and scrolling, Product workspace order, deterministic tests, and production build before publishing.
+
+- [x] Add an owner-only VAMNUX Admin feature named API Access Control that lists verified supplier website, partner/API documentation, available public support channels, and integration readiness metadata.
+- [x] Show safe server-side API credential status indicators and secure-configuration guidance without returning, rendering, copying, logging, or transmitting any live API key, API secret, token, signature secret, or other credential to the browser.
+- [x] Validate owner authorization, supplier metadata accuracy, secret non-exposure, responsive presentation, deterministic tests, and production build before publishing.

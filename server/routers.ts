@@ -13,6 +13,7 @@ import { listAdminPolicyPages, updateAdminPolicyPage } from "./db";
 import { getSuperAdminNotificationDetail, listSuperAdminNotificationInbox, markAllSuperAdminNotificationsRead, markSuperAdminNotificationsRead } from "./db";
 import { replyToSuperAdminNotification } from "./db";
 import { getSuperAdminTrafficAnalytics } from "./db";
+import { getSafeSupplierApiAccessStatus } from "./apiAccessControl";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -246,6 +247,7 @@ export const appRouter = router({
     }),
     listCommerceIntegrations: adminProcedure.query(() => listCommerceIntegrations()),
     listSupplierBalances: adminProcedure.query(() => listSuperAdminSupplierBalances()),
+    apiAccessControlStatus: adminProcedure.query(() => getSafeSupplierApiAccessStatus()),
     recordSupplierBalance: adminProcedure.input(z.object({ integrationId: z.number().int().positive(), balance: z.number().min(0).max(1_000_000), currency: z.string().trim().length(3), note: z.string().trim().max(500).optional() }))
       .mutation(({ ctx, input }) => recordSuperAdminSupplierBalance({ ...input, adminUserId: ctx.user.id })),
     listAdminManagedCatalog: adminProcedure.query(() => listAdminManagedCatalogProducts()),
