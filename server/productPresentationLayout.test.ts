@@ -18,4 +18,11 @@ describe("VAMNUX selected-product presentation layout", () => {
     expect(layoutSource).toContain("width:17px");
     expect(layoutSource).toContain("grid-template-columns:repeat(auto-fit,minmax(132px,1fr))");
   });
+
+  it("keeps the Catalog List full header and bulk controls above an isolated independent row scroll surface", () => {
+    expect(layoutSource).toContain("Catalog List only");
+    expect(layoutSource).toContain("grid-template-rows:auto auto minmax(0,1fr)");
+    expect(layoutSource).toContain("isolation:isolate");
+    expect(layoutSource).toContain("overscroll-behavior:contain");
+  });
 });

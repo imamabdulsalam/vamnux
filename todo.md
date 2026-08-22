@@ -568,3 +568,7 @@
 
 - [x] Correct only the VAMNUX Admin Products selected-product presentation area so its selected-listing details, storefront state, featured control, labels, and fields are aligned and fully visible without changing other Product workspace sections.
 - [x] Validate the targeted selected-product presentation layout at desktop and mobile widths, preserving all existing Product functionality, deterministic tests, and production build before publishing.
+
+- [x] Correct only the VAMNUX Admin Products Catalog List panel so its full-size heading, search field, bulk actions, selected count, and product rows are separated without overlaying one another.
+- [x] Preserve Catalog List content, controls, product-row size, and independent scrolling while preventing its header/action region from sitting behind the rows.
+- [x] Validate Catalog List layout boundaries, scrolling, responsive readability, preserved controls, deterministic tests, and production build before publishing.
