@@ -503,3 +503,8 @@
 
 - [x] Repair the rendered VAMNUX Create Secure Account and Back to Sign In controls with direct browser navigation after the prior internal-link implementation failed in the user-facing page.
 - [x] Verify rendered sign-up, sign-in, and recovery destination behavior from the visible account controls, along with regression coverage and production build, before publishing.
+
+- [x] Add a VAMNUX User Dashboard Subscribe feature with a clear consented email-interest form, accurate email-delivery boundary messaging, and a user-friendly subscription status.
+- [x] Add a VAMNUX User Dashboard Request feature that lets authenticated customers submit requested products, services, game top-ups, or digital offerings for Admin review.
+- [x] Store customer product requests securely with customer ownership and add protected request procedures without activating email broadcasts or fabricating catalogue availability.
+- [x] Validate Subscribe and Request navigation, consent boundaries, customer authorization, responsive presentation, deterministic tests, and production build before publishing.

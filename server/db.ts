@@ -9,6 +9,7 @@ import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 import { newsletterInterestSubscribers } from "../drizzle/schema";
+import { customerProductRequests } from "../drizzle/schema";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -91,23 +92,33 @@ export async function recordCustomerSecurityEvent(input: { userId: number; event
   });
 }
 
-/** Records explicit public email-interest consent only. Delivery remains disabled until a sender is configured separately. */
-export async function recordNewsletterInterest(email: string) {
+/** Records explicit email-interest consent only. Delivery remains disabled until a sender is configured separately. */
+export async function recordNewsletterInterest(email: string, source = "storefront_lower_cta") {
   const db = requireDb(await getDb());
   const normalizedEmail = email.trim().toLowerCase();
   await db.insert(newsletterInterestSubscribers).values({
     email: normalizedEmail,
-    source: "storefront_lower_cta",
+    source,
     status: "subscribed",
     consentedAt: new Date(),
   }).onDuplicateKeyUpdate({
     set: {
-      source: "storefront_lower_cta",
+      source,
       status: "subscribed",
       consentedAt: new Date(),
     },
   });
   return { recorded: true } as const;
+}
+
+/** Records dashboard opt-in for the authenticated account; message delivery remains disabled until configured separately. */
+export async function subscribeCustomerToNewsletterInterest(userId: number) {
+  const db = requireDb(await getDb());
+  const [identity] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  const email = identity?.email?.trim().toLowerCase();
+  if (!email) throw new Error("Your secure sign-in provider has not supplied an email address for updates.");
+  await recordNewsletterInterest(email, "dashboard_subscribe");
+  return { email, status: "subscribed" as const };
 }
 
 export async function linkManusOAuthIdentity(input: { userId: number; openId: string; email?: string | null }) {
@@ -1436,6 +1447,7 @@ export async function getCustomerDashboard(userId: number) {
   const settings = await ensureMarketplacePricingSettings(db);
   const savedExchangeRates = await listExchangeRates();
   const [profile] = await db.select().from(customerProfiles).where(eq(customerProfiles.userId, userId)).limit(1);
+  const [identity] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
   const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1);
   const recentOrders = await db.select({
     orderCode: orders.orderCode,
@@ -1514,7 +1526,20 @@ export async function getCustomerDashboard(userId: number) {
     note: customerPrivacyRequests.note,
     createdAt: customerPrivacyRequests.createdAt,
     updatedAt: customerPrivacyRequests.updatedAt,
-  }).from(customerPrivacyRequests).where(eq(customerPrivacyRequests.userId, userId)).orderBy(desc(customerPrivacyRequests.createdAt)).limit(12);
+  }).from(customerPrivacyRequests).where(eq(customerPrivacyRequests.userId, userId)).orderBy(desc(customerPrivacyRequests.updatedAt)).limit(12);
+  const productRequests = await db.select({
+    requestCode: customerProductRequests.requestCode,
+    category: customerProductRequests.category,
+    requestedName: customerProductRequests.requestedName,
+    details: customerProductRequests.details,
+    status: customerProductRequests.status,
+    createdAt: customerProductRequests.createdAt,
+    updatedAt: customerProductRequests.updatedAt,
+  }).from(customerProductRequests).where(eq(customerProductRequests.userId, userId)).orderBy(desc(customerProductRequests.updatedAt)).limit(20);
+  const normalizedEmail = identity?.email?.trim().toLowerCase() ?? null;
+  const [newsletterInterest] = normalizedEmail
+    ? await db.select({ status: newsletterInterestSubscribers.status, consentedAt: newsletterInterestSubscribers.consentedAt }).from(newsletterInterestSubscribers).where(eq(newsletterInterestSubscribers.email, normalizedEmail)).limit(1)
+    : [];
   const policyPages = await db.select({
     slug: siteContentPages.slug,
     title: siteContentPages.title,
@@ -1545,6 +1570,8 @@ export async function getCustomerDashboard(userId: number) {
     securityEvents,
     tickets,
     privacyRequests,
+    productRequests,
+    subscription: { email: normalizedEmail, status: newsletterInterest?.status ?? "not_subscribed", consentedAt: newsletterInterest?.consentedAt ?? null },
     policyPages,
     consents: {
       termsPrivacy: latestTermsPrivacyConsent,
@@ -1649,6 +1676,29 @@ function createSupportTicketCode() {
 
 function createPrivacyRequestCode() {
   return `VP${crypto.randomUUID().replace(/-/g, "").slice(0, 18).toUpperCase()}`;
+}
+
+function createProductRequestCode() {
+  return `VR${crypto.randomUUID().replace(/-/g, "").slice(0, 18).toUpperCase()}`;
+}
+
+export async function createCustomerProductRequest(input: { userId: number; category: "product" | "game_top_up" | "gift_card" | "subscription" | "software" | "ai_tool" | "other"; requestedName: string; details?: string }) {
+  const db = requireDb(await getDb());
+  const requestedName = input.requestedName.trim().slice(0, 180);
+  const details = input.details?.trim().slice(0, 2000) || null;
+  if (!requestedName) throw new Error("Tell VAMNUX what product or service you would like to request.");
+  const requestCode = createProductRequestCode();
+  await db.transaction(async (tx) => {
+    await tx.insert(customerProductRequests).values({ requestCode, userId: input.userId, category: input.category, requestedName, details });
+    await tx.insert(customerNotifications).values({
+      userId: input.userId,
+      category: "system",
+      title: "Product request received",
+      body: `Your request ${requestCode} for ${requestedName} is queued for VAMNUX review. A request does not guarantee availability.`,
+      actionUrl: "/account?tab=request",
+    });
+  });
+  return { requestCode, status: "submitted" as const };
 }
 
 export async function createCustomerSupportTicket(input: { userId: number; category: "payment" | "order" | "game_top_up" | "gift_card" | "subscription" | "software" | "wallet" | "account" | "refund" | "other"; subject: string; message: string; orderCode?: string }) {

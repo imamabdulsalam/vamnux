@@ -17,7 +17,7 @@ describe("VAMNUX storefront footer", () => {
       expect(appSource).toContain(`path="${route}"`);
     }
     expect(footerSource).toContain('["Why Us", "/#why-us"]');
-    expect(footerSource).toContain('["Sign Up", "/login"]');
+    expect(footerSource).toContain('["Sign Up", "/login?mode=signup"]');
     expect(footerSource).not.toContain('["Blog", "/blog"]');
     expect(footerSource).not.toContain('["Become a Reseller", "/reseller"]');
     expect(footerSource).not.toContain('["Affiliate Program", "/affiliate"]');

@@ -93,6 +93,23 @@ export const newsletterInterestSubscribers = mysqlTable("newsletter_interest_sub
   statusUpdatedIndex: index("newsletter_interest_status_updated_idx").on(table.status, table.updatedAt),
 }));
 
+/** Customer-submitted requests for products or digital services that may be reviewed by VAMNUX. Requests never create catalogue items automatically. */
+export const customerProductRequests = mysqlTable("customer_product_requests", {
+  id: int("id").autoincrement().primaryKey(),
+  requestCode: varchar("requestCode", { length: 32 }).notNull(),
+  userId: int("userId").notNull(),
+  category: mysqlEnum("category", ["product", "game_top_up", "gift_card", "subscription", "software", "ai_tool", "other"]).default("product").notNull(),
+  requestedName: varchar("requestedName", { length: 180 }).notNull(),
+  details: text("details"),
+  status: mysqlEnum("status", ["submitted", "under_review", "planned", "added", "not_available"]).default("submitted").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  requestCodeUnique: uniqueIndex("customer_product_requests_code_unique").on(table.requestCode),
+  userUpdatedIndex: index("customer_product_requests_user_updated_idx").on(table.userId, table.updatedAt),
+  statusUpdatedIndex: index("customer_product_requests_status_updated_idx").on(table.status, table.updatedAt),
+}));
+
 /** Customer-visible security events. Metadata is intentionally limited to non-sensitive session context. */
 export const customerSecurityEvents = mysqlTable("customer_security_events", {
   id: int("id").autoincrement().primaryKey(),

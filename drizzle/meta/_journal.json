@@ -169,6 +169,13 @@
       "when": 1787368651876,
       "tag": "0023_magenta_colleen_wing",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1787413960802,
+      "tag": "0024_fixed_wendell_rand",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,7 @@ const source = fs.readFileSync(path.resolve(process.cwd(), "client/src/pages/Use
 
 describe("VAMNUX User Dashboard layout", () => {
   it("keeps the requested account-control navigation available", () => {
-    for (const label of ["Dashboard", "Categories", "Wallet", "Favorites", "Order history", "Referral", "Account settings", "Support"]) {
+    for (const label of ["Dashboard", "Categories", "Wallet", "Favorites", "Order history", "Referral", "Subscribe", "Request", "Account settings", "Support"]) {
       expect(source).toContain(`label: "${label}"`);
     }
 
@@ -21,5 +21,7 @@ describe("VAMNUX User Dashboard layout", () => {
     expect(source).toContain("orderStats.completed");
     expect(source).toContain("data.tickets.filter");
     expect(source).toContain("Referral program not active");
+    expect(source).toContain("data.subscription.status");
+    expect(source).toContain("data.productRequests");
   });
 });

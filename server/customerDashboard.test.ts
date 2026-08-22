@@ -21,12 +21,14 @@ describe("customer dashboard preference boundary", () => {
     await expect(caller.marketplace.customerDashboard()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  it("blocks unauthenticated callers before profile, notification, support, privacy, or ticket data can be accessed", async () => {
+  it("blocks unauthenticated callers before profile, notification, support, subscription, request, privacy, or ticket data can be accessed", async () => {
     const caller = appRouter.createCaller({ user: null } as TrpcContext);
     await expect(caller.marketplace.updateCustomerProfile({ firstName: "Test" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.updateNotificationPreferences({ orderUpdates: true, paymentUpdates: true, walletUpdates: true, marketingUpdates: false, productAnnouncements: false })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.recordCustomerConsent({ consentType: "terms_privacy", granted: true })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.createSupportTicket({ category: "account", subject: "Help needed", message: "Please help with my account." })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.marketplace.subscribeDashboardNewsletter()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(caller.marketplace.createProductRequest({ category: "product", requestedName: "Requested product" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.createPrivacyRequest({ requestType: "data_access" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.getSupportTicket({ ticketCode: "VS123" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.orderDetail({ orderCode: "VO123" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });

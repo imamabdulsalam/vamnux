@@ -28,6 +28,6 @@ describe("VAMNUX About Us page", () => {
   it("uses internal Explore Products and Create Account calls to action", () => {
     expect(pageSource).toContain('if (definition.kind === "about")');
     expect(pageSource).toContain('href={CATALOG_HREF} className="info-primary-action">Explore products');
-    expect(pageSource).toContain('href="/login" className="info-secondary-action">Create account');
+    expect(pageSource).toContain('href="/login?mode=signup" className="info-secondary-action">Create account');
   });
 });

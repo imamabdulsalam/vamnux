@@ -8,7 +8,7 @@ import { bulkUpdateSyncedProductMarkup, canRunSupplierCatalogSync, cancelSuperAd
 import { bulkArchiveAdminManagedCatalogProducts, bulkUpdateProductStorefrontVisibility } from "./db";
 import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } from "./db";
 import { assertCustomerAccountActive, recordCustomerConsent } from "./db";
-import { recordNewsletterInterest } from "./db";
+import { createCustomerProductRequest, recordNewsletterInterest, subscribeCustomerToNewsletterInterest } from "./db";
 import { listAdminPolicyPages, updateAdminPolicyPage } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
@@ -58,6 +58,7 @@ export const appRouter = router({
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     subscribeNewsletter: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), consent: z.literal(true) }))
       .mutation(({ input }) => recordNewsletterInterest(input.email)),
+    subscribeDashboardNewsletter: customerProcedure.mutation(({ ctx }) => subscribeCustomerToNewsletterInterest(ctx.user.id)),
     policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "cookie-policy", "refund-policy", "payment-policy", "delivery-policy", "acceptable-use-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
     accountSummary: customerProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
     customerDashboard: customerProcedure.query(({ ctx }) => getCustomerDashboard(ctx.user.id)),
@@ -96,6 +97,11 @@ export const appRouter = router({
       message: z.string().trim().min(3).max(5000),
       orderCode: z.string().trim().min(3).max(32).optional(),
     })).mutation(({ ctx, input }) => createCustomerSupportTicket({ userId: ctx.user.id, ...input })),
+    createProductRequest: customerProcedure.input(z.object({
+      category: z.enum(["product", "game_top_up", "gift_card", "subscription", "software", "ai_tool", "other"]),
+      requestedName: z.string().trim().min(2).max(180),
+      details: z.string().trim().max(2000).optional(),
+    })).mutation(({ ctx, input }) => createCustomerProductRequest({ userId: ctx.user.id, ...input })),
     getSupportTicket: customerProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32) }))
       .query(({ ctx, input }) => getCustomerSupportTicket({ userId: ctx.user.id, ...input })),
     replyToSupportTicket: customerProcedure.input(z.object({ ticketCode: z.string().trim().min(3).max(32), message: z.string().trim().min(3).max(5000) }))
