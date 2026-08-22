@@ -421,3 +421,8 @@
 - [x] Record authenticated product-favorite and saved-cart addition activity with the customer account and product context needed for secure Super Admin notification review.
 - [x] Expand the Super Admin Notifications workspace with a clickable product-activity inbox that identifies the relevant customer and product without exposing secrets or changing orders.
 - [x] Validate favorites, cart persistence, activity-notification authorization, responsive customer/Admin UI, deterministic tests, production build, and visual presentation before publishing.
+
+- [x] Analyze available VAMNUX account, wallet, payment, order, refund, IP, and supplier-operation records to define transparent review-only fraud-risk signals without fabricating unavailable data.
+- [x] Add protected Admin risk analysis that flags review candidates for multiple-account, wallet, payment, order-velocity, spending, chargeback, IP, supplier-order, and refund signals, where records exist.
+- [x] Rebuild the Super Admin Fraud & Risk workspace with transparent Low, Medium, and High risk levels, signal explanations, data-availability states, and working review links without automatic bans or suspensions.
+- [x] Validate risk scoring transparency, Admin authorization, non-automatic enforcement, deterministic tests, production build, and responsive visual presentation before publishing.
