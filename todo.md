@@ -459,3 +459,7 @@
 - [x] Ensure every VAMNUX Company, Support, Legal, and non-catalog Product footer link opens its internal destination at the top of the page immediately instead of preserving the footer scroll position.
 - [x] Preserve immediate in-page filtered-catalog behavior for Product links while applying reliable top-of-page positioning to every other internal footer destination.
 - [x] Validate footer routes, destination top positioning, catalog activation, responsive navigation, deterministic tests, and production build before publishing.
+
+- [x] Replace the VAMNUX About Us page with the owner-provided marketplace story, vision, digital-product overview, security framing, and capability-accurate Why VAMNUX content.
+- [x] Add clear internal Explore Products and Create Account actions to the revised About Us page without claiming unconfigured payments or supplier fulfilment are active.
+- [x] Validate About Us content accuracy, internal navigation, responsive presentation, deterministic tests, and production build before publishing.
