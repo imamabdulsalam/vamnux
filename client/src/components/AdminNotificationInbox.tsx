@@ -113,6 +113,7 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
       <Dialog open={Boolean(reviewItem)} onOpenChange={(open) => { if (!open) { setReviewItem(null); setReplyBody(""); } }}>
       <DialogContent className="admin-notification-review-dialog">
         {reviewItem && <>
+          <div className="admin-notification-review-scroll" tabIndex={0} aria-label="Scrollable notification review details">
           <DialogHeader>
             <span className="admin-notification-dialog-kicker">{reviewItem.group} · {reviewItem.read ? "Read" : "Unread"}</span>
             <DialogTitle>{reviewItem.title}</DialogTitle>
@@ -141,6 +142,7 @@ export function AdminNotificationInbox({ onNavigate, onOpenTicket }: { onNavigat
             <div className="admin-notification-reply-actions"><small>{replyBody.length}/5000 characters</small><button type="submit" className="admin-primary-action" disabled={!replyBody.trim() || replyToCustomer.isPending}><Send size={14} /> {replyToCustomer.isPending ? "Sending…" : "Send reply"}</button></div>
           </form>}
           <p className="admin-notification-detail-note">Use the source workspace only if you need to take an authorised next step. Reading or closing this detail view does not mark the item read automatically.</p>
+          </div>
           <DialogFooter className="admin-notification-detail-actions">
             {reviewItem.entityType !== "subscriber" && <button type="button" className="admin-secondary-action" onClick={() => { const item = reviewItem; setReviewItem(null); openSourceWorkspace(item); }}>Open source workspace <ChevronRight size={14} /></button>}
             {!reviewItem.read && <button type="button" className="admin-primary-action" disabled={markSelected.isPending} onClick={() => markSelected.mutate({ notificationKeys: [reviewItem.key] }, { onSuccess: () => setReviewItem(null) })}><Check size={14} /> Mark as read</button>}

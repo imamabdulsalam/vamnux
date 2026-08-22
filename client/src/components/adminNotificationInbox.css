@@ -22,8 +22,10 @@
 .admin-notification-copy small { display: block; color: #8491a7; font-size: 9px; }
 .admin-notification-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 7px; }
 .admin-notification-actions .admin-secondary-action { white-space: nowrap; }
-.admin-notification-review-dialog { display:flex; max-width:680px; max-height:calc(100vh - 2rem); flex-direction:column; overflow:hidden; border-color:rgba(184,255,67,.35); background:#101520; color:#eaf0fa; }
-.admin-notification-review-dialog>div:not([data-slot="dialog-close"]) { min-height:0; overflow-y:auto; overscroll-behavior:contain; padding-right:6px; scrollbar-color:rgba(184,255,67,.75) #101520; }
+.admin-notification-review-dialog { display:grid; grid-template-rows:minmax(0,1fr) auto; width:min(680px,calc(100% - 2rem)); height:min(820px,calc(100dvh - 2rem)); max-width:none; max-height:none; overflow:hidden; border-color:rgba(184,255,67,.35); background:#101520; color:#eaf0fa; }
+.admin-notification-review-scroll { min-height:0; overflow-y:scroll; overscroll-behavior:contain; scrollbar-gutter:stable; scrollbar-color:rgba(184,255,67,.85) #0b0f18; padding:0 8px 0 0; }
+.admin-notification-review-scroll:focus-visible { outline:1px solid #b8ff43; outline-offset:-2px; }
+.admin-notification-review-scroll::-webkit-scrollbar { width:11px; }.admin-notification-review-scroll::-webkit-scrollbar-track { background:#0b0f18; }.admin-notification-review-scroll::-webkit-scrollbar-thumb { border:3px solid #0b0f18; background:#b8ff43; }
 .admin-notification-review-dialog [data-slot="dialog-close"] { color: #dce8f6; }
 .admin-notification-review-dialog [data-slot="dialog-title"] { padding-right: 30px; color: #fff; font-size: 20px; line-height: 1.22; }
 .admin-notification-dialog-kicker { color: #b8ff43; font-size: 9px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
@@ -32,7 +34,7 @@
 .admin-notification-detail-grid span { color: #8f9bb0; font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .admin-notification-detail-grid strong { overflow-wrap: anywhere; color: #f4f7fc; font-size: 11px; font-weight: 700; line-height: 1.45; }
 .admin-notification-detail-note { margin: 0; color: #aeb9cc; font-size: 10px; line-height: 1.5; }
-.admin-notification-detail-actions { padding-top: 2px; }
+.admin-notification-detail-actions { min-height:48px; margin:0; padding:12px 0 0; border-top:1px solid rgba(255,255,255,.1); background:#101520; }
 .admin-notification-detail-loading,.admin-notification-detail-error { margin:0; padding:11px 12px; border:1px solid rgba(255,255,255,.13); color:#c8d4e7; font-size:10px; line-height:1.5; }
 .admin-notification-detail-error { border-color:rgba(255,126,145,.4); color:#ffb5c2; }
 .admin-notification-detail-source { display:grid; gap:12px; }
@@ -69,8 +71,8 @@
   .admin-notification-row { flex-wrap: wrap; }
   .admin-notification-row time { width: 100%; margin-left: 0; }
   .admin-notification-actions { grid-column: 3; justify-content: start; }
-  .admin-notification-review-dialog { max-width: calc(100% - 1rem); padding: 18px; }
-  .admin-notification-review-dialog { max-height:calc(100dvh - 1rem); }
+  .admin-notification-review-dialog { width:calc(100% - 1rem); height:calc(100dvh - 1rem); max-width:none; max-height:none; padding:18px; }
+  .admin-notification-review-scroll { padding-right:5px; }
   .admin-notification-review-dialog [data-slot="dialog-title"] { font-size: 17px; }
   .admin-notification-detail-grid { grid-template-columns: 1fr; }
   .admin-notification-detail-actions { display: grid; grid-template-columns: 1fr; }

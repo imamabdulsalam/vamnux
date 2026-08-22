@@ -538,3 +538,6 @@
 - [x] Make the VAMNUX Admin Notification Review dialog independently scrollable on desktop and mobile so all long source details and messages remain reachable.
 - [x] Add an owner-only Reply to customer control in notification Review: append replies to real support-ticket conversations and create customer-visible in-app notifications for customer requests and product favorite/cart activity without changing the original source record.
 - [x] Validate reply authorization, customer visibility, long-detail scrolling, keyboard accessibility, deterministic tests, and production build before publishing.
+
+- [x] Repair the VAMNUX Admin Notification Review dialog so its full body, reply form, and footer actions use a visible, reliable independent scroll container on desktop and mobile.
+- [x] Validate mouse-wheel, touch, keyboard, and scrollbar access to long review details and reply controls before publishing.

@@ -52,6 +52,7 @@ describe("Admin notification inbox", () => {
     expect(inboxSource).toContain("Full customer request");
     expect(inboxSource).toContain("Reply to customer");
     expect(inboxSource).toContain("Send reply");
+    expect(inboxSource).toContain("admin-notification-review-scroll");
     expect(superAdminSource).toContain('label: "Notifications"');
     expect(superAdminSource).toContain("admin-keyword-results");
     expect(superAdminSource).toContain("Admin workspaces");
