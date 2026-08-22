@@ -434,3 +434,7 @@
 - [x] Replace policy email-contact prompts with clear Submit a ticket actions that route internally to VAMNUX Support without inventing an email address.
 - [x] Ensure the complete legal-policy list appears in the shared footer on every page and each link opens its own clean internal page.
 - [x] Validate legal navigation, draft-policy notices, support-ticket actions, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Remove all public draft, legal-review, and owner-provided warning labels from the VAMNUX policy pages while preserving concise policy content and internal ticket actions.
+- [x] Add a protected Admin-only Policy workspace as the final Super Admin feature, listing all seven policy documents and allowing the owner to edit and save each policy’s customer-facing content.
+- [x] Validate public policy presentation, Admin-only policy authorization, edit/save persistence, direct-tab access, deterministic tests, responsive rendering, and production build before publishing.

@@ -33,10 +33,13 @@ type SafeAuditInput = {
 };
 
 const POLICY_DRAFTS = [
-  { slug: "terms-of-service", title: "VAMNUX Terms of Service", version: "draft-1", body: "# Draft Terms of Service\n\n**Draft for owner and legal review — not a final legal document.**\n\nThese draft terms describe the proposed rules for using VAMNUX, including account responsibility, wallet-only purchases, product eligibility, order handling, acceptable use, and dispute contact. They must be reviewed, edited, and approved by qualified legal counsel before publication or launch." },
-  { slug: "privacy-policy", title: "VAMNUX Privacy Policy", version: "draft-1", body: "# Draft Privacy Policy\n\n**Draft for owner and legal review — not a final legal document.**\n\nThis draft explains the proposed collection and use of minimum account, order, wallet, and support information needed to operate VAMNUX. It also describes customer rights to request access, correction, or account-deletion review. It must be reviewed, edited, and approved by qualified legal counsel before publication or launch." },
-  { slug: "refund-policy", title: "VAMNUX Refund Policy", version: "draft-1", body: "# Draft Refund Policy\n\n**Draft for owner and legal review — not a final legal document.**\n\nThis draft sets out a proposed review process for eligible failed, duplicate, or unfulfilled digital-product transactions. Product, supplier, payment, and jurisdiction-specific rules must be confirmed before any final customer-facing policy is published." },
-  { slug: "cookie-policy", title: "VAMNUX Cookie Policy", version: "draft-1", body: "# Draft Cookie Policy\n\n**Draft for owner and legal review — not a final legal document.**\n\nThis draft explains the proposed use of essential session cookies and any future optional analytics or preference technologies. It must be reviewed, edited, and approved before publication or launch." },
+  { slug: "terms-of-service", title: "VAMNUX Terms of Service", version: "owner-content-1", status: "published" as const, body: "## Using VAMNUX\nBy using VAMNUX, creating an account, or purchasing a product, you agree to these Terms. Provide accurate account and payment information, keep credentials secure, use VAMNUX lawfully, and provide correct product details.\n\n## Orders and pricing\nOrders are processed after successful payment confirmation. Product operations can be automated or require additional processing. Supplier costs, currency display, and promotions can affect prices; the price shown during checkout applies to that order.\n\n## Accounts and third parties\nVAMNUX may review, suspend, or terminate accounts involved in fraud, payment abuse, unauthorized activity, or policy violations. Third-party products can carry product-specific terms, regions, and restrictions." },
+  { slug: "privacy-policy", title: "VAMNUX Privacy Policy", version: "owner-content-1", status: "published" as const, body: "## Information used\nVAMNUX may use the information needed to provide an account-led marketplace, including account details, order and wallet activity, product information needed for eligible orders, and technical information only where collection is enabled and explained.\n\n## Why information is used\nInformation may be used to manage accounts, process eligible orders, verify payments, provide support, prevent fraud, send important notifications, and improve services.\n\n## Sharing and choices\nNecessary information may be shared with trusted payment processors, suppliers, service providers, and technology partners needed to operate VAMNUX. VAMNUX does not sell personal information. Subject to applicable law, requests for access, correction, or deletion can be submitted through Support." },
+  { slug: "cookie-policy", title: "VAMNUX Cookie Policy", version: "owner-content-1", status: "published" as const, body: "## Cookie purposes\nCookies and similar technologies may help VAMNUX keep you signed in, secure your account, remember preferences, understand site usage, improve performance, and measure approved marketing activity where applicable.\n\n## Managing cookies\nYou can manage or disable cookies through browser settings. Some essential cookies may be required for VAMNUX to function correctly. By continuing to use VAMNUX, you acknowledge the cookies described here and any applicable consent options." },
+  { slug: "refund-policy", title: "VAMNUX Refund Policy", version: "owner-content-1", status: "published" as const, body: "## Eligible situations\nA refund may be considered after review when an eligible order was not delivered after successful payment, a delivered digital product is invalid or defective, the same order was charged more than once, or VAMNUX approves another outcome after investigation.\n\n## When a refund may not be available\nA refund may not be available where incorrect account, region, or denomination information was provided; a code has been revealed or redeemed; or a digital product was successfully delivered and used.\n\n## Requesting review\nSubmit a private Support ticket with the VAMNUX order ID, transaction reference, and an explanation. Requests are reviewed individually and remain subject to applicable consumer-protection law." },
+  { slug: "payment-policy", title: "VAMNUX Payment Policy", version: "owner-content-1", status: "published" as const, body: "## Payment readiness\nVAMNUX shows payment methods only when provider integration, verification, and checkout are active. When enabled, supported methods may include Paystack, Korapay, VAMNUX Wallet, USDT TRC20, and other configured methods.\n\n## Payment confirmation\nAn order is processed only after VAMNUX or the relevant provider has successfully verified payment. If a charge is shown but an order remains pending, submit a ticket rather than making another payment.\n\n## Cryptocurrency\nWhere crypto payments are enabled, confirm the correct network and wallet address before sending funds. Funds sent to an incorrect address or unsupported network may not be recoverable." },
+  { slug: "delivery-policy", title: "VAMNUX Delivery Policy", version: "owner-content-1", status: "published" as const, body: "## Delivery formats\nEligible products can use a configured game top-up, digital code, account dashboard, activation or licence information, or another product-specific delivery format.\n\n## Timing and requirements\nWhere payment and supplier operations are active, eligible products may be automated after successful verification. Delivery can still be affected by supplier or API responses, verification, network conditions, or availability. Customers must provide the listed account, player, server, or region details.\n\n## Delivery issues\nIf VAMNUX cannot fulfil an eligible order, review may consider a replacement, retry, wallet credit, or refund where applicable. Account-based tracking is available only to the customer who owns the order." },
+  { slug: "acceptable-use-policy", title: "VAMNUX Acceptable Use Policy", version: "owner-content-1", status: "published" as const, body: "## Prohibited activity\nDo not use VAMNUX to commit fraud or financial crimes, use stolen payment information, create fraudulent accounts, abuse refunds or promotions, access another user’s account, disrupt the platform, exploit vulnerabilities, abuse bots, conduct unlawful activity, or circumvent security and account restrictions.\n\n## Review and reporting\nVAMNUX may investigate suspicious activity and review accounts involved in prohibited conduct. To report a possible security issue, submit a private ticket with a responsible report and do not include passwords, payment data, or authentication codes." },
 ] as const;
 
 async function appendAdminAuditEvent(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: SafeAuditInput) {
@@ -63,7 +66,9 @@ async function ensureCustomerAccountRows(db: NonNullable<Awaited<ReturnType<type
 
 async function ensureDraftPolicyPages(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   for (const policy of POLICY_DRAFTS) {
-    await db.insert(siteContentPages).values(policy).onDuplicateKeyUpdate({ set: { slug: policy.slug } });
+    const [existing] = await db.select({ id: siteContentPages.id, version: siteContentPages.version }).from(siteContentPages).where(eq(siteContentPages.slug, policy.slug)).limit(1);
+    if (!existing) { await db.insert(siteContentPages).values(policy); continue; }
+    if (existing.version === "draft-1") await db.update(siteContentPages).set({ title: policy.title, body: policy.body, status: policy.status, version: policy.version }).where(eq(siteContentPages.id, existing.id));
   }
 }
 
@@ -1703,6 +1708,32 @@ export async function getPublicPolicyPage(slug: string) {
   const [page] = await db.select({ slug: siteContentPages.slug, title: siteContentPages.title, body: siteContentPages.body, status: siteContentPages.status, version: siteContentPages.version, updatedAt: siteContentPages.updatedAt })
     .from(siteContentPages).where(eq(siteContentPages.slug, slug)).limit(1);
   return page ?? null;
+}
+
+export async function listAdminPolicyPages() {
+  const db = requireDb(await getDb());
+  await ensureDraftPolicyPages(db);
+  const order = new Map<string, number>(POLICY_DRAFTS.map((policy, index) => [policy.slug, index]));
+  const pages = await db.select({ id: siteContentPages.id, slug: siteContentPages.slug, title: siteContentPages.title, body: siteContentPages.body, status: siteContentPages.status, version: siteContentPages.version, updatedAt: siteContentPages.updatedAt, updatedByAdminId: siteContentPages.updatedByAdminId }).from(siteContentPages);
+  return pages.filter((page) => order.has(page.slug)).sort((a, b) => (order.get(a.slug) ?? 99) - (order.get(b.slug) ?? 99));
+}
+
+export async function updateAdminPolicyPage(input: { slug: string; title: string; body: string; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  await ensureDraftPolicyPages(db);
+  const allowed = new Set<string>(POLICY_DRAFTS.map((policy) => policy.slug));
+  if (!allowed.has(input.slug)) throw new Error("Unknown VAMNUX policy");
+  const title = input.title.trim().slice(0, 180);
+  const body = input.body.trim().slice(0, 50_000);
+  if (title.length < 3 || body.length < 30) throw new Error("Policy title and content must be complete before saving");
+  const [page] = await db.select({ id: siteContentPages.id }).from(siteContentPages).where(eq(siteContentPages.slug, input.slug)).limit(1);
+  if (!page) throw new Error("Policy page was not found");
+  const version = `policy-${Date.now()}`;
+  await db.transaction(async (tx) => {
+    await tx.update(siteContentPages).set({ title, body, status: "published", version, updatedByAdminId: input.adminUserId }).where(eq(siteContentPages.id, page.id));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "policy.updated", targetType: "policy_page", targetId: input.slug, summary: `Updated customer-facing policy ${title}`, metadata: { version } });
+  });
+  return { slug: input.slug, title, version };
 }
 
 export async function toggleCustomerSavedProduct(input: { userId: number; productId: number }) {

@@ -1,7 +1,8 @@
 import FooterNavigation from "@/components/FooterNavigation";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
-import { ArrowLeft, ArrowRight, FileText, ShieldAlert, Ticket } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { ArrowLeft, ArrowRight, FileText, Ticket } from "lucide-react";
 import { Link, useLocation, useRoute } from "wouter";
 import { PublicHeader } from "@/pages/PublicInformationPage";
 
@@ -64,6 +65,11 @@ export default function PolicyPage() {
   const [location] = useLocation();
   const path = location.split("?")[0];
   const slug = aliases[path] ?? params?.slug ?? "terms-of-service";
-  const policy = policies.find((item) => item.slug === slug) ?? policies[0];
-  return <main id="top" className="policy-page"><PublicHeader /><article className="policy-article"><header><Link href="/"><ArrowLeft size={16} /> VAMNUX marketplace</Link><span>LEGAL / DRAFT POLICY</span></header><div className="policy-draft-notice"><ShieldAlert size={18} /><div><strong>Owner-provided legal draft</strong><p>These pages are editable drafts and require owner and qualified legal review before they are treated as final policy terms.</p></div></div><div className="policy-title"><FileText size={24} /><div><span>Draft · Legal review required</span><h1>{policy.title}</h1><p>{policy.summary}</p></div></div><div className="policy-body">{policy.sections.map((section) => <section key={section.title}><h2>{section.title}</h2><p>{section.text}</p>{section.items && <ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul>}</section>)}</div><section className="policy-support"><div><span>NEED HELP WITH THIS POLICY?</span><h2>Keep your request private.</h2><p>Use a VAMNUX support ticket for account, order, payment, refund, privacy, or security questions. Do not send sensitive credentials in a ticket.</p></div><SupportTicketAction /></section></article><FooterNavigation /></main>;
+  const policySlug = slug as "terms-of-service" | "privacy-policy" | "cookie-policy" | "refund-policy" | "payment-policy" | "delivery-policy" | "acceptable-use-policy";
+  const publicPolicy = trpc.marketplace.policyPage.useQuery({ slug: policySlug });
+  const fallback = policies.find((item) => item.slug === slug) ?? policies[0];
+  const title = publicPolicy.data?.title ?? fallback.title;
+  const body = publicPolicy.data?.body ?? fallback.sections.map((section) => `## ${section.title}\n${section.text}${section.items ? `\n${section.items.map((item) => `• ${item}`).join("\n")}` : ""}`).join("\n\n");
+  const sections = body.split(/\n\n+/).filter(Boolean);
+  return <main id="top" className="policy-page"><PublicHeader /><article className="policy-article"><header><Link href="/"><ArrowLeft size={16} /> VAMNUX marketplace</Link><span>LEGAL / POLICY</span></header><div className="policy-title"><FileText size={24} /><div><span>VAMNUX LEGAL</span><h1>{title}</h1><p>{fallback.summary}</p></div></div><div className="policy-body">{sections.map((section, index) => { const [heading, ...content] = section.split("\n"); const cleanHeading = heading.replace(/^##\s*/, ""); const lines = content.join(" ").trim(); return <section key={`${cleanHeading}-${index}`}>{section.startsWith("##") && <h2>{cleanHeading}</h2>}<p>{section.startsWith("##") ? lines : section}</p></section>; })}</div><section className="policy-support"><div><span>NEED HELP WITH THIS POLICY?</span><h2>Keep your request private.</h2><p>Use a VAMNUX support ticket for account, order, payment, refund, privacy, or security questions. Do not send sensitive credentials in a ticket.</p></div><SupportTicketAction /></section></article><FooterNavigation /></main>;
 }

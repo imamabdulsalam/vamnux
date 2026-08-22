@@ -9,6 +9,7 @@ import { bulkArchiveAdminManagedCatalogProducts, bulkUpdateProductStorefrontVisi
 import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } from "./db";
 import { assertCustomerAccountActive, recordCustomerConsent } from "./db";
 import { recordNewsletterInterest } from "./db";
+import { listAdminPolicyPages, updateAdminPolicyPage } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -57,7 +58,7 @@ export const appRouter = router({
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     subscribeNewsletter: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), consent: z.literal(true) }))
       .mutation(({ input }) => recordNewsletterInterest(input.email)),
-    policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "refund-policy", "cookie-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
+    policyPage: publicProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "cookie-policy", "refund-policy", "payment-policy", "delivery-policy", "acceptable-use-policy"]) })).query(({ input }) => getPublicPolicyPage(input.slug)),
     accountSummary: customerProcedure.query(({ ctx }) => getAccountCommerceSummary(ctx.user.id)),
     customerDashboard: customerProcedure.query(({ ctx }) => getCustomerDashboard(ctx.user.id)),
     orderDetail: customerProcedure.input(z.object({ orderCode: z.string().trim().min(3).max(32) })).query(({ ctx, input }) => getCustomerOrderDetail({ userId: ctx.user.id, ...input })),
@@ -198,6 +199,9 @@ export const appRouter = router({
     upsertSiteContentBlock: adminProcedure.input(z.object({
       blockKey: z.string().trim().min(1).max(120), blockType: z.enum(["hero_slide", "banner", "announcement", "faq", "featured_list", "category_spotlight"]), title: z.string().trim().max(255).nullable().optional(), content: z.record(z.string(), z.unknown()).nullable().optional(), imageUrl: z.string().url().nullable().optional(), ctaLabel: z.string().trim().max(100).nullable().optional(), ctaUrl: z.string().trim().max(500).nullable().optional(), status: z.enum(["draft", "published", "archived"]), sortOrder: z.number().int().min(-10_000).max(10_000),
     })).mutation(({ ctx, input }) => upsertSiteContentBlock({ ...input, adminUserId: ctx.user.id })),
+    listPolicyPages: adminProcedure.query(() => listAdminPolicyPages()),
+    updatePolicyPage: adminProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "cookie-policy", "refund-policy", "payment-policy", "delivery-policy", "acceptable-use-policy"]), title: z.string().trim().min(3).max(180), body: z.string().trim().min(30).max(50_000) }))
+      .mutation(({ ctx, input }) => updateAdminPolicyPage({ ...input, adminUserId: ctx.user.id })),
     listSupplierSyncRuns: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listSupplierSyncRuns(input?.limit)),
     listPromotions: adminProcedure.query(() => listPromotions()),
     createPromotion: adminProcedure.input(z.object({
