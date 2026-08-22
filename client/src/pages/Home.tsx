@@ -400,15 +400,24 @@ export default function Home() {
       </section>
 
       <section id="categories" className="global-category-row" aria-label="Product categories">
-        <div className="global-section-label">EXPLORE / WHAT ARE YOU LOOKING FOR?</div>
-        <div className="category-list">
-          {visibleCategories.map(({ label, icon: Icon, filter }) => (
-            <button key={label} onClick={() => chooseCategory(filter)} className="category-button exchange-ticket">
-              <Icon size={22} strokeWidth={1.8} />
-              <span>{label}</span>
-              <ArrowRight size={17} />
+        <div className="category-browser-heading">
+          <div>
+            <p className="global-section-label">BROWSE / DIGITAL CATEGORIES</p>
+            <h2>Everything digital,<br /><em>one clear place.</em></h2>
+          </div>
+          <p>Choose a category to see its available VAMNUX products, prices, and requirements.</p>
+        </div>
+        <div className="category-list category-browser-grid">
+          {visibleCategories.map(({ label, icon: Icon, filter }) => {
+            const productCount = publicProducts.filter((product) => product.category === filter).length;
+            return (
+            <button key={label} onClick={() => chooseCategory(filter)} className="category-button category-browser-card">
+              <span className="category-browser-icon"><Icon size={20} strokeWidth={1.9} /></span>
+              <span className="category-browser-copy"><strong>{label}</strong><small>{productCount > 0 ? `${productCount} available ${productCount === 1 ? "product" : "products"}` : "Explore this category"}</small></span>
+              <ArrowRight className="category-browser-arrow" size={17} />
             </button>
-          ))}
+            );
+          })}
         </div>
       </section>
 

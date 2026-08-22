@@ -372,3 +372,7 @@
 
 - [x] Replace the fixed public storefront category-pill list with the active-visible category source so Admin hide, archive, show, and restore actions update every customer-facing category view.
 - [x] Verify active-visible category propagation across storefront pill navigation, menus, catalog sections, search/filter affordances, and User Dashboard categories before publishing.
+
+- [x] Redesign the storefront category browser as a compact mobile-first card grid with moderate typography, category icons, real available-product counts, and direct browse actions.
+- [x] Keep category cards driven by active-visible Admin category state and make every card lead customers to the exact available products in that category.
+- [x] Validate category-card counts, hide/archive/show/restore propagation, desktop/mobile layout, navigation, tests, build, and visual presentation before publishing.
