@@ -447,3 +447,8 @@
 
 - [x] Make VAMNUX footer product links activate the matching catalog filter in the current storefront view, scroll to the catalog, and focus the product search without opening a separate page or tab.
 - [x] Validate immediate same-page footer catalog activation, category filtering, search focus, accessibility, deterministic tests, and production build before publishing.
+
+- [x] Rebuild the VAMNUX Help Centre with the owner-provided Orders, Wallet, Gift Cards, Game Top-Up, Account, Subscriptions, Software, and escalation topics in a concise searchable format.
+- [x] Ensure Help Center, FAQs, Contact Support, Track Order, and Submit a Ticket footer routes lead to relevant internal support views with clear working actions.
+- [x] Extend universal VAMNUX search to match Help Centre keywords and questions such as refund, payment, gift card, PUBG UC, wallet, order status, and player ID alongside eligible products and categories.
+- [x] Validate Help Centre content boundaries, search relevance, support navigation, responsive views, deterministic tests, and production build before publishing.

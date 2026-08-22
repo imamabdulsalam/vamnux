@@ -1,6 +1,7 @@
 import FooterNavigation from "@/components/FooterNavigation";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
+import { helpArticles, helpSections } from "@/lib/helpCenter";
 import { trpc } from "@/lib/trpc";
 import { ArrowRight, BadgeHelp, BookOpen, CheckCircle2, ChevronRight, CircleAlert, FileText, Headphones, Info, Landmark, LockKeyhole, PackageCheck, Search, ShieldCheck, ShoppingBag, Ticket, WalletCards } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -48,8 +49,8 @@ const definitions: Record<string, PageDefinition> = {
   "/ai-tools": { title: "AI tools & digital services", eyebrow: "AI tools", summary: "Explore authorized AI-tool and related digital-service listings when they are active in the VAMNUX catalog.", kind: "catalog", catalogCategory: "ai_tool", sections: [{ title: "Current availability", text: "If this category is empty, VAMNUX has not yet synchronized an active authorized listing for it. No product is implied by this page." }] },
   "/deals": { title: "Current marketplace availability", eyebrow: "Deals", summary: "VAMNUX does not display unconfigured promotions as deals. Browse the active catalog below to find current customer-facing product prices.", kind: "catalog", sections: [{ title: "Promotions", text: "Any future promotional campaign will appear only after it is configured and published by the VAMNUX owner." }] },
   "/products": { title: "Browse digital products", eyebrow: "All products", summary: "Browse currently active VAMNUX catalog items across the marketplace. Categories with no active authorized products remain empty rather than showing invented listings.", kind: "catalog", sections: [{ title: "Live catalog", text: "Use the marketplace search and category pages to review current products, price, region, and fulfillment requirements." }] },
-  "/help": { title: "How can we help?", eyebrow: "Help center", summary: "Find answers about account access, wallet-only purchases, orders, products, refunds, and security. Support articles will expand as real VAMNUX help content is approved.", kind: "help", sections: [{ title: "Popular guidance", text: "Account access, wallet funding readiness, checking product requirements, order status, support tickets, and security protection are covered through live VAMNUX features and policies." }] },
-  "/faq": { title: "Frequently asked questions", eyebrow: "Help center", summary: "Straight answers about the current VAMNUX marketplace. Answers reflect active functionality and clearly identify provider-dependent features that are not enabled.", kind: "faq", sections: [] },
+  "/help": { title: "Need help? We’re here to assist.", eyebrow: "VAMNUX Help Centre", summary: "Find quick answers about your VAMNUX account, payments, orders, game top-ups, gift cards, subscriptions, software, and other digital products.", kind: "help", sections: [] },
+  "/faq": { title: "Frequently asked questions", eyebrow: "VAMNUX Help Centre", summary: "Browse clear answers about orders, wallet readiness, products, account security, subscriptions, software, and support.", kind: "faq", sections: [] },
   "/support": { title: "Account-based customer support", eyebrow: "Support", summary: "Support tickets are private to the customer account that creates them. Sign in to create, review, reply to, or close your real VAMNUX tickets.", kind: "support", sections: [{ title: "Privacy reminder", text: "Never send a password, payment-card detail, PIN, authenticator code, supplier credential, or wallet secret through a support message." }] },
   "/support/ticket": { title: "Submit a support ticket", eyebrow: "Support", summary: "Create a private request with its issue category, subject, message, and optional linked order. Attachments are not enabled yet, so do not send sensitive details through another channel.", kind: "support", sections: [] },
   "/track-order": { title: "Track your VAMNUX orders", eyebrow: "Order tracking", summary: "Order history and status are intentionally visible only inside the authenticated account that owns them. VAMNUX does not expose order data based on an order number alone.", kind: "track", sections: [{ title: "Private tracking", text: "Sign in to view your real order history, processing status, delivery-window information where available, and any account-scoped support options." }] },
@@ -57,17 +58,6 @@ const definitions: Record<string, PageDefinition> = {
   "/delivery-policy": { title: "Delivery & fulfillment policy", eyebrow: "Policy information", summary: "Digital delivery time and method depend on the specific product, its requirements, and its configured supplier or manual-delivery workflow.", kind: "policy", sections: [{ title: "Product-specific delivery", text: "Game top-ups, gift cards, codes, subscriptions, software, and other digital products can use different fulfillment formats. VAMNUX does not promise instant delivery where a product is configured for review or manual delivery." }, { title: "Incorrect information and availability", text: "Customers should double-check their required information before creating an order. Supplier availability, provider responses, and manual review can affect fulfillment timing." }] },
   "/acceptable-use": { title: "Acceptable use policy readiness", eyebrow: "Policy information", summary: "VAMNUX expects customers to use accounts, wallets, prices, promotions, and product flows lawfully and without fraud, unauthorized access, or abuse.", kind: "policy", sections: [{ title: "Prohibited activity", text: "Fraud, payment abuse, account misuse, unauthorized access, API or bot abuse, price manipulation, stolen credentials, and attempts to exploit technical weaknesses are not permitted." }, { title: "Account actions", text: "Where supported by the facts and applicable process, VAMNUX may warn, restrict, suspend, or review an account. These statements are policy information pending owner and legal review, not a claim of a regulatory authority." }] },
 };
-
-const faqItems = [
-  ["What is VAMNUX?", "VAMNUX is an account-led digital-products marketplace. Its public catalog displays active authorized records and clearly marks unsupported categories."],
-  ["How do I create an account?", "Use the secure account entry route. First-time sign-in creates the VAMNUX account record, then you can complete optional profile details."],
-  ["How do I fund my wallet?", "Wallet funding methods are not active until a verified payment provider is integrated. No payment method is presented as live before that point."],
-  ["How long does delivery take?", "Delivery timing depends on the product. Review the listed delivery format and any manual-delivery window before you order."],
-  ["What happens if my order fails?", "Order and refund handling use the real order state. Use account support to discuss a specific order; eligibility can vary by product and delivery state."],
-  ["Are gift cards region restricted?", "They can be. Always review the product’s region, currency, and redemption information before ordering."],
-  ["How do I contact support?", "Sign in, then open account-based support to create and follow a private ticket."],
-  ["How do reseller and affiliate programs work?", "VAMNUX will publish actual enrollment, pricing, commission, and eligibility terms before either program becomes active."],
-] as const;
 
 export function PublicHeader() {
   const { isAuthenticated, loading } = useAuth();
@@ -110,12 +100,29 @@ function SupportAction({ ticket }: { ticket: boolean }) {
   return <button type="button" className="info-primary-action" onClick={open}>{isAuthenticated ? (ticket ? "Open secure ticket form" : "Open my support tickets") : "Sign in for secure support"}<ArrowRight size={16} /></button>;
 }
 
-function FaqList() { return <div className="info-faq-list">{faqItems.map(([question, answer]) => <details key={question}><summary>{question}<ChevronRight size={17} /></summary><p>{answer}</p></details>)}</div>; }
+function FaqList() { return <div className="info-faq-list">{helpArticles.map((article) => <details key={article.id}><summary>{article.question}<ChevronRight size={17} /></summary><p>{article.answer}</p></details>)}</div>; }
+
+function HelpCenter() {
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
+  const normalized = search.trim().toLowerCase();
+  const visibleSections = useMemo(() => helpSections.map((section) => ({ ...section, articles: section.articles.filter((article) => {
+    if (!normalized) return true;
+    return `${article.question} ${article.answer} ${article.keywords.join(" ")} ${section.title}`.toLowerCase().includes(normalized);
+  }) })).filter((section) => section.articles.length), [normalized]);
+  const resultCount = visibleSections.reduce((total, section) => total + section.articles.length, 0);
+  return <>
+    <section className="info-help-search" aria-label="Search the VAMNUX Help Centre"><Search size={20} /><input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="Search the VAMNUX Help Centre" placeholder='Search “refund”, “PUBG UC”, “payment”, “gift card”…' /><span>Search orders, wallet, payment, gift cards, game top-ups, player ID, subscriptions, software, account, or security.</span></section>
+    <div className="info-help-result-count">{normalized ? `${resultCount} matching help answer${resultCount === 1 ? "" : "s"}` : `${helpArticles.length} answers across ${helpSections.length} support topics`}</div>
+    <div className="info-help-sections">{visibleSections.map((section) => <section key={section.title} className="info-help-section"><div><span>VAMNUX HELP</span><h2>{section.title}</h2><p>{section.description}</p></div><div className="info-faq-list">{section.articles.map((article) => <details key={article.id}><summary>{article.question}<ChevronRight size={17} /></summary><p>{article.answer}</p></details>)}</div></section>)}</div>
+    {!visibleSections.length && <div className="info-state"><Search size={22} /><strong>No matching help answer yet.</strong><span>Try a shorter keyword such as refund, payment, PUBG, gift card, wallet, order, or player ID.</span></div>}
+    <section className="info-help-escalation"><div><span>STILL NEED HELP?</span><h2>Can’t find the answer you’re looking for?</h2><p>Use your VAMNUX account to keep order and support conversations private.</p></div><div className="info-cta-row"><Link href="/support" className="info-secondary-action">Contact support <Headphones size={16} /></Link><SupportAction ticket={true} /><Link href="/track-order" className="info-secondary-action">Track my order <ArrowRight size={16} /></Link></div></section>
+  </>;
+}
 
 function PageBody({ definition, path }: { definition: PageDefinition; path: string }) {
   if (definition.kind === "catalog") return <><InfoSections sections={definition.sections} /><CatalogShelf category={definition.catalogCategory} pagePath={path} /></>;
   if (definition.kind === "faq") return <FaqList />;
-  if (definition.kind === "help") return <><section className="info-help-search"><Search size={20} /><input aria-label="Search help center" placeholder="Search account, wallet, orders, products, or security" /><span>Search is available when VAMNUX publishes help articles.</span></section><InfoSections sections={definition.sections} /><div className="info-topic-grid">{["Account", "Wallet", "Orders", "Game Top-Up", "Gift Cards", "Subscriptions", "Refunds", "Security"].map((topic) => <Link href="/faq" key={topic}><BadgeHelp size={18} />{topic}<ChevronRight size={14} /></Link>)}</div><SupportAction ticket={false} /></>;
+  if (definition.kind === "help") return <HelpCenter />;
   if (definition.kind === "support") return <><InfoSections sections={definition.sections} /><section className="info-callout"><Ticket size={24} /><div><strong>Real account support workflow</strong><p>VAMNUX support tickets use the existing account-scoped ticket system. For privacy, guest tickets and file uploads are not enabled until the owner configures a verified support-delivery workflow.</p></div></section><SupportAction ticket={path === "/support/ticket"} /></>;
   if (definition.kind === "track") return <><InfoSections sections={definition.sections} /><SupportAction ticket={false} /></>;
   if (definition.kind === "contact") return <><InfoSections sections={definition.sections} /><div className="info-callout"><LockKeyhole size={24} /><div><strong>Keep your support request safe</strong><p>Order, wallet, and account support requests require sign-in so private information does not pass through an unverified public form.</p></div></div><SupportAction ticket={true} /></>;

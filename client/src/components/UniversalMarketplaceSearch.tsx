@@ -1,4 +1,5 @@
 import { ArrowRight, BookOpen, FolderSearch, Search } from "lucide-react";
+import { helpArticles } from "@/lib/helpCenter";
 import { useMemo, useState } from "react";
 import "./universalMarketplaceSearch.css";
 
@@ -37,7 +38,7 @@ const destinations: Destination[] = [
 type Result =
   | { key: string; group: "Products"; title: string; detail: string; action: () => void }
   | { key: string; group: "Categories"; title: string; detail: string; action: () => void }
-  | { key: string; group: "Help & pages"; title: string; detail: string; action: () => void };
+  | { key: string; group: "Help Centre" | "Help & pages"; title: string; detail: string; action: () => void };
 
 export default function UniversalMarketplaceSearch({
   value,
@@ -75,6 +76,17 @@ export default function UniversalMarketplaceSearch({
       detail: "Browse active products in this category",
       action: () => onChooseCategory(category.filter),
     }));
+    const searchTerms = normalized.split(/\s+/).filter(Boolean);
+    const helpResults = helpArticles.filter((article) => {
+      const haystack = `${article.question} ${article.answer} ${article.keywords.join(" ")} ${article.section}`.toLowerCase();
+      return searchTerms.every((term) => haystack.includes(term));
+    }).slice(0, 6).map((article) => ({
+      key: `help-${article.id}`,
+      group: "Help Centre" as const,
+      title: article.question,
+      detail: `${article.section} · ${article.answer}`,
+      action: () => onNavigate(`/help?q=${encodeURIComponent(article.keywords[0] || article.question)}`),
+    }));
     const pageResults = destinations.filter((destination) => `${destination.label} ${destination.detail} ${destination.keywords.join(" ")}`.toLowerCase().includes(normalized)).slice(0, 5).map((destination) => ({
       key: `page-${destination.href}`,
       group: "Help & pages" as const,
@@ -82,7 +94,7 @@ export default function UniversalMarketplaceSearch({
       detail: destination.detail,
       action: () => onNavigate(destination.href),
     }));
-    return [...productResults, ...categoryResults, ...pageResults];
+    return [...productResults, ...categoryResults, ...helpResults, ...pageResults];
   }, [categories, normalized, onChooseCategory, onNavigate, onOpenProduct, products]);
 
   const choose = (result: Result) => {
@@ -91,7 +103,7 @@ export default function UniversalMarketplaceSearch({
     result.action();
   };
 
-  const groups = ["Products", "Categories", "Help & pages"] as const;
+  const groups = ["Products", "Categories", "Help Centre", "Help & pages"] as const;
   return <div className="universal-search-shell">
     <label className="market-search" aria-label="Search VAMNUX products, categories and help">
       <Search size={21} />
