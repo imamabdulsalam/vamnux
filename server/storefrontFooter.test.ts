@@ -4,18 +4,25 @@ import { describe, expect, it } from "vitest";
 
 const footerSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/components/FooterNavigation.tsx"), "utf8");
 const appSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/App.tsx"), "utf8");
+const homeSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/pages/Home.tsx"), "utf8");
 
 describe("VAMNUX storefront footer", () => {
   it("includes the requested marketplace columns and concrete VAMNUX destinations", () => {
     for (const heading of ["Company", "Products", "Support", "Legal", "Follow VAMNUX"]) {
       expect(footerSource).toContain(heading === "Follow VAMNUX" ? `>${heading}<` : `title="${heading}"`);
     }
-
-    const routes = ["/about", "/contact", "/blog", "/reseller", "/affiliate", "/game-top-up", "/gift-cards", "/gaming-vouchers", "/game-keys", "/subscriptions", "/ai-tools", "/deals", "/products", "/help", "/faq", "/support", "/track-order", "/support/ticket", "/terms", "/privacy", "/cookies", "/refund-policy", "/payment-policy", "/delivery-policy", "/acceptable-use"];
+    const routes = ["/about", "/contact", "/blog", "/reseller", "/affiliate", "/help", "/faq", "/support", "/track-order", "/support/ticket", "/terms", "/privacy", "/cookies", "/refund-policy", "/payment-policy", "/delivery-policy", "/acceptable-use"];
     for (const route of routes) {
       expect(footerSource).toContain(route);
       expect(appSource).toContain(`path="${route}"`);
     }
+  });
+
+  it("returns every footer product link to the matching filtered catalog section", () => {
+    ["/?category=Top-up#products", "/?category=Voucher#products", "/?category=Subscription#products", "/?category=AI%20tools#products", "/?category=All#products"].forEach((href) => expect(footerSource).toContain(href));
+    expect(homeSource).toContain('new URLSearchParams(window.location.search).get("category")');
+    expect(homeSource).toContain('document.getElementById("products")?.scrollIntoView');
+    expect(homeSource).toContain("if (!publicCategories.data) return;");
   });
 
   it("does not misrepresent unconfigured payment providers as active checkout methods", () => {

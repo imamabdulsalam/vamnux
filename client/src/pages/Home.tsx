@@ -185,7 +185,7 @@ export default function Home() {
   // startLogin() during render (no href={startLogin()}) — it mints a one-time
   // nonce cookie and must run only at the moment of navigation.
   const { user, loading, isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const supplierCatalog = trpc.marketplace.catalog.useQuery();
   const publicCategories = trpc.marketplace.categories.useQuery(undefined, { refetchInterval: 15_000, refetchOnWindowFocus: true });
   const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
@@ -282,10 +282,21 @@ export default function Home() {
   const selectedCategory = visibleCategories.find((category) => category.filter === activeCategory);
 
   useEffect(() => {
+    if (!publicCategories.data) return;
     if (activeCategory !== "All" && !visibleCategories.some((category) => category.filter === activeCategory)) {
       setActiveCategory("All");
     }
-  }, [activeCategory, visibleCategories]);
+  }, [activeCategory, publicCategories.data, visibleCategories]);
+
+  useEffect(() => {
+    const requestedCategory = new URLSearchParams(window.location.search).get("category");
+    if (requestedCategory !== "All" && !isProductCategory(requestedCategory)) return;
+    const nextCategory = requestedCategory === "All" ? "All" : requestedCategory;
+    setActiveCategory(nextCategory);
+    setQuery("");
+    const scrollTimer = window.setTimeout(() => document.getElementById("products")?.scrollIntoView({ behavior: "auto", block: "start" }), 120);
+    return () => window.clearTimeout(scrollTimer);
+  }, [location]);
 
   const cartTotal = useMemo(() => cart.reduce((total, item) => total + item.price, 0), [cart]);
   const gameProducts = useMemo(() => filteredProducts.filter((product) => product.category === "Top-up"), [filteredProducts]);

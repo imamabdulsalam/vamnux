@@ -2,14 +2,14 @@ import { ArrowUpRight, ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
 const productLinks = [
-  ["Game Top-Up", "/game-top-up"],
-  ["Gift Cards", "/gift-cards"],
-  ["Gaming Vouchers", "/gaming-vouchers"],
-  ["Game Keys", "/game-keys"],
-  ["Subscriptions", "/subscriptions"],
-  ["AI Tools", "/ai-tools"],
-  ["Deals", "/deals"],
-  ["Others", "/products"],
+  ["Game Top-Up", "/?category=Top-up#products"],
+  ["Gift Cards", "/?category=Voucher#products"],
+  ["Gaming Vouchers", "/?category=Voucher#products"],
+  ["Game Keys", "/?category=Voucher#products"],
+  ["Subscriptions", "/?category=Subscription#products"],
+  ["AI Tools", "/?category=AI%20tools#products"],
+  ["Deals", "/?category=All#products"],
+  ["Others", "/?category=All#products"],
 ] as const;
 
 const supportLinks = [

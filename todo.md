@@ -438,3 +438,6 @@
 - [x] Remove all public draft, legal-review, and owner-provided warning labels from the VAMNUX policy pages while preserving concise policy content and internal ticket actions.
 - [x] Add a protected Admin-only Policy workspace as the final Super Admin feature, listing all seven policy documents and allowing the owner to edit and save each policy’s customer-facing content.
 - [x] Validate public policy presentation, Admin-only policy authorization, edit/save persistence, direct-tab access, deterministic tests, responsive rendering, and production build before publishing.
+
+- [x] Route every VAMNUX footer product link back to the marketplace catalog section with the matching active category filter, including Game Top-Up, Gift Cards, Subscriptions, AI Tools, Steam, Telegram Stars, and safe fallbacks for generic product links.
+- [x] Validate footer catalog-return links, matching category filters, category visibility boundaries, responsive navigation, deterministic tests, and production build before publishing.
