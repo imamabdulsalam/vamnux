@@ -565,3 +565,6 @@
 - [x] Organize the Admin General Profile workspace into clear, comfortably spaced editable fields for owner profile details while preserving provider-owned email and current authorization boundaries.
 - [x] Add a password-reset readiness section beneath Security alerts in the requested form style, including current, new, and confirm password fields with visibility controls, without storing or simulating native password changes when the secure identity provider remains the authentication source.
 - [x] Validate Settings navigation, profile-field saving, password-reset secure-provider handoff, MFA controls, responsive layout, deterministic tests, and production build before publishing.
+
+- [x] Correct only the VAMNUX Admin Products selected-product presentation area so its selected-listing details, storefront state, featured control, labels, and fields are aligned and fully visible without changing other Product workspace sections.
+- [x] Validate the targeted selected-product presentation layout at desktop and mobile widths, preserving all existing Product functionality, deterministic tests, and production build before publishing.

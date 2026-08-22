@@ -12,6 +12,7 @@ import { AdminNotificationInbox } from "@/components/AdminNotificationInbox";
 import { CategoryOperationsWorkspace } from "@/components/CategoryOperationsWorkspace";
 import { AdminTrafficAnalytics } from "@/components/AdminTrafficAnalytics";
 import { ExchangeRateQuickCards } from "@/components/ExchangeRateQuickCards";
+import "@/components/adminProductPresentationLayout.css";
 import {
   Activity,
   ArrowRight,
