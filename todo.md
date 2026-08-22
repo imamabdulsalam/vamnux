@@ -321,21 +321,21 @@
 - [x] Add manual-product category, type, name, description, price, image URL, image upload/dropzone, delivery-hour range, customer requirements, fulfilment format, and active/draft controls.
 - [x] Securely store owner-uploaded manual-product imagery through the VAMNUX storage workflow and validate external image links without exposing storage credentials.
 - [x] Add a guided review step and keep personally fulfilled product management separate from supplier APIs, wallet funding, and supplier settlement.
-- [ ] Validate manual-product setup authorization, file and input handling, responsive operations UI, deterministic tests, production build, and visual review before publishing.
+- [x] Validate manual-product setup authorization, file and input handling, responsive operations UI, deterministic tests, production build, and visual review before publishing.
 
 - [x] Rebuild Settings · Authentication as a complete owner account and Admin sign-in security workspace.
 - [x] Add owner-authorized profile editing, security activity context, recovery and session readiness, verification preferences, and explicit authentication protection settings without exposing credentials or security secrets.
 - [x] Present email, phone, and authenticator enrollment truthfully, activating no verification factor until its secure delivery or enrollment flow is configured and enforced.
-- [ ] Validate security-setting authorization, owner-data minimization, audit behavior, tests, build, and authenticated visual review before publishing.
+- [x] Validate security-setting authorization, owner-data minimization, audit behavior, tests, build, and authenticated visual review before publishing.
 
 - [x] Add enforceable native authenticator-app MFA for the VAMNUX Super Admin while retaining the current OAuth sign-in route.
 - [x] Add Admin-only authenticator enrollment, confirmation, encrypted secret handling, single-use recovery codes, trusted challenge state, and audit events without exposing MFA secrets in client logs, databases, or Admin detail screens.
 - [x] Require a verified authenticator challenge before granting an Admin session after OAuth login, while leaving email and phone verification unavailable until a real delivery provider is configured.
-- [ ] Validate MFA enrollment, login challenge, recovery, authorization, secret protection, tests, build, and authenticated Admin UI before publishing.
+- [x] Validate MFA enrollment, login challenge, recovery, authorization, secret protection, tests, build, and authenticated Admin UI before publishing.
 
 - [x] Perform a non-redesign verification of every VAMNUX Super Admin workspace, navigation control, button, form, status state, and protected server action.
 - [x] Correct only confirmed Admin reliability or recognition issues found during verification, preserving all current layout, content, and business boundaries; no confirmed Admin UI correction was required.
-- [ ] Validate the Admin verification pass with deterministic tests, production build, runtime diagnostics, and authenticated owner review before publishing.
+- [x] Validate the Admin verification pass with deterministic tests, production build, runtime diagnostics, and authenticated owner review before publishing.
 
 - [x] Replace the compact storefront footer with the requested structured VAMNUX Company, Products, Support, Legal, social, and payment-method footer.
 - [x] Connect footer links to available VAMNUX routes, catalog filters, and legal pages while providing clear truthful states for unavailable external payment and social destinations.
@@ -411,3 +411,5 @@
 - [x] Reduce the oversized lower storefront heading and add a compact mobile-friendly VAMNUX email-interest panel with useful marketplace messaging.
 - [x] Store consented public email-interest submissions securely without claiming newsletters or marketing email are delivered before a sending provider is configured.
 - [x] Validate public email consent, submission feedback, typography balance, accessibility, desktop/mobile layout, tests, build, and visual presentation before publishing.
+
+- [x] Repair direct VAMNUX Super Admin tab URLs so every valid workspace, including Settings · Authentication, opens the requested protected workspace.

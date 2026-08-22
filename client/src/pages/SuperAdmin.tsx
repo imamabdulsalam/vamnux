@@ -82,7 +82,7 @@ function AdminAccessGate() {
 function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: string; onSignOut: () => void; onReturn: () => void }) {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
-    return requestedTab === "rates" || requestedTab === "traffic" || requestedTab === "suppliers" || requestedTab === "customers" || requestedTab === "categories" || requestedTab === "manual_delivery" ? requestedTab : "overview";
+    return tabs.some((tab) => tab.id === requestedTab) ? requestedTab as AdminTab : "overview";
   });
   const overview = trpc.admin.getOverview.useQuery();
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery();
