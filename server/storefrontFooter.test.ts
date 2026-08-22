@@ -23,9 +23,12 @@ describe("VAMNUX storefront footer", () => {
     expect(footerSource).toContain("key={`${title}-${label}`}");
     expect(footerSource).not.toContain("key={href}");
     expect(footerSource).toContain('new CustomEvent("vamnux:catalog-filter"');
-    expect(footerSource).toContain("window.history.replaceState(null, \"\", href)");
+    expect(footerSource).toContain("window.history.replaceState(null, \"\", `${catalogPath.pathname}${catalogPath.search}`)");
+    expect(footerSource).toContain('window.location.hash = "products"');
     expect(homeSource).toContain('new URLSearchParams(window.location.search).get("category")');
-    expect(homeSource).toContain('document.getElementById("products")?.scrollIntoView');
+    expect(homeSource).toContain("useLayoutEffect(() =>");
+    expect(homeSource).toContain("const revealCatalog = (focusSearch = false)");
+    expect(homeSource).toContain("window.scrollTo({ top: targetTop, behavior: \"auto\" })");
     expect(homeSource).toContain('window.addEventListener("vamnux:catalog-filter"');
     expect(homeSource).toContain("catalogSearchRef.current?.focus");
     expect(homeSource).toContain("if (!publicCategories.data) return;");

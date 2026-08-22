@@ -2,7 +2,7 @@
  * VAMNUX Global Exchange: a clean marketplace header, USD-first price display,
  * technology-led colour rotation, and compact transactional product information.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
@@ -202,6 +202,15 @@ export default function Home() {
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const catalogSearchRef = useRef<HTMLInputElement>(null);
+  const revealCatalog = (focusSearch = false) => {
+    const catalog = document.getElementById("products");
+    if (!catalog) return;
+    const header = document.querySelector(".commerce-header");
+    const headerOffset = header instanceof HTMLElement ? header.getBoundingClientRect().height + 12 : 12;
+    const targetTop = Math.max(0, window.scrollY + catalog.getBoundingClientRect().top - headerOffset);
+    window.scrollTo({ top: targetTop, behavior: "auto" });
+    if (focusSearch) window.setTimeout(() => catalogSearchRef.current?.focus({ preventScroll: true }), 40);
+  };
   const subscribeNewsletter = trpc.marketplace.subscribeNewsletter.useMutation({
     onSuccess: () => {
       toast.success("Interest saved", { description: "VAMNUX will only email you after a messaging provider is configured." });
@@ -289,14 +298,15 @@ export default function Home() {
     }
   }, [activeCategory, publicCategories.data, visibleCategories]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const requestedCategory = new URLSearchParams(window.location.search).get("category");
     if (requestedCategory !== "All" && !isProductCategory(requestedCategory)) return;
     const nextCategory = requestedCategory === "All" ? "All" : requestedCategory;
     setActiveCategory(nextCategory);
     setQuery("");
-    const scrollTimer = window.setTimeout(() => { document.getElementById("products")?.scrollIntoView({ behavior: "auto", block: "start" }); catalogSearchRef.current?.focus({ preventScroll: true }); }, 120);
-    return () => window.clearTimeout(scrollTimer);
+    revealCatalog(true);
+    const confirmScroll = window.requestAnimationFrame(() => revealCatalog(true));
+    return () => window.cancelAnimationFrame(confirmScroll);
   }, [location]);
 
   useEffect(() => {
@@ -307,10 +317,8 @@ export default function Home() {
       setActiveCategory(category === "All" ? "All" : category);
       setQuery("");
       setOpenMegaCategory(null);
-      window.setTimeout(() => {
-        document.getElementById("products")?.scrollIntoView({ behavior: "auto", block: "start" });
-        if (detail?.focusSearch) catalogSearchRef.current?.focus({ preventScroll: true });
-      }, 0);
+      revealCatalog(Boolean(detail?.focusSearch));
+      window.requestAnimationFrame(() => revealCatalog(Boolean(detail?.focusSearch)));
     };
     window.addEventListener("vamnux:catalog-filter", activateFooterCatalog);
     return () => window.removeEventListener("vamnux:catalog-filter", activateFooterCatalog);

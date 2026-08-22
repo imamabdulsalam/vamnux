@@ -452,3 +452,6 @@
 - [x] Ensure Help Center, FAQs, Contact Support, Track Order, and Submit a Ticket footer routes lead to relevant internal support views with clear working actions.
 - [x] Extend universal VAMNUX search to match Help Centre keywords and questions such as refund, payment, gift card, PUBG UC, wallet, order status, and player ID alongside eligible products and categories.
 - [x] Validate Help Centre content boundaries, search relevance, support navigation, responsive views, deterministic tests, and production build before publishing.
+
+- [x] Repair VAMNUX footer category navigation so the matching filtered catalog becomes visible in the current viewport immediately, with no manual scrolling required.
+- [x] Validate visible same-page catalog activation, category filtering, focused search, responsive behavior, deterministic tests, and production build before publishing.

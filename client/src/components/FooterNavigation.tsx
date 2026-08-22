@@ -36,7 +36,9 @@ function FooterList({ title, links }: { title: string; links: readonly (readonly
     const category = new URL(href, window.location.origin).searchParams.get("category");
     if (!category) return;
     event.preventDefault();
-    window.history.replaceState(null, "", href);
+    const catalogPath = new URL(href, window.location.origin);
+    window.history.replaceState(null, "", `${catalogPath.pathname}${catalogPath.search}`);
+    window.location.hash = "products";
     window.dispatchEvent(new CustomEvent("vamnux:catalog-filter", { detail: { category, focusSearch: true } }));
   };
   return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => <Link key={`${title}-${label}`} href={href} onClick={(event) => activateCatalogInPlace(event, href)}>{label}</Link>)}</section>;
