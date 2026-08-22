@@ -25,4 +25,10 @@ describe("VAMNUX selected-product presentation layout", () => {
     expect(layoutSource).toContain("isolation:isolate");
     expect(layoutSource).toContain("overscroll-behavior:contain");
   });
+
+  it("places the complete Catalog List at the top without changing the Product sections that follow", () => {
+    expect(layoutSource).toContain("Place the complete Catalog List at the top of Products");
+    expect(layoutSource).toContain("order:-1;grid-column:1/-1");
+    expect(layoutSource).toContain(".admin-product-operations>.admin-product-editor{grid-column:1/-1}");
+  });
 });

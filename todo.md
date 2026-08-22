@@ -572,3 +572,7 @@
 - [x] Correct only the VAMNUX Admin Products Catalog List panel so its full-size heading, search field, bulk actions, selected count, and product rows are separated without overlaying one another.
 - [x] Preserve Catalog List content, controls, product-row size, and independent scrolling while preventing its header/action region from sitting behind the rows.
 - [x] Validate Catalog List layout boundaries, scrolling, responsive readability, preserved controls, deterministic tests, and production build before publishing.
+
+- [x] Move the complete VAMNUX Admin Products Catalog List block—heading, total, search, bulk actions, selected count, and scrollable rows—to the top of the Products workspace directly below its heading.
+- [x] Leave every other Products workspace section unchanged below the relocated Catalog List block, without removing or redesigning any controls.
+- [x] Validate Catalog List placement, preserved controls and scrolling, Product workspace order, deterministic tests, and production build before publishing.
