@@ -503,12 +503,12 @@ export default function Home() {
               <button type="button" aria-expanded={isOpen} aria-controls={`category-panel-${filter}`} onClick={() => setOpenMegaCategory((current) => current === filter ? null : filter)}><Icon size={18} /> {label} <ChevronDown className={isOpen ? "menu-chevron open" : "menu-chevron"} size={14} /></button>
               <div className="category-mega-panel" id={`category-panel-${filter}`} data-open={isOpen}>
                 <div className="category-mega-heading"><span><Icon size={17} /> {label}</span><button type="button" onClick={() => chooseCategory(filter)}>Browse category <ArrowRight size={14} /></button></div>
-                {links.length > 0 ? <div className="category-mega-links">{links.map((link) => <button type="button" key={link} onClick={() => chooseQuickLink(filter, link)}>{link}</button>)}</div> : <p>Nothing verified for this category yet. VAMNUX shows supplier inventory only after it is synchronised and active.</p>}
+                {links.length > 0 ? <div className="category-mega-links">{links.map((link) => <button type="button" key={link} onClick={() => chooseQuickLink(filter, link)}>{link}</button>)}</div> : <p>No products are available in this category yet. Please check back soon.</p>}
               </div>
             </div>;
           })}
           <button className="compact-all-categories" type="button" onClick={() => { setActiveCategory("All"); setQuery(""); setOpenMegaCategory(null); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><Search size={17} /> All catalog</button>
-          <span className="scope-status"><ShieldCheck size={16} /> Verified supplier inventory</span>
+          <span className="scope-status"><ShieldCheck size={16} /> Product availability updates</span>
         </nav>
         <section className="mobile-category-menu" aria-label="Mobile marketplace category menu">
           <button type="button" className="mobile-category-trigger" aria-expanded={mobileCategoryMenuOpen} aria-controls="mobile-category-drawer" onClick={() => setMobileCategoryMenuOpen((open) => !open)}>
@@ -591,7 +591,7 @@ export default function Home() {
       <section className="supplier-recognition" aria-labelledby="supplier-recognition-title">
         <div className="supplier-recognition-head">
           <div><p className="eyebrow"><span /> VAMNUX game catalogue</p><h2 id="supplier-recognition-title">PLAYABLE<br /><em>GAME FAMILIES.</em></h2></div>
-          <p>Choose a game that is already active on VAMNUX. Each card stays within VAMNUX and opens its real supplier-backed denominations, account requirements, and VAMNUX display prices.</p>
+          <p>Choose a game that is already active on VAMNUX. Each card stays within VAMNUX and opens its available denominations, account requirements, and VAMNUX display prices.</p>
         </div>
         <div className="supplier-game-grid">
           {internalGameFamilies.map((game) => <button key={game.name} type="button" className="supplier-game-card" onClick={() => setLocation(gameFamilyPath(game.name))} title={`View ${game.name} on VAMNUX`}>{game.image ? <img src={game.image} alt={`${game.name} game artwork`} loading="lazy" /> : <span className="supplier-game-fallback">{game.name.slice(0, 1)}</span>}<div><span>View on VAMNUX</span><strong>{game.name}</strong></div></button>)}
@@ -605,7 +605,7 @@ export default function Home() {
             <h2 id="products-title">FIND YOUR<br /><em>DIGITAL PICK.</em></h2>
           </div>
           <div className="section-heading-right">
-            <p>Search or use a category menu to go straight to real supplier products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
+            <p>Search or use a category menu to go straight to available VAMNUX products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
             <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); window.requestAnimationFrame(() => revealCatalog(true)); }}>Browse VAMNUX products <ArrowRight size={17} /></button>
           </div>
         </div>
@@ -626,7 +626,7 @@ export default function Home() {
         </div>
 
         <div className="product-family-list compact-catalog-results">
-          {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading verified supplier products…</h3><p>VAMNUX is retrieving active availability from configured suppliers.</p></div>}
+          {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading products…</h3><p>Please wait while the catalog is refreshed.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (

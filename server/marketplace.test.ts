@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode } from "../shared/marketplace";
 
 const homeSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/Home.tsx"), "utf8");
+const digitalDetailSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/DigitalProductDetail.tsx"), "utf8");
+const gameDetailSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/GameFamilyDetail.tsx"), "utf8");
 
 describe("VAMNUX marketplace helpers", () => {
   it("calculates a server-side order total from quantity and unit price", () => {
@@ -25,5 +27,15 @@ describe("VAMNUX marketplace helpers", () => {
     expect(homeSource).toContain("SHOP WITH CONFIDENCE:");
     expect(homeSource).toContain("clear product details, requirements and transparent pricing");
     expect(homeSource).not.toContain("VAMNUX SUPPLIER NOTE:");
+  });
+
+  it("keeps supplier verification and supplier inventory language out of customer-facing catalog views", () => {
+    const customerViews = [homeSource, digitalDetailSource, gameDetailSource].join("\n").toLowerCase();
+    for (const phrase of ["verified supplier", "supplier inventory", "supplier verification", "supplier-backed", "active supplier", "supplier product", "supplier service"]) {
+      expect(customerViews).not.toContain(phrase);
+    }
+    expect(homeSource).toContain("Product availability updates");
+    expect(digitalDetailSource).toContain("Digital product listing");
+    expect(gameDetailSource).toContain("Product availability");
   });
 });

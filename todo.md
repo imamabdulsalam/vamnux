@@ -603,3 +603,7 @@
 - [x] Add a distinct Steam Top-Up category across the storefront, User Dashboard, Admin Panel, and shared category/navigation surfaces.
 - [x] Remove Voucher from VAMNUX storefront catalog/category navigation while preserving all other requested category surfaces and product behavior.
 - [x] Validate category consistency across storefront, mobile navigation, User Dashboard, Admin Panel, deterministic tests, and production build before publishing.
+
+- [x] Remove customer-facing VAMNUX wording that refers to verified supplier inventory, verified suppliers, supplier verification, or supplier inventory from the storefront and User Dashboard.
+- [x] Preserve supplier records and supplier-specific information in protected Admin-only workspaces.
+- [x] Validate customer-facing wording cleanup, Admin supplier data preservation, deterministic tests, and production build before publishing.
