@@ -594,3 +594,7 @@
 - [x] Add only a mobile three-line VAMNUX Admin menu that opens the complete existing feature list on phone-sized screens.
 - [x] Preserve every Admin view, feature, control, active tab, unread badge, and desktop layout without redesigning or hiding any content.
 - [x] Validate the mobile feature-list menu, desktop preservation, deterministic tests, and production build before publishing.
+
+- [x] Improve only the VAMNUX Admin mobile top bar so the brand, three-line menu, full search field, Owner Access, and Sign Out remain clear and usable on phone-sized screens.
+- [x] Preserve every existing top-bar control, Admin view, feature list, and desktop layout without removing or reconstructing any content.
+- [x] Validate mobile top-bar visibility, search usability, desktop preservation, deterministic tests, and production build before publishing.

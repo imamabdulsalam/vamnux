@@ -20,4 +20,12 @@ describe("VAMNUX Admin mobile feature list", () => {
     expect(mobileMenuStyles).toContain("display: none !important");
     expect(mobileMenuStyles).not.toContain("@media (min-width");
   });
+
+  it("keeps every existing top-bar control visible on phones by giving the brand, search, and actions their own rows", () => {
+    expect(mobileMenuStyles).toContain('"brand trigger"');
+    expect(mobileMenuStyles).toContain('"search search"');
+    expect(mobileMenuStyles).toContain('"actions actions"');
+    expect(mobileMenuStyles).toContain(".admin-topbar .admin-global-search");
+    expect(mobileMenuStyles).toContain(".admin-topbar > div span");
+  });
 });
