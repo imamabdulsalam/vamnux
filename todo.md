@@ -590,3 +590,7 @@
 
 - [x] Replace the VAMNUX storefront technical supplier note with concise customer-friendly trust copy that highlights clear product details, transparent pricing, and support without unsupported payment or fulfilment claims.
 - [x] Validate the revised storefront trust copy, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Add only a mobile three-line VAMNUX Admin menu that opens the complete existing feature list on phone-sized screens.
+- [x] Preserve every Admin view, feature, control, active tab, unread badge, and desktop layout without redesigning or hiding any content.
+- [x] Validate the mobile feature-list menu, desktop preservation, deterministic tests, and production build before publishing.

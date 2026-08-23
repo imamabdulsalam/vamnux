@@ -1,0 +1,63 @@
+/* Phone-only feature-list access. Existing Admin views and desktop navigation remain unchanged. */
+.admin-feature-list-trigger {
+  display: none;
+}
+
+@media (max-width: 680px) {
+  .admin-feature-list-trigger {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-content: center;
+    gap: 4px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(184, 255, 67, 0.55);
+    background: transparent;
+    color: #b8ff43;
+    cursor: pointer;
+  }
+
+  .admin-feature-list-trigger span {
+    display: block;
+    width: 15px;
+    height: 2px;
+    background: currentColor;
+  }
+
+  .super-admin .admin-sidebar {
+    display: none !important;
+  }
+
+  .super-admin .admin-sidebar.feature-list-open {
+    display: block !important;
+    position: fixed;
+    inset: 59px 0 0;
+    z-index: 90;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    background: #10151f;
+  }
+
+  .admin-sidebar.feature-list-open .admin-owner,
+  .admin-sidebar.feature-list-open .admin-policy-note {
+    display: flex;
+    margin: 14px;
+  }
+
+  .admin-sidebar.feature-list-open nav {
+    display: block;
+    overflow: visible;
+    padding: 6px 14px 18px;
+  }
+
+  .admin-sidebar.feature-list-open nav button {
+    width: 100%;
+    min-height: 42px;
+    margin: 0 0 6px;
+    padding: 10px 12px;
+    text-align: left;
+    white-space: normal;
+  }
+}

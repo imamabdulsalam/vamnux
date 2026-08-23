@@ -14,6 +14,7 @@ import { AdminTrafficAnalytics } from "@/components/AdminTrafficAnalytics";
 import { ExchangeRateQuickCards } from "@/components/ExchangeRateQuickCards";
 import { AdminApiAccessControl } from "@/components/AdminApiAccessControl";
 import "@/components/adminProductPresentationLayout.css";
+import "@/components/adminFeatureListMenu.css";
 import {
   Activity,
   ArrowRight,
@@ -114,6 +115,46 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
     return tabs.some((tab) => tab.id === requestedTab) ? requestedTab as AdminTab : "overview";
   });
+  useEffect(() => {
+    const topbar = document.querySelector<HTMLElement>(".admin-topbar");
+    const sidebar = document.querySelector<HTMLElement>(".admin-sidebar");
+    const nav = sidebar?.querySelector<HTMLElement>("nav");
+    const brand = topbar?.querySelector<HTMLElement>(".admin-brand");
+    if (!topbar || !sidebar || !nav || !brand) return;
+
+    sidebar.id = "admin-feature-list";
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "admin-feature-list-trigger";
+    trigger.setAttribute("aria-label", "Open Admin feature list");
+    trigger.setAttribute("aria-controls", "admin-feature-list");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.innerHTML = '<span></span><span></span><span></span>';
+    const closeMenu = () => {
+      sidebar.classList.remove("feature-list-open");
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.setAttribute("aria-label", "Open Admin feature list");
+    };
+    const toggleMenu = () => {
+      const open = sidebar.classList.toggle("feature-list-open");
+      trigger.setAttribute("aria-expanded", String(open));
+      trigger.setAttribute("aria-label", open ? "Close Admin feature list" : "Open Admin feature list");
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+    trigger.addEventListener("click", toggleMenu);
+    nav.addEventListener("click", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    brand.after(trigger);
+    return () => {
+      trigger.removeEventListener("click", toggleMenu);
+      nav.removeEventListener("click", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+      trigger.remove();
+      sidebar.classList.remove("feature-list-open");
+    };
+  }, []);
   const overview = trpc.admin.getOverview.useQuery();
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery();
   const catalogPricing = trpc.admin.listCatalogPricing.useQuery();
