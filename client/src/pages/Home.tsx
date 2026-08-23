@@ -138,33 +138,35 @@ const slides = [
   },
 ];
 
-const productCategories: ProductCategory[] = ["Top-up", "Voucher", "Subscription", "Software", "AI tools", "Steam", "Telegram Stars"];
+const productCategories: ProductCategory[] = ["Top-up", "Gift cards", "Subscription", "Software", "AI tools", "Games", "Steam Top-Up", "Telegram Stars"];
 function isProductCategory(value: unknown): value is ProductCategory { return typeof value === "string" && productCategories.includes(value as ProductCategory); }
 
 const categories = [
   { slug: "game-top-up", label: "Game top-up", icon: Coins, filter: "Top-up" as ProductCategory },
-  { slug: "gift-cards", label: "Gift cards", icon: Gift, filter: "Voucher" as ProductCategory },
+  { slug: "gift-cards", label: "Gift cards", icon: Gift, filter: "Gift cards" as ProductCategory },
   { slug: "subscriptions", label: "Subscriptions", icon: Tv, filter: "Subscription" as ProductCategory },
   { slug: "software", label: "Software", icon: Laptop, filter: "Software" as ProductCategory },
   { slug: "ai-tools", label: "AI tools", icon: Sparkles, filter: "AI tools" as ProductCategory },
-  { slug: "steam", label: "Steam", icon: Gamepad2, filter: "Steam" as ProductCategory },
+  { slug: "games", label: "Games", icon: Gamepad2, filter: "Games" as ProductCategory },
+  { slug: "steam-top-up", label: "Steam Top-Up", icon: Gamepad2, filter: "Steam Top-Up" as ProductCategory },
   { slug: "telegram-stars", label: "Telegram Stars", icon: Send, filter: "Telegram Stars" as ProductCategory },
 ];
 
 const unavailableCategoryDescriptions: Record<Exclude<ProductCategory, "Top-up">, string> = {
-  Voucher: "Gift Card products will appear here after VAMNUX connects an authorised supplier with live codes and regional pricing.",
+  "Gift cards": "Gift Card products will appear here after VAMNUX connects an authorised supplier with live codes and regional pricing.",
   Subscription: "Subscription services are planned for this category and will appear after an approved supplier is connected.",
   Software: "Software licences will appear here after VAMNUX connects an authorised software supplier.",
   "AI tools": "AI tool subscriptions and licences will appear here after an authorised catalog source is connected.",
-  Steam: "Global Steam offers will appear here when an authorised supplier exposes an eligible product.",
+  Games: "Game keys and digital game products will appear here when an authorised supplier exposes an eligible product.",
+  "Steam Top-Up": "Steam Top-Up services will appear here when an authorised supplier exposes an eligible service.",
   "Telegram Stars": "Telegram Stars will appear here when an authorised supplier exposes an eligible denomination.",
 };
 
 function DigitalProductIcon({ category }: { category: ProductCategory }) {
-  if (category === "Voucher") return <Gift size={28} />;
+  if (category === "Gift cards") return <Gift size={28} />;
   if (category === "Subscription") return <Tv size={28} />;
   if (category === "Software") return <Laptop size={28} />;
-  if (category === "Steam") return <Gamepad2 size={28} />;
+  if (category === "Games" || category === "Steam Top-Up") return <Gamepad2 size={28} />;
   if (category === "Telegram Stars") return <Send size={28} />;
   return <Sparkles size={28} />;
 }
@@ -312,8 +314,9 @@ export default function Home() {
       return () => { window.cancelAnimationFrame(confirmScroll); window.clearTimeout(postRouteScroll); };
     }
     const requestedCategory = routeParams.get("category");
-    if (requestedCategory !== "All" && !isProductCategory(requestedCategory)) return;
-    const nextCategory = requestedCategory === "All" ? "All" : requestedCategory;
+    const legacyCategory = requestedCategory === "Steam" ? "Games" : requestedCategory === "Voucher" ? "Gift cards" : requestedCategory;
+    if (legacyCategory !== "All" && !isProductCategory(legacyCategory)) return;
+    const nextCategory = legacyCategory === "All" ? "All" : legacyCategory;
     setActiveCategory(nextCategory);
     setQuery("");
     revealCatalog(true);
@@ -324,7 +327,7 @@ export default function Home() {
   useEffect(() => {
     const activateFooterCatalog = (event: Event) => {
       const detail = (event as CustomEvent<{ category?: string; focusSearch?: boolean }>).detail;
-      const category = detail?.category;
+      const category = detail?.category === "Steam" ? "Games" : detail?.category === "Voucher" ? "Gift cards" : detail?.category;
       if (category !== "All" && !isProductCategory(category)) return;
       setActiveCategory(category === "All" ? "All" : category);
       setQuery("");
@@ -704,7 +707,7 @@ export default function Home() {
         <aside className="marketplace-summary" aria-label="Browse VAMNUX by need">
           <div className="marketplace-summary-head"><span>Browse by need</span><small>Choose a product category</small></div>
           <button className="summary-choice summary-choice-blue" onClick={() => { setActiveCategory("Top-up"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Gamepad2 size={18} /><span><strong>Games & top-ups</strong><small>Credits, passes, and vouchers</small></span><ArrowRight size={16} /></button>
-          <button className="summary-choice summary-choice-violet" onClick={() => { setActiveCategory("Voucher"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Gift size={18} /><span><strong>Gift cards</strong><small>Digital codes and everyday picks</small></span><ArrowRight size={16} /></button>
+          <button className="summary-choice summary-choice-violet" onClick={() => { setActiveCategory("Gift cards"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Gift size={18} /><span><strong>Gift cards</strong><small>Digital codes and everyday picks</small></span><ArrowRight size={16} /></button>
           <button className="summary-choice summary-choice-mint" onClick={() => { setActiveCategory("Subscription"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Tv size={18} /><span><strong>Subscriptions</strong><small>Entertainment and digital access</small></span><ArrowRight size={16} /></button>
           <button className="summary-choice summary-choice-coral" onClick={() => { setActiveCategory("AI tools"); setQuery(""); document.getElementById("products")?.scrollIntoView({ behavior: "smooth" }); }}><Sparkles size={18} /><span><strong>Tools & services</strong><small>Software and AI-ready categories</small></span><ArrowRight size={16} /></button>
         </aside>

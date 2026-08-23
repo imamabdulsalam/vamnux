@@ -3,9 +3,10 @@ import { Link } from "wouter";
 
 const productLinks = [
   ["Game Top-Up", "/?category=Top-up#products"],
-  ["Gift Cards", "/?category=Voucher#products"],
-  ["Gaming Vouchers", "/?category=Voucher#products"],
-  ["Game Keys", "/?category=Voucher#products"],
+  ["Gift Cards", "/?category=Gift%20cards#products"],
+  ["Games", "/?category=Games#products"],
+  ["Steam Top-Up", "/?category=Steam%20Top-Up#products"],
+  ["Game Keys", "/?category=Games#products"],
   ["Subscriptions", "/?category=Subscription#products"],
   ["AI Tools", "/?category=AI%20tools#products"],
   ["Deals", "/?category=All#products"],

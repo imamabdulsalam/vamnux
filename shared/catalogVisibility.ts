@@ -27,7 +27,8 @@ export function isPrimaryMarketProduct<T extends { category: string; name: strin
   const isTopUp = product.category === "Top-up" || product.category === "top_up";
   if (isTopUp) return isNigeriaPriorityFamily(product.name);
   if (product.category === "Telegram Stars" || product.category === "telegram_stars") return true;
-  if (product.category === "Steam" || product.category === "steam") return /^(global|glb|worldwide|ww)$/i.test(product.region ?? "");
+  if (product.category === "Games" || product.category === "games" || product.category === "steam") return /^(global|glb|worldwide|ww)$/i.test(product.region ?? "");
+  if (product.category === "Steam Top-Up" || product.category === "steam_top_up") return /^(global|glb|worldwide|ww)$/i.test(product.region ?? "");
   return false;
 }
 

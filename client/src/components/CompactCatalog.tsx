@@ -15,7 +15,7 @@ type CompactCatalogProps = {
 };
 
 function categoryLabel(category: ProductCategory) {
-  return category === "Voucher" ? "Gift card" : category;
+  return category === "Gift cards" ? "Gift card" : category;
 }
 
 export default function CompactCatalog({ products, activeCategory, keyword, formatPrice, onOpenProduct, onOpenFamily, onAddToCart }: CompactCatalogProps) {

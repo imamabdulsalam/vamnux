@@ -311,7 +311,7 @@ export const products = mysqlTable("products", {
   supplierSku: varchar("supplierSku", { length: 180 }),
   supplierCategory: varchar("supplierCategory", { length: 120 }),
   name: varchar("name", { length: 255 }).notNull(),
-  category: mysqlEnum("category", ["top_up", "gift_card", "game_key", "subscription", "ai_tool", "software", "steam", "telegram_stars"]).notNull(),
+  category: mysqlEnum("category", ["top_up", "gift_card", "game_key", "subscription", "ai_tool", "software", "steam", "steam_top_up", "telegram_stars"]).notNull(),
   description: text("description"),
   imageUrl: text("imageUrl"),
   basePrice: decimal("basePrice", { precision: 12, scale: 2 }).notNull(),

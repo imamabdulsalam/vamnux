@@ -3,14 +3,14 @@ import { categoryQuickLinks, interleaveTopUpFamilies } from "../shared/compactCa
 
 describe("compact catalog category links", () => {
   const items = [
-    { category: "Voucher", name: "FoxReload catalog", product: "Steam Wallet 25 USD" },
-    { category: "Voucher", name: "FoxReload catalog", product: "Steam Wallet 25 USD" },
+    { category: "Gift cards", name: "FoxReload catalog", product: "Steam Wallet 25 USD" },
+    { category: "Gift cards", name: "FoxReload catalog", product: "Steam Wallet 25 USD" },
     { category: "Subscription", name: "FoxReload catalog", product: "Netflix 25 EUR" },
     { category: "Top-up", name: "PUBG Mobile", product: "60 UC" },
   ];
 
   it("returns only unique labels from the selected synchronized category", () => {
-    expect(categoryQuickLinks(items, "Voucher")).toEqual(["Steam Wallet 25 USD"]);
+    expect(categoryQuickLinks(items, "Gift cards")).toEqual(["Steam Wallet 25 USD"]);
     expect(categoryQuickLinks(items, "Subscription")).toEqual(["Netflix 25 EUR"]);
   });
 
@@ -23,7 +23,7 @@ describe("compact catalog category links", () => {
       { category: "Top-up", name: "Free Fire Global", product: "110 Diamonds" },
       { category: "Top-up", name: "Free Fire Global", product: "341 Diamonds" },
       { category: "Top-up", name: "PUBG Mobile", product: "60 UC" },
-      { category: "Voucher", name: "Steam", product: "Steam Wallet 10 USD" },
+      { category: "Gift cards", name: "Steam", product: "Steam Wallet 10 USD" },
     ]);
     expect(balanced.map((item) => item.product)).toEqual(["110 Diamonds", "60 UC", "Steam Wallet 10 USD", "341 Diamonds"]);
   });

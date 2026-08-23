@@ -9,8 +9,9 @@ describe("VAMNUX storefront category defaults", () => {
       { slug: "subscriptions", name: "Subscriptions", sortOrder: 3 },
       { slug: "software", name: "Software", sortOrder: 4 },
       { slug: "ai-tools", name: "AI tools", sortOrder: 5 },
-      { slug: "steam", name: "Steam", sortOrder: 6 },
-      { slug: "telegram-stars", name: "Telegram Stars", sortOrder: 7 },
+      { slug: "games", name: "Games", sortOrder: 6 },
+      { slug: "steam-top-up", name: "Steam Top-Up", sortOrder: 7 },
+      { slug: "telegram-stars", name: "Telegram Stars", sortOrder: 8 },
     ]);
   });
 });

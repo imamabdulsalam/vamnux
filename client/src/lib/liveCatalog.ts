@@ -1,4 +1,4 @@
-export type ProductCategory = "Top-up" | "Voucher" | "Subscription" | "Software" | "AI tools" | "Steam" | "Telegram Stars";
+export type ProductCategory = "Top-up" | "Gift cards" | "Subscription" | "Software" | "AI tools" | "Games" | "Steam Top-Up" | "Telegram Stars";
 
 export type LiveCatalogProduct = {
   id: number;
@@ -38,12 +38,13 @@ type CatalogSourceRow = {
 
 const supplierCategoryLabels: Record<string, ProductCategory> = {
   top_up: "Top-up",
-  gift_card: "Voucher",
+  gift_card: "Gift cards",
   subscription: "Subscription",
   software: "Software",
-  game_key: "Voucher",
+  game_key: "Gift cards",
   ai_tool: "AI tools",
-  steam: "Steam",
+  steam: "Games",
+  steam_top_up: "Steam Top-Up",
   telegram_stars: "Telegram Stars",
 };
 
@@ -96,7 +97,7 @@ export function toLiveCatalogProduct(item: CatalogSourceRow, index: number): Liv
     delivery: supplierDeliveryLabel(item),
     image: customerSafeImage(item),
     tone: productTones[index % productTones.length],
-    badge: item.category === "game_key" ? "Game key" : category === "Voucher" ? "Gift card" : category,
+    badge: item.category === "game_key" ? "Game key" : category === "Gift cards" ? "Gift card" : category,
     inputRequirements: fields.filter((field): field is { key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string } => typeof field.key === "string" && typeof field.label === "string" && (field.type === "text" || field.type === "email" || field.type === "select")),
   };
 }

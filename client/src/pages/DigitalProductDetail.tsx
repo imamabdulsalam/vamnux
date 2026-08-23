@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
-import { ArrowLeft, ArrowRight, CircleDollarSign, Gift, Globe2, Heart, Laptop, Search, Send, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Tv, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleDollarSign, Gamepad2, Gift, Globe2, Heart, Laptop, Search, Send, ShieldCheck, ShoppingBag, ShoppingCart, Sparkles, Tv, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
@@ -18,11 +18,11 @@ const currencies: Record<CurrencyCode, { label: string; locale: string; rate: nu
 };
 
 function DigitalIcon({ category, size = 40 }: { category: LiveCatalogProduct["category"]; size?: number }) {
-  if (category === "Voucher") return <Gift size={size} />;
+  if (category === "Gift cards") return <Gift size={size} />;
   if (category === "Subscription") return <Tv size={size} />;
   if (category === "Software") return <Laptop size={size} />;
   if (category === "Telegram Stars") return <Send size={size} />;
-  if (category === "Steam") return <Gift size={size} />;
+  if (category === "Games" || category === "Steam Top-Up") return <Gamepad2 size={size} />;
   return <Sparkles size={size} />;
 }
 

@@ -21,7 +21,7 @@ export type AuthorizedCatalogSourceInput = z.infer<typeof authorizedCatalogSourc
 
 export const adminManagedCatalogProductInputSchema = z.object({
   name: z.string().trim().min(3).max(255),
-  category: z.enum(["top_up", "gift_card", "subscription", "software", "ai_tool", "game_key", "steam", "telegram_stars"]),
+  category: z.enum(["top_up", "gift_card", "subscription", "software", "ai_tool", "game_key", "steam", "steam_top_up", "telegram_stars"]),
   description: z.string().trim().min(12).max(2_000),
   catalogSourceId: z.number().int().positive(),
   basePrice: z.number().finite().positive().max(1_000_000),

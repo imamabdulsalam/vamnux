@@ -20,17 +20,17 @@ describe("Nigeria-priority catalog visibility", () => {
       { category: "Top-up", name: "Free Fire Global" },
       { category: "Top-up", name: "Free Fire Indonesia" },
       { category: "Subscription", name: "Spotify Premium Brazil — 1 month" },
-      { category: "Voucher", name: "Steam Wallet Top Up | CIS" },
+      { category: "Gift cards", name: "Steam Wallet Top Up | CIS" },
     ];
     expect(filterPrimaryMarketProducts(products)).toEqual([{ category: "Top-up", name: "Free Fire Global" }]);
   });
 
-  it("keeps active Telegram Stars and global or worldwide Steam records while withholding regional Steam keys", () => {
+  it("keeps active Telegram Stars and global or worldwide Games records while withholding regional game keys", () => {
     const products = [
       { category: "Telegram Stars", name: "Telegram Stars", region: "Supplier region rules" },
-      { category: "Steam", name: "7 Days to Die Steam CD Key", region: "Global" },
-      { category: "Steam", name: "Steam Wallet Top Up", region: "WW" },
-      { category: "Steam", name: "Resident Evil 4 Steam CD Key", region: "Europe" },
+      { category: "Games", name: "7 Days to Die Steam CD Key", region: "Global" },
+      { category: "Steam Top-Up", name: "Steam Wallet Top Up", region: "WW" },
+      { category: "Games", name: "Resident Evil 4 Steam CD Key", region: "Europe" },
     ];
     expect(filterPrimaryMarketProducts(products)).toEqual(products.slice(0, 3));
   });

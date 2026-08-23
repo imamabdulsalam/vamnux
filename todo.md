@@ -598,3 +598,8 @@
 - [x] Improve only the VAMNUX Admin mobile top bar so the brand, three-line menu, full search field, Owner Access, and Sign Out remain clear and usable on phone-sized screens.
 - [x] Preserve every existing top-bar control, Admin view, feature list, and desktop layout without removing or reconstructing any content.
 - [x] Validate mobile top-bar visibility, search usability, desktop preservation, deterministic tests, and production build before publishing.
+
+- [x] Rename the existing VAMNUX Steam category to Games across the storefront, User Dashboard, Admin Panel, and shared navigation/category labels.
+- [x] Add a distinct Steam Top-Up category across the storefront, User Dashboard, Admin Panel, and shared category/navigation surfaces.
+- [x] Remove Voucher from VAMNUX storefront catalog/category navigation while preserving all other requested category surfaces and product behavior.
+- [x] Validate category consistency across storefront, mobile navigation, User Dashboard, Admin Panel, deterministic tests, and production build before publishing.

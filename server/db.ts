@@ -387,8 +387,9 @@ export const DEFAULT_MARKETPLACE_CATEGORIES = [
   { slug: "subscriptions", name: "Subscriptions", sortOrder: 3 },
   { slug: "software", name: "Software", sortOrder: 4 },
   { slug: "ai-tools", name: "AI tools", sortOrder: 5 },
-  { slug: "steam", name: "Steam", sortOrder: 6 },
-  { slug: "telegram-stars", name: "Telegram Stars", sortOrder: 7 },
+  { slug: "games", name: "Games", sortOrder: 6 },
+  { slug: "steam-top-up", name: "Steam Top-Up", sortOrder: 7 },
+  { slug: "telegram-stars", name: "Telegram Stars", sortOrder: 8 },
 ] as const;
 
 function marketplaceCategorySlugForProductCategory(category: string) {
@@ -397,6 +398,7 @@ function marketplaceCategorySlugForProductCategory(category: string) {
   if (normalized === "gift-card" || normalized === "voucher") return "gift-cards";
   if (normalized === "subscription") return "subscriptions";
   if (normalized === "ai-tool") return "ai-tools";
+  if (normalized === "steam") return "games";
   return normalized;
 }
 

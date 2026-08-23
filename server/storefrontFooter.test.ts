@@ -24,7 +24,7 @@ describe("VAMNUX storefront footer", () => {
   });
 
   it("returns every footer product link to the matching filtered catalog section", () => {
-    ["/?category=Top-up#products", "/?category=Voucher#products", "/?category=Subscription#products", "/?category=AI%20tools#products", "/?category=All#products"].forEach((href) => expect(footerSource).toContain(href));
+    ["/?category=Top-up#products", "/?category=Gift%20cards#products", "/?category=Games#products", "/?category=Steam%20Top-Up#products", "/?category=Subscription#products", "/?category=AI%20tools#products", "/?category=All#products"].forEach((href) => expect(footerSource).toContain(href));
     expect(footerSource).toContain("key={`${title}-${label}`}");
     expect(footerSource).not.toContain("key={href}");
     expect(footerSource).toContain('new CustomEvent("vamnux:catalog-filter"');
