@@ -590,3 +590,8 @@
 
 - [x] Replace the VAMNUX storefront technical supplier note with concise customer-friendly trust copy that highlights clear product details, transparent pricing, and support without unsupported payment or fulfilment claims.
 - [x] Validate the revised storefront trust copy, responsive presentation, deterministic tests, and production build before publishing.
+
+- [x] Add a VAMNUX Super Admin mobile header with a clear three-line menu that opens the complete protected Admin navigation on phone-sized screens.
+- [x] Improve responsive Admin workspace layout, spacing, controls, tables, and scrolling so every existing feature remains usable on mobile without changing the desktop experience.
+- [x] Preserve active Admin tab state, unread notification badge, authorization boundaries, and keyboard-accessible menu controls across responsive breakpoints.
+- [x] Validate mobile and desktop Admin navigation/workspaces, deterministic tests, and production build before publishing.

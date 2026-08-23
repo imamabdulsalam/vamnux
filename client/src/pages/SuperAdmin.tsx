@@ -14,6 +14,7 @@ import { AdminTrafficAnalytics } from "@/components/AdminTrafficAnalytics";
 import { ExchangeRateQuickCards } from "@/components/ExchangeRateQuickCards";
 import { AdminApiAccessControl } from "@/components/AdminApiAccessControl";
 import "@/components/adminProductPresentationLayout.css";
+import "@/components/adminMobileNavigation.css";
 import {
   Activity,
   ArrowRight,
@@ -198,6 +199,54 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const [settingDraft, setSettingDraft] = useState<{ settingKey: string; category: "general" | "currency" | "payments" | "email" | "notifications" | "orders" | "security"; value: string }>({ settingKey: "", category: "general", value: "{}" });
   const [notificationDraft, setNotificationDraft] = useState<{ templateKey: string; channel: "in_app" | "email" | "sms" | "whatsapp"; eventType: string; subject: string; body: string; status: "draft" | "active" | "archived" }>({ templateKey: "", channel: "in_app", eventType: "", subject: "", body: "", status: "draft" });
   const [searchQuery, setSearchQuery] = useState("");
+  useEffect(() => {
+    const topbar = document.querySelector<HTMLElement>(".admin-topbar");
+    const sidebar = document.querySelector<HTMLElement>(".admin-sidebar");
+    const nav = sidebar?.querySelector<HTMLElement>("nav");
+    const search = topbar?.querySelector<HTMLElement>(".admin-global-search");
+    if (!topbar || !sidebar || !nav || !search) return;
+
+    sidebar.id = "admin-mobile-navigation";
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "admin-mobile-menu-trigger";
+    trigger.setAttribute("aria-controls", "admin-mobile-navigation");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.setAttribute("aria-label", "Open Admin navigation");
+    trigger.innerHTML = '<span></span><span></span><span></span>';
+
+    const closeMenu = () => {
+      sidebar.classList.remove("mobile-open");
+      trigger.setAttribute("aria-expanded", "false");
+      trigger.setAttribute("aria-label", "Open Admin navigation");
+    };
+    const toggleMenu = () => {
+      const open = sidebar.classList.toggle("mobile-open");
+      trigger.setAttribute("aria-expanded", String(open));
+      trigger.setAttribute("aria-label", open ? "Close Admin navigation" : "Open Admin navigation");
+      if (open) window.setTimeout(() => nav.querySelector<HTMLButtonElement>("button")?.focus(), 0);
+    };
+    const closeOnNavigation = (event: Event) => {
+      if ((event.target as Element).closest("button")) closeMenu();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeMenu();
+        trigger.focus();
+      }
+    };
+    trigger.addEventListener("click", toggleMenu);
+    nav.addEventListener("click", closeOnNavigation);
+    document.addEventListener("keydown", closeOnEscape);
+    topbar.insertBefore(trigger, search);
+    return () => {
+      trigger.removeEventListener("click", toggleMenu);
+      nav.removeEventListener("click", closeOnNavigation);
+      document.removeEventListener("keydown", closeOnEscape);
+      trigger.remove();
+      sidebar.classList.remove("mobile-open");
+    };
+  }, []);
   const searchInput = useMemo(() => ({ query: searchQuery.trim() }), [searchQuery]);
   const search = trpc.admin.search.useQuery(searchInput, { enabled: searchQuery.trim().length >= 2 });
   const selectedProduct = useMemo(() => (catalogPricing.data ?? []).find((product) => product.id === Number(productId)), [catalogPricing.data, productId]);
