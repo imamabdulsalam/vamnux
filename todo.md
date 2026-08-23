@@ -584,3 +584,6 @@
 - [x] Correct the verified GamesDrop Telegram contact in VAMNUX API Access Control to @igoryan34 and its official Telegram URL.
 - [x] Clarify the safe credential references in API Access Control while continuing to prevent live API keys, secrets, tokens, and signatures from being displayed, copied, logged, or sent to the browser.
 - [x] Validate contact accuracy, protected credential behavior, deterministic tests, and production build before publishing.
+
+- [x] Diagnose and repair the deployed VAMNUX Admin Panel route that is returning a 404 while preserving Admin authorization and all existing functionality.
+- [x] Validate both the development and deployed Admin entry routes, protected redirect behavior, deterministic tests, and production build before publishing.

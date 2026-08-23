@@ -51,6 +51,7 @@ function Router() {
       <Route path="/delivery-policy" component={PolicyPage} />
       <Route path="/acceptable-use" component={PolicyPage} />
       <Route path="/policies/:slug" component={PolicyPage} />
+      <Route path="/admin" component={AdminEntryRedirect} />
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/dashboard" component={SuperAdmin} />
       <Route path="/404" component={NotFound} />
@@ -81,6 +82,16 @@ function CatalogRedirect() {
 
   useLayoutEffect(() => {
     setLocation("/?category=All#products", { replace: true });
+  }, [setLocation]);
+
+  return null;
+}
+
+function AdminEntryRedirect() {
+  const [, setLocation] = useLocation();
+
+  useLayoutEffect(() => {
+    setLocation("/admin/login", { replace: true });
   }, [setLocation]);
 
   return null;
