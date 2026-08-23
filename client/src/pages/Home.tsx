@@ -641,7 +641,7 @@ export default function Home() {
             </div>
           )}
         </div>
-          <p className="catalog-note"><CircleDollarSign size={16} /> <strong>VAMNUX SUPPLIER NOTE:</strong> Listings are synchronised from configured suppliers. Display conversion is informational only; customer payment, wallet funding, and supplier fulfilment remain inactive.</p>
+          <p className="catalog-note"><CircleDollarSign size={16} /> <strong>SHOP WITH CONFIDENCE:</strong> Explore clear product details, requirements and transparent pricing before you choose. Every listing is organised to help you decide with confidence, with support available when you need help.</p>
       </section>
 
       <section id="why-us" className="why-vamnux-section" aria-labelledby="why-vamnux-title">

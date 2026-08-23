@@ -587,3 +587,6 @@
 
 - [x] Diagnose and repair the deployed VAMNUX Admin Panel route that is returning a 404 while preserving Admin authorization and all existing functionality.
 - [x] Validate both the development and deployed Admin entry routes, protected redirect behavior, deterministic tests, and production build before publishing.
+
+- [x] Replace the VAMNUX storefront technical supplier note with concise customer-friendly trust copy that highlights clear product details, transparent pricing, and support without unsupported payment or fulfilment claims.
+- [x] Validate the revised storefront trust copy, responsive presentation, deterministic tests, and production build before publishing.

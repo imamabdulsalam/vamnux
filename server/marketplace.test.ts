@@ -1,5 +1,9 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode } from "../shared/marketplace";
+
+const homeSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/Home.tsx"), "utf8");
 
 describe("VAMNUX marketplace helpers", () => {
   it("calculates a server-side order total from quantity and unit price", () => {
@@ -15,5 +19,11 @@ describe("VAMNUX marketplace helpers", () => {
 
   it("namespaces supplier field values by product ID for multi-item draft orders", () => {
     expect(createFulfillmentFieldKey(42, "player_id")).toBe("42.player_id");
+  });
+
+  it("uses customer-friendly storefront trust copy without exposing technical supplier operations", () => {
+    expect(homeSource).toContain("SHOP WITH CONFIDENCE:");
+    expect(homeSource).toContain("clear product details, requirements and transparent pricing");
+    expect(homeSource).not.toContain("VAMNUX SUPPLIER NOTE:");
   });
 });
