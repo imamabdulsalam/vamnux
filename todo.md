@@ -598,3 +598,7 @@
 - [x] Improve only the VAMNUX Admin mobile top bar so the brand, three-line menu, full search field, Owner Access, and Sign Out remain clear and usable on phone-sized screens.
 - [x] Preserve every existing top-bar control, Admin view, feature list, and desktop layout without removing or reconstructing any content.
 - [x] Validate mobile top-bar visibility, search usability, desktop preservation, deterministic tests, and production build before publishing.
+
+- [x] Give the VAMNUX Admin phone experience a native-app-like full-height shell with touch-friendly spacing, a stable top bar, and contained workspace scrolling without removing any feature or view.
+- [x] Preserve existing mobile three-line navigation, complete feature access, long-detail scrolling, all controls, and the unchanged desktop Admin layout.
+- [x] Validate mobile app-shell presentation, touch/scroll usability, desktop preservation, deterministic tests, and production build before publishing.

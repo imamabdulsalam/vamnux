@@ -28,4 +28,11 @@ describe("VAMNUX Admin mobile feature list", () => {
     expect(mobileMenuStyles).toContain(".admin-topbar .admin-global-search");
     expect(mobileMenuStyles).toContain(".admin-topbar > div span");
   });
+
+  it("uses a phone-only full-height app shell with a stable header and touch-aware scrolling", () => {
+    expect(mobileMenuStyles).toContain("min-height: 100dvh");
+    expect(mobileMenuStyles).toContain("position: sticky");
+    expect(mobileMenuStyles).toContain("-webkit-overflow-scrolling: touch");
+    expect(mobileMenuStyles).toContain("safe-area-inset-bottom");
+  });
 });
