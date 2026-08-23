@@ -14,6 +14,7 @@ import { getSuperAdminNotificationDetail, listSuperAdminNotificationInbox, markA
 import { replyToSuperAdminNotification } from "./db";
 import { getSuperAdminTrafficAnalytics } from "./db";
 import { getSafeSupplierApiAccessStatus } from "./apiAccessControl";
+import { getMasterCatalogFoundationSummary } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -139,6 +140,7 @@ export const appRouter = router({
     }),
     regenerateMfaRecoveryCodes: adminProcedure.input(z.object({ code: z.string().trim().length(6) })).mutation(({ ctx, input }) => regenerateAdminMfaRecoveryCodes({ userId: ctx.user.id, label: "Super Admin", code: input.code })),
     getOverview: adminProcedure.query(() => getSuperAdminOverview()),
+    getMasterCatalogFoundation: adminProcedure.query(() => getMasterCatalogFoundationSummary()),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),

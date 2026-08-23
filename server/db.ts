@@ -10,6 +10,7 @@ import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzle/schema";
 import { customerProductRequests } from "../drizzle/schema";
+import { masterProducts, supplierOffers } from "../drizzle/schema";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -245,6 +246,27 @@ export async function getUserById(userId: number) {
 function requireDb<T>(db: T | null): T {
   if (!db) throw new Error("Marketplace database is not available");
   return db;
+}
+
+/**
+ * Owner-only, read-only visibility into the additive Master Catalog foundation.
+ * This summary intentionally never creates mappings or changes existing legacy
+ * product, order, payment, or storefront records.
+ */
+export async function getMasterCatalogFoundationSummary() {
+  const db = requireDb(await getDb());
+  const [legacyRows, masterRows, offerRows] = await Promise.all([
+    db.select({ total: sql<number>`count(*)` }).from(products),
+    db.select({ total: sql<number>`count(*)` }).from(masterProducts),
+    db.select({ total: sql<number>`count(*)` }).from(supplierOffers),
+  ]);
+
+  return {
+    legacyProductCount: Number(legacyRows[0]?.total ?? 0),
+    masterProductCount: Number(masterRows[0]?.total ?? 0),
+    supplierOfferCount: Number(offerRows[0]?.total ?? 0),
+    mappingMode: "unmapped_foundation" as const,
+  };
 }
 
 export async function listActiveCatalogProducts() {

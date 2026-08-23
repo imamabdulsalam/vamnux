@@ -342,6 +342,68 @@ export const products = mysqlTable("products", {
   catalogSourceIndex: index("products_catalog_source_idx").on(table.catalogSourceId),
 }));
 
+/**
+ * A future VAMNUX-owned customer product identity. This foundation is additive:
+ * it starts empty and does not change the existing supplier-normalised product
+ * records or customer-facing catalog selection. Mapping an offer requires a
+ * separately approved category-safe review workflow.
+ */
+export const masterProducts = mysqlTable("master_products", {
+  id: int("id").autoincrement().primaryKey(),
+  masterKey: varchar("masterKey", { length: 180 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: mysqlEnum("category", ["top_up", "gift_card", "game_key", "subscription", "ai_tool", "software", "steam", "steam_top_up", "telegram_stars"]).notNull(),
+  subcategory: varchar("subcategory", { length: 120 }),
+  productType: varchar("productType", { length: 120 }),
+  regionLabel: varchar("regionLabel", { length: 120 }),
+  currency: varchar("currency", { length: 3 }),
+  denomination: varchar("denomination", { length: 120 }),
+  imageUrl: text("imageUrl"),
+  customerFacingStatus: mysqlEnum("customerFacingStatus", ["draft", "active", "paused", "archived"]).default("draft").notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  masterKeyUnique: uniqueIndex("master_products_key_unique").on(table.masterKey),
+  customerFacingIndex: index("master_products_customer_facing_idx").on(table.customerFacingStatus, table.category),
+  categoryIdentityIndex: index("master_products_category_identity_idx").on(table.category, table.productType, table.regionLabel, table.currency),
+}));
+
+/**
+ * An additive supplier-offer snapshot. Every row can preserve a legacy VAMNUX
+ * product row through legacyProductId while optional masterProductId stays null
+ * until an owner approves a category-safe mapping. No existing product is moved
+ * or replaced by this table.
+ */
+export const supplierOffers = mysqlTable("supplier_offers", {
+  id: int("id").autoincrement().primaryKey(),
+  masterProductId: int("masterProductId"),
+  legacyProductId: int("legacyProductId").notNull(),
+  commerceIntegrationId: int("commerceIntegrationId"),
+  supplierKey: varchar("supplierKey", { length: 80 }).notNull(),
+  supplierSku: varchar("supplierSku", { length: 180 }),
+  supplierOfferId: varchar("supplierOfferId", { length: 120 }),
+  supplierCategory: varchar("supplierCategory", { length: 120 }),
+  supplierProductName: varchar("supplierProductName", { length: 255 }).notNull(),
+  supplierCost: decimal("supplierCost", { precision: 12, scale: 2 }),
+  supplierCurrency: varchar("supplierCurrency", { length: 3 }),
+  regionLabel: varchar("regionLabel", { length: 120 }),
+  supplierAvailability: boolean("supplierAvailability").default(true).notNull(),
+  sourceStatus: mysqlEnum("sourceStatus", ["draft", "active", "paused", "archived"]).default("draft").notNull(),
+  deliveryType: mysqlEnum("deliveryType", ["instant", "digital_code", "activation_link", "manual_processing", "account_access"]).notNull(),
+  inputRequirements: json("inputRequirements"),
+  metadata: json("metadata"),
+  supplierUpdatedAt: timestamp("supplierUpdatedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  legacyProductUnique: uniqueIndex("supplier_offers_legacy_product_unique").on(table.legacyProductId),
+  supplierSkuIndex: index("supplier_offers_supplier_sku_idx").on(table.supplierKey, table.supplierSku),
+  supplierOfferIndex: index("supplier_offers_supplier_offer_idx").on(table.supplierKey, table.supplierOfferId),
+  masterProductIndex: index("supplier_offers_master_product_idx").on(table.masterProductId),
+  availabilityIndex: index("supplier_offers_availability_idx").on(table.supplierAvailability, table.sourceStatus),
+}));
+
 /** VAMNUX-managed storefront taxonomy. Supplier data remains independent from the public category configuration. */
 export const marketplaceCategories = mysqlTable("marketplace_categories", {
   id: int("id").autoincrement().primaryKey(),

@@ -607,3 +607,19 @@
 - [x] Remove customer-facing VAMNUX wording that refers to verified supplier inventory, verified suppliers, supplier verification, or supplier inventory from the storefront and User Dashboard.
 - [x] Preserve supplier records and supplier-specific information in protected Admin-only workspaces.
 - [x] Validate customer-facing wording cleanup, Admin supplier data preservation, deterministic tests, and production build before publishing.
+
+- [x] Perform a strictly read-only audit of the existing VAMNUX catalog, suppliers, product IDs, categories, subcategories, prices, currencies, regions, availability, and API relationships without modifying any product, category, supplier, or website behavior.
+- [x] Report total products, products by supplier, products by category, current schema and connection structure, category-safe duplicate or structural observations, and a non-destructive multi-supplier catalog recommendation.
+- [x] Stop after delivering the audit report and wait for owner approval before proposing or performing any catalog migration, merge, rename, or product modification.
+- [x] Use only separate lightweight read-only catalog queries; skip any individual query that times out and identify unavailable checks explicitly in the final audit report.
+
+- [x] Perform a strictly read-only, category-first multi-supplier candidate-match analysis without merging, deleting, renaming, moving, or modifying any VAMNUX product.
+- [x] Compare only logically compatible product types and attributes, keeping Game Top-Up, Gift Cards, Game Keys, Subscriptions, Software, AI Tools, Steam/Games, Telegram Stars, and other categories separate.
+- [x] Classify possible matches as High Confidence, Medium Confidence, Low Confidence, or Needs Admin Review; retain all uncertain products as separate offers and report unique-product counts.
+- [x] Deliver a non-destructive candidate-match report with product, supplier, supplier ID, price, currency, region, rationale, and confidence counts, then wait for owner approval before any migration.
+
+- [x] Create additive VAMNUX Master Product and Supplier Offer tables that retain the original product rows, supplier IDs, supplier offer IDs, costs, currencies, availability, and all customer/order/payment relationships unchanged.
+- [x] Include Master Product fields for stable ID, name, category, subcategory, product type, region, currency, denomination, image, and customer-facing status; include Supplier Offer fields for supplier relationship, source IDs, cost, currency, availability, delivery/input context, and optional future Master Product mapping.
+- [x] Do not map, migrate, merge, reprice, route, hide, or otherwise alter the existing 3,423 products, the five Telegram Stars review groups, orders, payment records, or storefront behavior.
+- [x] Add protected read-only Admin inspection procedures and deterministic coverage proving the new structure is additive and existing catalog, order, and payment rows remain unchanged.
+- [x] Validate schema migration, preservation counts, untouched customer-facing behavior, deterministic tests, and production build; stop after reporting the Step 1 foundation for approval.
