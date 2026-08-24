@@ -1,10 +1,11 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
+import { calculatePricingPreview, type PricingRoundingRule, type PricingRuleScope } from "../shared/pricingEngine";
 import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDeliveryMinutesFromMetadata, type ManualDeliveryStatus } from "../shared/manualDelivery";
 import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
@@ -593,6 +594,136 @@ export async function updateCatalogProductPricing(input: { productId: number; ma
     },
   });
   return listCatalogPricing();
+}
+
+type PricingEngineRuleInput = {
+  id?: number;
+  ruleName: string;
+  scope: PricingRuleScope;
+  category?: "top_up" | "gift_card" | "game_key" | "subscription" | "ai_tool" | "software" | "steam" | "steam_top_up" | "telegram_stars" | null;
+  productId?: number | null;
+  supplierKey?: string | null;
+  outputCurrency: string;
+  percentageMarkup: number;
+  fixedMarkup: number;
+  fixedFee: number;
+  minimumSellingPrice?: number | null;
+  maximumDiscountPercent?: number | null;
+  roundingRule: PricingRoundingRule;
+  manualPriceOverride?: number | null;
+  isActive: boolean;
+  reason?: string | null;
+  adminUserId: number;
+};
+
+function normalisePricingRuleInput(input: PricingEngineRuleInput) {
+  const ruleName = input.ruleName.trim().slice(0, 160);
+  const outputCurrency = input.outputCurrency.trim().toUpperCase();
+  const supplierKey = input.supplierKey?.trim().toLowerCase() || null;
+  if (!ruleName) throw new Error("Pricing rule name is required");
+  if (!/^[A-Z]{3}$/.test(outputCurrency)) throw new Error("Output currency must be a three-letter code");
+  calculatePricingPreview({ supplierCost: 0, exchangeRate: 1, percentageMarkup: input.percentageMarkup, fixedMarkup: input.fixedMarkup, fixedFee: input.fixedFee, minimumSellingPrice: input.minimumSellingPrice, maximumDiscountPercent: input.maximumDiscountPercent, roundingRule: input.roundingRule, manualPriceOverride: input.manualPriceOverride });
+  if (input.scope === "global" && (input.category || input.productId || supplierKey)) throw new Error("Global pricing rules cannot be limited to a category, product, or supplier");
+  if (input.scope === "category" && !input.category) throw new Error("Category pricing rules require a category");
+  if (input.scope === "product" && !input.productId) throw new Error("Product pricing rules require a product");
+  if (input.scope === "supplier" && !supplierKey) throw new Error("Supplier pricing rules require a supplier key");
+  return { ...input, ruleName, outputCurrency, supplierKey, category: input.scope === "category" ? input.category! : null, productId: input.scope === "product" ? input.productId! : null, minimumSellingPrice: input.minimumSellingPrice ?? null, maximumDiscountPercent: input.maximumDiscountPercent ?? null, manualPriceOverride: input.manualPriceOverride ?? null, reason: input.reason?.trim().slice(0, 500) || null };
+}
+
+const numericPricingRule = (rule: typeof pricingRules.$inferSelect) => ({ ...rule, percentageMarkup: Number(rule.percentageMarkup), fixedMarkup: Number(rule.fixedMarkup), fixedFee: Number(rule.fixedFee), minimumSellingPrice: rule.minimumSellingPrice === null ? null : Number(rule.minimumSellingPrice), maximumDiscountPercent: rule.maximumDiscountPercent === null ? null : Number(rule.maximumDiscountPercent), manualPriceOverride: rule.manualPriceOverride === null ? null : Number(rule.manualPriceOverride) });
+
+/** Owner-only configuration; saving a rule never changes a product price. */
+export async function listPricingEngineRules() {
+  const db = requireDb(await getDb());
+  return (await db.select().from(pricingRules).orderBy(desc(pricingRules.updatedAt))).map(numericPricingRule);
+}
+
+export async function listPricingEngineProducts(limit = 250) {
+  const db = requireDb(await getDb());
+  const settings = await ensureMarketplacePricingSettings(db);
+  const catalog = await db.select().from(products).orderBy(desc(products.updatedAt)).limit(Math.min(500, Math.max(1, limit)));
+  return catalog.map((product) => {
+    const supplierCost = product.supplierPrice === null ? Number(product.basePrice) : Number(product.supplierPrice);
+    const supplierCurrency = product.supplierCurrency || product.baseCurrency;
+    return { id: product.id, name: product.name, category: product.category, supplierKey: product.supplierKey, supplierCost, supplierCurrency, baseCurrency: product.baseCurrency, currentSellingPrice: customerPriceForProduct(product, settings).customerPrice, currentMarkupPercent: product.markupPercentOverride === null ? settings.defaultMarkupPercent : Number(product.markupPercentOverride), currentManualPriceOverride: product.displayPriceOverride === null ? null : Number(product.displayPriceOverride) };
+  });
+}
+
+export async function previewPricingEngine(input: { supplierCost: number; supplierCurrency: string; outputCurrency: string; exchangeRate?: number | null; percentageMarkup: number; fixedMarkup: number; fixedFee: number; minimumSellingPrice?: number | null; maximumDiscountPercent?: number | null; roundingRule: PricingRoundingRule; manualPriceOverride?: number | null }) {
+  const db = requireDb(await getDb());
+  const supplierCurrency = input.supplierCurrency.trim().toUpperCase();
+  const outputCurrency = input.outputCurrency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(supplierCurrency) || !/^[A-Z]{3}$/.test(outputCurrency)) throw new Error("Use three-letter currencies for the pricing preview");
+  const providedRate = input.exchangeRate ?? null;
+  const [storedRate] = supplierCurrency === outputCurrency ? [] : await db.select({ rate: exchangeRates.rate, bufferPercent: exchangeRates.bufferPercent }).from(exchangeRates).where(and(eq(exchangeRates.baseCurrency, supplierCurrency), eq(exchangeRates.quoteCurrency, outputCurrency), eq(exchangeRates.active, true))).limit(1);
+  const exchangeRate = supplierCurrency === outputCurrency ? 1 : providedRate ?? (storedRate ? Number(storedRate.rate) * (1 + Number(storedRate.bufferPercent) / 100) : null);
+  if (!exchangeRate) throw new Error(`No active ${supplierCurrency}/${outputCurrency} exchange rate is configured. Save a manual rate or enter a preview rate.`);
+  return { supplierCurrency, outputCurrency, ...calculatePricingPreview({ supplierCost: input.supplierCost, exchangeRate, percentageMarkup: input.percentageMarkup, fixedMarkup: input.fixedMarkup, fixedFee: input.fixedFee, minimumSellingPrice: input.minimumSellingPrice, maximumDiscountPercent: input.maximumDiscountPercent, roundingRule: input.roundingRule, manualPriceOverride: input.manualPriceOverride }) };
+}
+
+export async function savePricingEngineRule(input: PricingEngineRuleInput) {
+  const db = requireDb(await getDb());
+  const rule = normalisePricingRuleInput(input);
+  if (rule.scope === "product") {
+    const [product] = await db.select({ id: products.id }).from(products).where(eq(products.id, rule.productId!)).limit(1);
+    if (!product) throw new Error("The selected product does not exist");
+  }
+  if (rule.id) {
+    const [existing] = await db.select().from(pricingRules).where(eq(pricingRules.id, rule.id)).limit(1);
+    if (!existing) throw new Error("Pricing rule was not found");
+    await db.transaction(async (tx) => {
+      await tx.update(pricingRules).set({ ruleName: rule.ruleName, scope: rule.scope, category: rule.category, productId: rule.productId, supplierKey: rule.supplierKey, outputCurrency: rule.outputCurrency, percentageMarkup: rule.percentageMarkup.toFixed(2), fixedMarkup: rule.fixedMarkup.toFixed(2), fixedFee: rule.fixedFee.toFixed(2), minimumSellingPrice: rule.minimumSellingPrice === null ? null : rule.minimumSellingPrice.toFixed(2), maximumDiscountPercent: rule.maximumDiscountPercent === null ? null : rule.maximumDiscountPercent.toFixed(2), roundingRule: rule.roundingRule, manualPriceOverride: rule.manualPriceOverride === null ? null : rule.manualPriceOverride.toFixed(2), isActive: rule.isActive, updatedByAdminId: rule.adminUserId }).where(eq(pricingRules.id, existing.id));
+      await tx.insert(pricingRuleAuditEvents).values({ pricingRuleId: existing.id, productId: existing.productId, adminUserId: rule.adminUserId, action: "rule_updated", previousPrice: existing.manualPriceOverride, newPrice: rule.manualPriceOverride === null ? null : rule.manualPriceOverride.toFixed(2), previousMarkup: existing.percentageMarkup, newMarkup: rule.percentageMarkup.toFixed(2), reason: rule.reason, metadata: { scope: rule.scope, outputCurrency: rule.outputCurrency, fixedMarkup: rule.fixedMarkup, fixedFee: rule.fixedFee, minimumSellingPrice: rule.minimumSellingPrice, maximumDiscountPercent: rule.maximumDiscountPercent, roundingRule: rule.roundingRule, isActive: rule.isActive } });
+      await tx.insert(adminAuditEvents).values({ adminUserId: rule.adminUserId, action: "pricing_engine.rule_updated", targetType: "pricing_rule", targetId: String(existing.id), summary: `Updated pricing rule ${rule.ruleName}`, metadata: { scope: rule.scope, outputCurrency: rule.outputCurrency, percentageMarkup: rule.percentageMarkup } });
+    });
+    return { id: existing.id, created: false };
+  }
+  const [created] = await db.transaction(async (tx) => {
+    const [newRule] = await tx.insert(pricingRules).values({ ruleName: rule.ruleName, scope: rule.scope, category: rule.category, productId: rule.productId, supplierKey: rule.supplierKey, outputCurrency: rule.outputCurrency, percentageMarkup: rule.percentageMarkup.toFixed(2), fixedMarkup: rule.fixedMarkup.toFixed(2), fixedFee: rule.fixedFee.toFixed(2), minimumSellingPrice: rule.minimumSellingPrice === null ? null : rule.minimumSellingPrice.toFixed(2), maximumDiscountPercent: rule.maximumDiscountPercent === null ? null : rule.maximumDiscountPercent.toFixed(2), roundingRule: rule.roundingRule, manualPriceOverride: rule.manualPriceOverride === null ? null : rule.manualPriceOverride.toFixed(2), isActive: rule.isActive, createdByAdminId: rule.adminUserId, updatedByAdminId: rule.adminUserId }).$returningId();
+    if (!newRule) throw new Error("Pricing rule could not be created");
+    await tx.insert(pricingRuleAuditEvents).values({ pricingRuleId: newRule.id, productId: rule.productId, adminUserId: rule.adminUserId, action: "rule_created", previousPrice: null, newPrice: rule.manualPriceOverride === null ? null : rule.manualPriceOverride.toFixed(2), previousMarkup: null, newMarkup: rule.percentageMarkup.toFixed(2), reason: rule.reason, metadata: { scope: rule.scope, category: rule.category, supplierKey: rule.supplierKey, outputCurrency: rule.outputCurrency, fixedMarkup: rule.fixedMarkup, fixedFee: rule.fixedFee, minimumSellingPrice: rule.minimumSellingPrice, maximumDiscountPercent: rule.maximumDiscountPercent, roundingRule: rule.roundingRule, isActive: rule.isActive } });
+    await tx.insert(adminAuditEvents).values({ adminUserId: rule.adminUserId, action: "pricing_engine.rule_created", targetType: "pricing_rule", targetId: String(newRule.id), summary: `Created pricing rule ${rule.ruleName}`, metadata: { scope: rule.scope, outputCurrency: rule.outputCurrency, percentageMarkup: rule.percentageMarkup } });
+    return [newRule];
+  });
+  return { id: created.id, created: true };
+}
+
+/** Explicitly applies a rule only to selected compatible catalog products after the owner confirms. */
+export async function applyPricingEngineRule(input: { pricingRuleId: number; productIds: number[]; confirmation: string; reason?: string | null; adminUserId: number }) {
+  if (input.confirmation !== "APPLY") throw new Error("Type APPLY to confirm this bounded price update");
+  const productIds = Array.from(new Set(input.productIds)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!productIds.length || productIds.length > 100) throw new Error("Select between 1 and 100 products for an explicit price application");
+  const db = requireDb(await getDb());
+  const [rule] = await db.select().from(pricingRules).where(eq(pricingRules.id, input.pricingRuleId)).limit(1);
+  if (!rule || !rule.isActive) throw new Error("An active pricing rule is required");
+  const selected = await db.select().from(products).where(inArray(products.id, productIds));
+  if (selected.length !== productIds.length) throw new Error("One or more selected products are unavailable");
+  const settings = await ensureMarketplacePricingSettings(db);
+  const reason = input.reason?.trim().slice(0, 500) || null;
+  await db.transaction(async (tx) => {
+    for (const product of selected) {
+      if (rule.scope === "category" && product.category !== rule.category) throw new Error("Selected products must match the rule category");
+      if (rule.scope === "product" && product.id !== rule.productId) throw new Error("Selected products must match the product-specific rule");
+      if (rule.scope === "supplier" && product.supplierKey !== rule.supplierKey) throw new Error("Selected products must match the supplier-specific rule");
+      const supplierCost = product.supplierPrice === null ? Number(product.basePrice) : Number(product.supplierPrice);
+      const supplierCurrency = product.supplierCurrency || product.baseCurrency;
+      if (supplierCurrency !== rule.outputCurrency || product.baseCurrency !== rule.outputCurrency) throw new Error(`Apply is currently limited to products whose supplier and VAMNUX base currency already equal ${rule.outputCurrency}. Use the preview and configured exchange rate for cross-currency planning; no currency field is changed automatically.`);
+      const preview = calculatePricingPreview({ supplierCost, exchangeRate: 1, percentageMarkup: Number(rule.percentageMarkup), fixedMarkup: Number(rule.fixedMarkup), fixedFee: Number(rule.fixedFee), minimumSellingPrice: rule.minimumSellingPrice === null ? null : Number(rule.minimumSellingPrice), maximumDiscountPercent: rule.maximumDiscountPercent === null ? null : Number(rule.maximumDiscountPercent), roundingRule: rule.roundingRule, manualPriceOverride: rule.manualPriceOverride === null ? null : Number(rule.manualPriceOverride) });
+      const previousPrice = customerPriceForProduct(product, settings).customerPrice;
+      const previousMarkup = product.markupPercentOverride === null ? settings.defaultMarkupPercent : Number(product.markupPercentOverride);
+      await tx.update(products).set({ displayPriceOverride: preview.finalSellingPrice.toFixed(2) }).where(eq(products.id, product.id));
+      await tx.insert(priceChangeHistory).values({ productId: product.id, adminUserId: input.adminUserId, changeType: "product_fixed_price", oldValue: String(previousPrice), newValue: String(preview.finalSellingPrice), reason: reason || `Confirmed pricing rule ${rule.ruleName}` });
+      await tx.insert(pricingRuleAuditEvents).values({ pricingRuleId: rule.id, productId: product.id, adminUserId: input.adminUserId, action: "price_applied", previousPrice: previousPrice.toFixed(2), newPrice: preview.finalSellingPrice.toFixed(2), previousMarkup: previousMarkup.toFixed(2), newMarkup: Number(rule.percentageMarkup).toFixed(2), reason, metadata: { ruleName: rule.ruleName, supplierCost, supplierCurrency, outputCurrency: rule.outputCurrency, convertedCost: preview.convertedCost, fixedMarkup: preview.fixedMarkup, fixedFee: preview.fixedFee, roundingRule: preview.roundingRule, expectedProfit: preview.expectedProfit, expectedProfitPercent: preview.expectedProfitPercent } });
+    }
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "pricing_engine.price_applied", targetType: "pricing_rule_batch", targetId: `${rule.id}:${productIds.join(",")}`, summary: `Applied pricing rule ${rule.ruleName} to ${selected.length} selected products`, metadata: { pricingRuleId: rule.id, productIds, confirmation: "APPLY" } });
+  });
+  return { pricingRuleId: rule.id, productCount: selected.length };
+}
+
+export async function listPricingEngineAudit(limit = 100) {
+  const db = requireDb(await getDb());
+  const events = await db.select({ id: pricingRuleAuditEvents.id, pricingRuleId: pricingRuleAuditEvents.pricingRuleId, productId: pricingRuleAuditEvents.productId, productName: products.name, adminName: users.name, action: pricingRuleAuditEvents.action, previousPrice: pricingRuleAuditEvents.previousPrice, newPrice: pricingRuleAuditEvents.newPrice, previousMarkup: pricingRuleAuditEvents.previousMarkup, newMarkup: pricingRuleAuditEvents.newMarkup, reason: pricingRuleAuditEvents.reason, createdAt: pricingRuleAuditEvents.createdAt }).from(pricingRuleAuditEvents).leftJoin(products, eq(pricingRuleAuditEvents.productId, products.id)).leftJoin(users, eq(pricingRuleAuditEvents.adminUserId, users.id)).orderBy(desc(pricingRuleAuditEvents.createdAt)).limit(Math.min(250, Math.max(1, limit)));
+  return events.map((event) => ({ ...event, previousPrice: event.previousPrice === null ? null : Number(event.previousPrice), newPrice: event.newPrice === null ? null : Number(event.newPrice), previousMarkup: event.previousMarkup === null ? null : Number(event.previousMarkup), newMarkup: event.newMarkup === null ? null : Number(event.newMarkup) }));
 }
 
 export async function bulkUpdateSyncedProductMarkup(input: { productIds: number[]; markupPercent: number; adminUserId: number }) {

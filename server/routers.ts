@@ -17,6 +17,8 @@ import { getSafeSupplierApiAccessStatus } from "./apiAccessControl";
 import { getMasterCatalogFoundationSummary } from "./db";
 import { addSupplierOfferToMasterForReview, approveSupplierOfferMapping, createSupplierProductMappingMaster, getSupplierProductMappingMaster, getSupplierProductMappingSummary, listSupplierProductMappingMasters, rejectSupplierOfferMapping, removeSupplierOfferMapping, searchSupplierProductsForMapping } from "./db";
 import { SUPPLIER_MAPPING_CATEGORIES } from "../shared/supplierProductMapping";
+import { applyPricingEngineRule, listPricingEngineAudit, listPricingEngineProducts, listPricingEngineRules, previewPricingEngine, savePricingEngineRule } from "./db";
+import { PRICING_ROUNDING_RULES, PRICING_RULE_SCOPES } from "../shared/pricingEngine";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -34,6 +36,26 @@ const customerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
 
 const supplierMappingCategorySchema = z.enum(SUPPLIER_MAPPING_CATEGORIES);
 const supplierMappingAttributesSchema = z.record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(200)).refine((attributes) => Object.keys(attributes).length <= 20, { message: "Provide no more than 20 mapping attributes" });
+const pricingRuleScopeSchema = z.enum(PRICING_RULE_SCOPES);
+const pricingRoundingRuleSchema = z.enum(PRICING_ROUNDING_RULES);
+const pricingRuleInputSchema = z.object({
+  id: z.number().int().positive().optional(),
+  ruleName: z.string().trim().min(2).max(160),
+  scope: pricingRuleScopeSchema,
+  category: supplierMappingCategorySchema.nullable().optional(),
+  productId: z.number().int().positive().nullable().optional(),
+  supplierKey: z.string().trim().min(2).max(80).nullable().optional(),
+  outputCurrency: z.string().trim().length(3),
+  percentageMarkup: z.number().min(-100).max(500),
+  fixedMarkup: z.number().min(0).max(1_000_000),
+  fixedFee: z.number().min(0).max(1_000_000),
+  minimumSellingPrice: z.number().min(0).max(1_000_000).nullable().optional(),
+  maximumDiscountPercent: z.number().min(0).max(100).nullable().optional(),
+  roundingRule: pricingRoundingRuleSchema,
+  manualPriceOverride: z.number().min(0).max(1_000_000).nullable().optional(),
+  isActive: z.boolean(),
+  reason: z.string().trim().max(500).nullable().optional(),
+});
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -170,6 +192,14 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => rejectSupplierOfferMapping({ ...input, adminUserId: ctx.user.id })),
     removeSupplierOfferMapping: adminProcedure.input(z.object({ supplierOfferId: z.number().int().positive(), note: z.string().trim().max(1_000).nullable().optional() }))
       .mutation(({ ctx, input }) => removeSupplierOfferMapping({ ...input, adminUserId: ctx.user.id })),
+    listPricingEngineRules: adminProcedure.query(() => listPricingEngineRules()),
+    listPricingEngineProducts: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(500).default(250) }).optional()).query(({ input }) => listPricingEngineProducts(input?.limit)),
+    previewPricingEngine: adminProcedure.input(z.object({ supplierCost: z.number().min(0).max(1_000_000), supplierCurrency: z.string().trim().length(3), outputCurrency: z.string().trim().length(3), exchangeRate: z.number().positive().max(10_000_000).nullable().optional(), percentageMarkup: z.number().min(-100).max(500), fixedMarkup: z.number().min(0).max(1_000_000), fixedFee: z.number().min(0).max(1_000_000), minimumSellingPrice: z.number().min(0).max(1_000_000).nullable().optional(), maximumDiscountPercent: z.number().min(0).max(100).nullable().optional(), roundingRule: pricingRoundingRuleSchema, manualPriceOverride: z.number().min(0).max(1_000_000).nullable().optional() }))
+      .query(({ input }) => previewPricingEngine(input)),
+    savePricingEngineRule: adminProcedure.input(pricingRuleInputSchema).mutation(({ ctx, input }) => savePricingEngineRule({ ...input, adminUserId: ctx.user.id })),
+    applyPricingEngineRule: adminProcedure.input(z.object({ pricingRuleId: z.number().int().positive(), productIds: z.array(z.number().int().positive()).min(1).max(100), confirmation: z.literal("APPLY"), reason: z.string().trim().max(500).nullable().optional() }))
+      .mutation(({ ctx, input }) => applyPricingEngineRule({ ...input, adminUserId: ctx.user.id })),
+    listPricingEngineAudit: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPricingEngineAudit(input?.limit)),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),

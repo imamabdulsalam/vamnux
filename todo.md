@@ -653,3 +653,9 @@
 - [x] Provide Admin mapping actions to view Master Products and Supplier Offers, search supplier products, create a Master Product, add/remove an offer, and approve/reject a mapping with supplier name, source ID, product name, cost, currency, region, and status visible.
 - [x] Preserve every existing catalog row and create no automatic product mapping, supplier routing, price/markup change, fulfilment action, or customer-facing catalog change.
 - [x] Verify mapping counts by status, data preservation, Admin authorization, deterministic tests, and production build; stop after Step 3 for owner approval before Step 4.
+
+- [x] Create additive owner-only pricing rule, preview, confirmation, and audit support for percentage markup, fixed markup, category/product rules, supplier cost tracking, currency conversion, minimum selling price, maximum discount, rounding, and manual price overrides.
+- [x] Keep supplier cost, exchange rate, VAMNUX markup, fixed fee, rounding, final selling price, expected profit, and expected profit percentage separate in Admin-only pricing records and previews; never expose supplier costs to customers.
+- [x] Require explicit Admin confirmation before any bulk price application; record previous/new price, previous/new markup, Admin, date/time, and optional reason without changing supplier API costs or historical transaction prices.
+- [x] Preserve current customer prices until an Admin explicitly applies a confirmed rule; do not modify existing products, supplier APIs, orders, payments, historical prices, wallet balances, routing, supplier selection, fulfilment, or storefront behavior.
+- [x] Verify pricing isolation, audit history, Admin authorization, deterministic tests, production build, and preservation counts; stop after Step 4 for owner approval before Step 5.

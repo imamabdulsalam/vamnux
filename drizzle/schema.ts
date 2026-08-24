@@ -662,6 +662,57 @@ export const marketplacePricingSettings = mysqlTable("marketplace_pricing_settin
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+/**
+ * Owner-configured pricing policies. These policies are additive and do not
+ * change a catalog price until an owner explicitly confirms a bounded apply.
+ */
+export const pricingRules = mysqlTable("pricing_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleName: varchar("ruleName", { length: 160 }).notNull(),
+  scope: mysqlEnum("scope", ["global", "category", "product", "supplier"]).notNull(),
+  category: mysqlEnum("category", ["top_up", "gift_card", "game_key", "subscription", "ai_tool", "software", "steam", "steam_top_up", "telegram_stars"]),
+  productId: int("productId"),
+  supplierKey: varchar("supplierKey", { length: 80 }),
+  outputCurrency: varchar("outputCurrency", { length: 3 }).default("USD").notNull(),
+  percentageMarkup: decimal("percentageMarkup", { precision: 7, scale: 2 }).default("0.00").notNull(),
+  fixedMarkup: decimal("fixedMarkup", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  fixedFee: decimal("fixedFee", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  minimumSellingPrice: decimal("minimumSellingPrice", { precision: 12, scale: 2 }),
+  maximumDiscountPercent: decimal("maximumDiscountPercent", { precision: 7, scale: 2 }),
+  roundingRule: mysqlEnum("roundingRule", ["none", "nearest_0_01", "nearest_1", "nearest_5", "nearest_10", "nearest_50", "nearest_100"]).default("nearest_0_01").notNull(),
+  manualPriceOverride: decimal("manualPriceOverride", { precision: 12, scale: 2 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdByAdminId: int("createdByAdminId").notNull(),
+  updatedByAdminId: int("updatedByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  scopeIndex: index("pricing_rules_scope_active_idx").on(table.scope, table.isActive),
+  categoryIndex: index("pricing_rules_category_active_idx").on(table.category, table.isActive),
+  productIndex: index("pricing_rules_product_active_idx").on(table.productId, table.isActive),
+  supplierIndex: index("pricing_rules_supplier_active_idx").on(table.supplierKey, table.isActive),
+}));
+
+/** Append-only snapshots of Admin pricing rule changes and explicitly confirmed bounded price applications. */
+export const pricingRuleAuditEvents = mysqlTable("pricing_rule_audit_events", {
+  id: int("id").autoincrement().primaryKey(),
+  pricingRuleId: int("pricingRuleId"),
+  productId: int("productId"),
+  adminUserId: int("adminUserId").notNull(),
+  action: mysqlEnum("action", ["rule_created", "rule_updated", "price_applied"]).notNull(),
+  previousPrice: decimal("previousPrice", { precision: 12, scale: 2 }),
+  newPrice: decimal("newPrice", { precision: 12, scale: 2 }),
+  previousMarkup: decimal("previousMarkup", { precision: 7, scale: 2 }),
+  newMarkup: decimal("newMarkup", { precision: 7, scale: 2 }),
+  reason: varchar("reason", { length: 500 }),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  ruleCreatedIndex: index("pricing_rule_audit_events_rule_created_idx").on(table.pricingRuleId, table.createdAt),
+  productCreatedIndex: index("pricing_rule_audit_events_product_created_idx").on(table.productId, table.createdAt),
+  adminCreatedIndex: index("pricing_rule_audit_events_admin_created_idx").on(table.adminUserId, table.createdAt),
+}));
+
 /** Integration metadata only. Provider credentials must remain in protected environment variables, not in the database. */
 export const commerceIntegrations = mysqlTable("commerce_integrations", {
   id: int("id").autoincrement().primaryKey(),
