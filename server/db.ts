@@ -417,6 +417,109 @@ export async function searchSupplierProductsForMapping(input: { query: string; c
   });
 }
 
+type CatalogPreparationStatus = "UNMAPPED" | "REVIEW REQUIRED" | "APPROVED MATCH" | "REJECTED MATCH";
+type CatalogPreparationFilters = { category?: SupplierMappingCategory; supplierKey?: string; currency?: string; region?: string; platform?: string; mappingStatus?: CatalogPreparationStatus; offset?: number; limit?: number };
+
+const catalogPreparationCategoryGroups: Array<{ key: string; label: string; categories: SupplierMappingCategory[] }> = [
+  { key: "top_up", label: "Game Top-Up", categories: ["top_up"] },
+  { key: "gift_card", label: "Gift Cards", categories: ["gift_card"] },
+  { key: "gaming_vouchers", label: "Gaming Vouchers", categories: [] },
+  { key: "game_key", label: "Game Keys", categories: ["game_key"] },
+  { key: "subscription", label: "Subscriptions", categories: ["subscription"] },
+  { key: "software", label: "Software", categories: ["software"] },
+  { key: "ai_tool", label: "AI Tools", categories: ["ai_tool"] },
+  { key: "games", label: "Games", categories: ["steam"] },
+  { key: "steam_top_up", label: "Steam Top-Up", categories: ["steam_top_up"] },
+  { key: "telegram_stars", label: "Telegram Stars", categories: ["telegram_stars"] },
+  { key: "other", label: "Other", categories: [] },
+];
+
+function catalogPreparationStatus(status: MappingStatus | null | undefined): CatalogPreparationStatus {
+  if (status === "PENDING REVIEW") return "REVIEW REQUIRED";
+  if (status === "APPROVED") return "APPROVED MATCH";
+  if (status === "REJECTED") return "REJECTED MATCH";
+  return "UNMAPPED";
+}
+
+function safeCatalogPreparationMetadata(metadata: unknown) {
+  const record = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata as Record<string, unknown> : {};
+  const text = (keys: string[]) => {
+    for (const key of keys) { const value = record[key]; if (typeof value === "string" && value.trim()) return value.trim().slice(0, 120); if (typeof value === "number") return String(value); }
+    return null;
+  };
+  return { platform: text(["platform", "gamePlatform", "devicePlatform", "operatingSystem", "os"]), denomination: text(["denomination", "amount", "value", "credits", "points"]), edition: text(["edition", "plan", "tier", "licenseType"]), duration: text(["duration", "period", "months", "days"]) };
+}
+
+function toCatalogPreparationProduct(row: { product: typeof products.$inferSelect; offerId: number | null; masterProductId: number | null; mappingStatus: MappingStatus | null }, pricingSettings: PricingSettings) {
+  const metadata = safeCatalogPreparationMetadata(row.product.metadata);
+  const customerPrice = customerPriceForProduct(row.product, pricingSettings);
+  return { id: row.product.id, name: row.product.name, category: row.product.category, supplierKey: row.product.supplierKey, supplierName: mappingSupplierName(row.product.supplierKey), supplierProductId: row.product.supplierOfferId || row.product.supplierSku || String(row.product.id), supplierCost: row.product.supplierPrice === null ? null : Number(row.product.supplierPrice), supplierCurrency: row.product.supplierCurrency, regionLabel: row.product.regionLabel, platform: metadata.platform, denomination: metadata.denomination, edition: metadata.edition, duration: metadata.duration, availability: Boolean(row.product.supplierEligible && row.product.status === "active"), sourceStatus: row.product.status, deliveryType: row.product.deliveryType, inputRequirements: row.product.inputRequirements, existingCustomerPrice: customerPrice.customerPrice, customerCurrency: row.product.baseCurrency, mappingStatus: catalogPreparationStatus(row.mappingStatus), mappingOfferId: row.offerId, masterProductId: row.masterProductId, canBeMapped: Boolean(row.product.supplierKey && isSupplierMappingCategory(row.product.category)) };
+}
+
+/** Read-only category counts for the legacy catalog. Missing categories are reported as zero rather than created or reclassified. */
+export async function getCatalogPreparationSummary() {
+  const db = requireDb(await getDb());
+  const [categories, mappingRows] = await Promise.all([
+    db.select({ category: products.category, count: sql<number>`count(*)` }).from(products).groupBy(products.category),
+    db.select({ mappingStatus: supplierOffers.mappingStatus, count: sql<number>`count(*)` }).from(supplierOffers).groupBy(supplierOffers.mappingStatus),
+  ]);
+  const categoryCounts = new Map(categories.map((row) => [row.category, Number(row.count)]));
+  const mappedCounts = new Map(mappingRows.map((row) => [catalogPreparationStatus(row.mappingStatus), Number(row.count)]));
+  const totalProducts = Array.from(categoryCounts.values()).reduce((sum, count) => sum + count, 0);
+  const totalMappedRecords = Array.from(mappedCounts.values()).reduce((sum, count) => sum + count, 0);
+  return { totalProducts, reviewBatchLimit: 25, categories: catalogPreparationCategoryGroups.map((group) => ({ key: group.key, label: group.label, existingCategories: group.categories, productCount: group.categories.reduce((sum, category) => sum + (categoryCounts.get(category) ?? 0), 0), isPreparationOnly: group.categories.length === 0 })), statuses: { unmapped: Math.max(0, totalProducts - totalMappedRecords), reviewRequired: mappedCounts.get("REVIEW REQUIRED") ?? 0, approvedMatch: mappedCounts.get("APPROVED MATCH") ?? 0, rejectedMatch: mappedCounts.get("REJECTED MATCH") ?? 0 } };
+}
+
+/** Reads at most 25 existing products for one owner review batch; this function never writes or suggests a match. */
+export async function listCatalogPreparationProducts(input: CatalogPreparationFilters = {}) {
+  const db = requireDb(await getDb());
+  const pricingSettings = await ensureMarketplacePricingSettings(db);
+  const conditions = [];
+  if (input.category) conditions.push(eq(products.category, input.category));
+  if (input.supplierKey) conditions.push(eq(products.supplierKey, input.supplierKey.trim().slice(0, 80)));
+  if (input.currency) conditions.push(or(eq(products.supplierCurrency, input.currency.trim().toUpperCase()), eq(products.baseCurrency, input.currency.trim().toUpperCase()))!);
+  if (input.region) conditions.push(eq(products.regionLabel, input.region.trim().slice(0, 120)));
+  if (input.platform) conditions.push(sql`cast(${products.metadata} as char) like ${`%${input.platform.trim().slice(0, 120)}%`}`);
+  if (input.mappingStatus === "UNMAPPED") conditions.push(sql`${supplierOffers.id} is null`);
+  if (input.mappingStatus === "REVIEW REQUIRED") conditions.push(eq(supplierOffers.mappingStatus, "PENDING REVIEW"));
+  if (input.mappingStatus === "APPROVED MATCH") conditions.push(eq(supplierOffers.mappingStatus, "APPROVED"));
+  if (input.mappingStatus === "REJECTED MATCH") conditions.push(eq(supplierOffers.mappingStatus, "REJECTED"));
+  const rawRows = await db.select({ product: products, offerId: supplierOffers.id, masterProductId: supplierOffers.masterProductId, mappingStatus: supplierOffers.mappingStatus }).from(products).leftJoin(supplierOffers, eq(products.id, supplierOffers.legacyProductId)).where(conditions.length ? and(...conditions) : undefined).orderBy(products.category, products.name, products.id).limit(Math.min(25, Math.max(1, input.limit ?? 25))).offset(Math.max(0, input.offset ?? 0));
+  const rows = rawRows.map((row) => toCatalogPreparationProduct(row, pricingSettings));
+  return { limit: Math.min(25, Math.max(1, input.limit ?? 25)), offset: Math.max(0, input.offset ?? 0), products: rows };
+}
+
+function catalogPreparationComparableAttributes(category: SupplierMappingCategory) {
+  if (category === "top_up") return ["game", "currency", "denomination", "region or server", "delivery requirements"];
+  if (category === "gift_card") return ["brand", "denomination", "currency", "country or redemption region", "redemption restrictions"];
+  if (category === "game_key" || category === "steam") return ["game title", "edition", "platform", "region"];
+  if (category === "subscription") return ["service", "plan", "duration", "tier", "region"];
+  if (category === "software") return ["software", "edition", "license type", "duration", "devices", "operating system", "region"];
+  if (category === "ai_tool") return ["service", "plan", "duration", "license or account type", "region"];
+  if (category === "steam_top_up") return ["currency", "denomination", "region", "delivery requirements"];
+  return ["denomination", "currency", "region", "delivery requirements"];
+}
+
+/** Safe side-by-side comparison only. It enforces same category and returns no match suggestion or mutation. */
+export async function getCatalogPreparationComparison(input: { leftProductId: number; rightProductId: number }) {
+  const db = requireDb(await getDb());
+  const pricingSettings = await ensureMarketplacePricingSettings(db);
+  if (input.leftProductId === input.rightProductId) throw new Error("Choose two different supplier products for comparison");
+  const rows = await db.select({ product: products, offerId: supplierOffers.id, masterProductId: supplierOffers.masterProductId, mappingStatus: supplierOffers.mappingStatus }).from(products).leftJoin(supplierOffers, eq(products.id, supplierOffers.legacyProductId)).where(inArray(products.id, [input.leftProductId, input.rightProductId]));
+  if (rows.length !== 2) throw new Error("Both supplier products must exist before comparison");
+  const [left, right] = rows.map((row) => toCatalogPreparationProduct(row, pricingSettings));
+  if (left.category !== right.category) throw new Error("Cross-category comparison is blocked. Select two products from the exact same existing category.");
+  return { category: left.category, left, right, comparisonRule: "Review category-specific attributes manually. Names are never used as sufficient evidence for a match.", comparableAttributes: catalogPreparationComparableAttributes(left.category) };
+}
+
+/** Explicit Admin acknowledgement that two products stay separate. It writes only a safe Admin audit event and leaves mapping state UNMAPPED. */
+export async function keepCatalogPreparationProductsSeparate(input: { leftProductId: number; rightProductId: number; note?: string | null; adminUserId: number }) {
+  const comparison = await getCatalogPreparationComparison({ leftProductId: input.leftProductId, rightProductId: input.rightProductId });
+  const db = requireDb(await getDb());
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog_preparation.kept_separate", targetType: "legacy_supplier_products", targetId: `${input.leftProductId}:${input.rightProductId}`, summary: `Kept two ${comparison.category} supplier products separate during controlled catalog preparation`, metadata: { leftProductId: input.leftProductId, rightProductId: input.rightProductId, category: comparison.category, note: input.note?.trim().slice(0, 500) || null, mappingChanged: false } });
+  return { status: "UNMAPPED" as const, detail: "Products remain separate. No Master Product, Supplier Offer, price, supplier link, or storefront record was changed." };
+}
+
 /** Creates an empty VAMNUX-owned Master Product only after an owner supplies exact category identity attributes. */
 export async function createSupplierProductMappingMaster(input: { name: string; category: SupplierMappingCategory; subcategory?: string | null; productType?: string | null; regionLabel?: string | null; currency?: string | null; denomination?: string | null; imageUrl?: string | null; mappingAttributes: Record<string, unknown>; adminUserId: number }) {
   const db = requireDb(await getDb());

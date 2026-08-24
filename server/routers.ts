@@ -26,6 +26,7 @@ import { SUPPLIER_ROUTING_STRATEGIES } from "../shared/supplierRouting";
 import { createFulfillmentSimulationOrder, getFulfillmentSimulationOrderDetail, listFulfillmentSimulationOrders, transitionFulfillmentSimulationOrder } from "./db";
 import { FULFILLMENT_ORDER_STATUSES } from "../shared/supplierFulfillment";
 import { getFinancialControlsDashboard, previewFinancialControls } from "./db";
+import { getCatalogPreparationComparison, getCatalogPreparationSummary, keepCatalogPreparationProductsSeparate, listCatalogPreparationProducts } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -68,6 +69,7 @@ const currencyRateSourceSchema = z.enum(CURRENCY_RATE_SOURCES);
 const currencyRateFrequencySchema = z.enum(CURRENCY_RATE_UPDATE_FREQUENCIES);
 const supplierRoutingStrategySchema = z.enum(SUPPLIER_ROUTING_STRATEGIES);
 const fulfillmentOrderStatusSchema = z.enum(FULFILLMENT_ORDER_STATUSES);
+const catalogPreparationStatusSchema = z.enum(["UNMAPPED", "REVIEW REQUIRED", "APPROVED MATCH", "REJECTED MATCH"]);
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -235,6 +237,10 @@ export const appRouter = router({
     transitionFulfillmentSimulationOrder: adminProcedure.input(z.object({ simulationOrderId: z.number().int().positive(), nextStatus: fulfillmentOrderStatusSchema, reason: z.string().trim().max(1000).nullable().optional(), safeReference: z.string().trim().max(500).nullable().optional() })).mutation(({ ctx, input }) => transitionFulfillmentSimulationOrder({ ...input, adminUserId: ctx.user.id })),
     getFinancialControlsDashboard: adminProcedure.input(z.object({ start: z.coerce.date().optional(), end: z.coerce.date().optional(), productId: z.number().int().positive().optional(), category: supplierMappingCategorySchema.optional(), supplierKey: z.string().trim().min(2).max(80).optional(), currency: currencyCodeSchema.optional(), orderStatus: fulfillmentOrderStatusSchema.optional() }).optional()).query(({ input }) => getFinancialControlsDashboard(input)),
     previewFinancialControls: adminProcedure.input(z.object({ customerSellingPrice: z.number().positive().max(1_000_000), supplierCost: z.number().min(0).max(1_000_000).nullable(), exchangeRate: z.number().positive().max(1_000_000).nullable(), supplierCostInCustomerCurrency: z.number().min(0).max(1_000_000).nullable(), paymentProcessingFee: z.number().min(0).max(1_000_000), otherApplicableFees: z.number().min(0).max(1_000_000), refundAmount: z.number().min(0).max(1_000_000), paymentFeeConfigured: z.boolean() })).query(({ input }) => previewFinancialControls(input)),
+    getCatalogPreparationSummary: adminProcedure.query(() => getCatalogPreparationSummary()),
+    listCatalogPreparationProducts: adminProcedure.input(z.object({ category: supplierMappingCategorySchema.optional(), supplierKey: z.string().trim().min(2).max(80).optional(), currency: z.string().trim().length(3).optional(), region: z.string().trim().min(1).max(120).optional(), platform: z.string().trim().min(1).max(120).optional(), mappingStatus: catalogPreparationStatusSchema.optional(), offset: z.number().int().min(0).max(10_000).optional(), limit: z.number().int().min(1).max(25).optional() }).optional()).query(({ input }) => listCatalogPreparationProducts(input)),
+    getCatalogPreparationComparison: adminProcedure.input(z.object({ leftProductId: z.number().int().positive(), rightProductId: z.number().int().positive() })).query(({ input }) => getCatalogPreparationComparison(input)),
+    keepCatalogPreparationProductsSeparate: adminProcedure.input(z.object({ leftProductId: z.number().int().positive(), rightProductId: z.number().int().positive(), note: z.string().trim().max(500).nullable().optional() })).mutation(({ ctx, input }) => keepCatalogPreparationProductsSeparate({ ...input, adminUserId: ctx.user.id })),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),
