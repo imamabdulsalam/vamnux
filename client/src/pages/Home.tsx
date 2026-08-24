@@ -12,7 +12,6 @@ import UniversalMarketplaceSearch from "@/components/UniversalMarketplaceSearch"
 import "./lowerStorefront.css";
 import "./mobileCategoryMenu.css";
 import "./gamesPlatformBrowser.css";
-import "./catalogRefreshStatus.css";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope } from "@shared/catalogVisibility";
@@ -248,7 +247,7 @@ export default function Home() {
     gamePlatform: activeCategory === "Games" && activeGamesPlatform !== "all" ? activeGamesPlatform : undefined,
     search: catalogSearchTerm || undefined,
   }), [activeCategory, activeGamesPlatform, catalogPage, catalogSearchTerm]);
-  const supplierCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { staleTime: 30_000, refetchOnWindowFocus: false });
+  const supplierCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { staleTime: 5 * 60_000, refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false });
   const catalogSummary = trpc.marketplace.catalog.useQuery({ page: 1, pageSize: 12, scope: "primary" as const, includeMetadata: true }, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const [loadedCatalogItems, setLoadedCatalogItems] = useState<NonNullable<typeof supplierCatalog.data>["items"]>([]);
   const revealCatalog = (focusSearch = false) => {
@@ -698,16 +697,12 @@ export default function Home() {
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
           <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => { setQuery(""); setCatalogPage(1); }} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
-          <p>{query.trim() ? (supplierCatalog.isFetching ? "Updating matching VAMNUX products…" : "Showing matching VAMNUX products.") : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
+          <p>{query.trim() ? "Showing matching VAMNUX products." : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
         </div>
 
         <div className="product-family-list compact-catalog-results">
-          {compactProducts.length > 0 && <>
-            {supplierCatalog.isFetching && <div className="catalog-refresh-status" role="status" aria-live="polite">Updating products…</div>}
-            {supplierCatalog.error && <div className="catalog-refresh-status catalog-refresh-error" role="status">Could not refresh just now. Showing the last available products.</div>}
-            <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />
-          </>}
-          {supplierCatalog.data?.hasMore && <div ref={catalogLoadMoreRef} className="catalog-auto-load" aria-live="polite">{supplierCatalog.isFetching ? "Loading more products…" : ""}</div>}
+          {compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />}
+          {supplierCatalog.data?.hasMore && <div ref={catalogLoadMoreRef} className="catalog-auto-load" aria-hidden="true" />}
           {supplierCatalog.isSuccess && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />

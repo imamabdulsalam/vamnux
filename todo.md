@@ -764,3 +764,6 @@
 - [x] Reproduce and diagnose catalog blinking during search, category changes, pagination, and background refreshes without changing catalog records.
 - [x] Preserve the last visible catalog results during in-flight requests and show only non-blocking refresh feedback, with a clear empty/error state only after a completed response.
 - [x] Verify stable product visibility across catalog search, filters, pagination, and responsive layouts; run regression tests/build; checkpoint; and push the correction to GitHub.
+- [x] Identify the remaining catalog refresh trigger and rendering shift that produces the visible Updating products banner, without changing catalog data.
+- [x] Remove visible catalog refresh banners and prevent unnecessary background catalog refreshes while keeping search, filters, and automatic pagination stable.
+- [x] Verify silent stable catalog browsing across product lists and routes, run regression tests/build, checkpoint, and push the correction to GitHub.

@@ -17,7 +17,9 @@ describe("global loading performance safeguards", () => {
   it("keeps visible cards mounted while a new catalog query is in flight", () => {
     expect(homeSource).not.toContain("setLoadedCatalogItems([])");
     expect(homeSource).toContain("supplierCatalog.isSuccess && compactProducts.length === 0");
-    expect(homeSource).toContain("Showing the last available products.");
+    expect(homeSource).not.toContain("Updating products…");
+    expect(homeSource).not.toContain("Updating matching VAMNUX products…");
+    expect(homeSource).toContain("refetchOnReconnect: false");
   });
 
   it("returns a compact page-plus-one catalog payload without supplier cost or source fields", () => {
