@@ -1,13 +1,14 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import { calculatePricingPreview, type PricingRoundingRule, type PricingRuleScope } from "../shared/pricingEngine";
 import { CURRENCY_DEFINITIONS, MATERIAL_RATE_CHANGE_PERCENT, type CurrencyRateSource, type CurrencyRateUpdateFrequency, type VamnuxSupportedCurrency, VAMNUX_SUPPORTED_CURRENCIES } from "../shared/currencyManagement";
 import { LIVE_ROUTING_DISABLED_MESSAGE, selectSimulatedSupplierOffer, type SupplierRoutingStrategy } from "../shared/supplierRouting";
+import { canTransitionFulfillmentOrder, FULFILLMENT_ORDER_STATUSES, LIVE_FULFILLMENT_DISABLED_MESSAGE, type FulfillmentOrderStatus } from "../shared/supplierFulfillment";
 import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDeliveryMinutesFromMetadata, type ManualDeliveryStatus } from "../shared/manualDelivery";
 import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
@@ -625,6 +626,113 @@ export async function listSupplierRoutingDecisions(limit = 100) {
   const db = requireDb(await getDb());
   const rows = await db.select({ id: supplierRoutingDecisions.id, masterProductId: supplierRoutingDecisions.masterProductId, masterName: masterProducts.name, strategy: supplierRoutingDecisions.strategy, outcome: supplierRoutingDecisions.outcome, simulationMode: supplierRoutingDecisions.simulationMode, liveRoutingEnabled: supplierRoutingDecisions.liveRoutingEnabled, selectedSupplierKey: supplierRoutingDecisions.selectedSupplierKey, selectedSupplierProductId: supplierRoutingDecisions.selectedSupplierProductId, supplierCost: supplierRoutingDecisions.supplierCost, supplierCurrency: supplierRoutingDecisions.supplierCurrency, outputCurrency: supplierRoutingDecisions.outputCurrency, exchangeRate: supplierRoutingDecisions.exchangeRate, convertedCost: supplierRoutingDecisions.convertedCost, customerPrice: supplierRoutingDecisions.customerPrice, expectedMargin: supplierRoutingDecisions.expectedMargin, expectedMarginPercent: supplierRoutingDecisions.expectedMarginPercent, fallbackSupplierOfferIds: supplierRoutingDecisions.fallbackSupplierOfferIds, detail: supplierRoutingDecisions.detail, adminName: users.name, createdAt: supplierRoutingDecisions.createdAt }).from(supplierRoutingDecisions).leftJoin(masterProducts, eq(supplierRoutingDecisions.masterProductId, masterProducts.id)).leftJoin(users, eq(supplierRoutingDecisions.simulatedByAdminId, users.id)).orderBy(desc(supplierRoutingDecisions.createdAt)).limit(Math.min(250, Math.max(1, limit)));
   return rows.map((row) => ({ ...row, liveRoutingEnabled: false, supplierCost: row.supplierCost === null ? null : Number(row.supplierCost), exchangeRate: row.exchangeRate === null ? null : Number(row.exchangeRate), convertedCost: row.convertedCost === null ? null : Number(row.convertedCost), customerPrice: row.customerPrice === null ? null : Number(row.customerPrice), expectedMargin: row.expectedMargin === null ? null : Number(row.expectedMargin), expectedMarginPercent: row.expectedMarginPercent === null ? null : Number(row.expectedMarginPercent) }));
+}
+
+type FulfillmentSimulationInput = { masterProductId: number; selectedSupplierOfferId?: number | null; customerSellingPrice: number; customerCurrency: string; idempotencyKey: string; customerDeliveryInput?: Record<string, string> | null; adminUserId: number };
+
+const fulfillmentEventForStatus: Record<FulfillmentOrderStatus, "payment_simulated" | "processing_started" | "supplier_submission_simulated" | "supplier_processing_simulated" | "completed_simulated" | "failed_simulated" | "cancelled_simulated" | "refund_pending_simulated" | "refunded_simulated"> = {
+  "PENDING PAYMENT": "processing_started",
+  "PAID": "payment_simulated",
+  "PROCESSING": "processing_started",
+  "SUPPLIER SUBMITTED": "supplier_submission_simulated",
+  "SUPPLIER PROCESSING": "supplier_processing_simulated",
+  "COMPLETED": "completed_simulated",
+  "FAILED": "failed_simulated",
+  "CANCELLED": "cancelled_simulated",
+  "REFUND PENDING": "refund_pending_simulated",
+  "REFUNDED": "refunded_simulated",
+};
+
+function normalizeSimulationDeliveryInput(value: Record<string, string> | null | undefined) {
+  if (!value) return null;
+  const entries = Object.entries(value).slice(0, 20).map(([key, item]) => [key.trim().slice(0, 80), item.trim().slice(0, 300)] as const).filter(([key, item]) => key && item);
+  return Object.fromEntries(entries);
+}
+
+function simulationOrderCode(idempotencyKey: string) {
+  return `SIM-${createHash("sha256").update(`${idempotencyKey}:${Date.now()}`).digest("hex").slice(0, 10).toUpperCase()}`;
+}
+
+/** Lists only additive test orders. Existing VAMNUX orders remain separately managed and untouched. */
+export async function listFulfillmentSimulationOrders(input?: { search?: string; status?: FulfillmentOrderStatus; limit?: number }) {
+  const db = requireDb(await getDb());
+  const predicates = [];
+  if (input?.status) predicates.push(eq(supplierFulfillmentSimulationOrders.orderStatus, input.status));
+  const term = input?.search?.trim().slice(0, 120);
+  if (term) { const pattern = `%${term.replace(/[%_]/g, "\\$&")}%`; predicates.push(or(like(supplierFulfillmentSimulationOrders.simulationOrderCode, pattern), like(masterProducts.name, pattern), like(supplierFulfillmentSimulationOrders.selectedSupplierKey, pattern), like(supplierFulfillmentSimulationOrders.selectedSupplierProductId, pattern))!); }
+  const rows = await db.select({ id: supplierFulfillmentSimulationOrders.id, simulationOrderCode: supplierFulfillmentSimulationOrders.simulationOrderCode, masterProductId: supplierFulfillmentSimulationOrders.masterProductId, masterProductName: masterProducts.name, customerUserId: supplierFulfillmentSimulationOrders.customerUserId, customerName: users.name, selectedSupplierKey: supplierFulfillmentSimulationOrders.selectedSupplierKey, selectedSupplierProductId: supplierFulfillmentSimulationOrders.selectedSupplierProductId, customerSellingPrice: supplierFulfillmentSimulationOrders.customerSellingPrice, customerCurrency: supplierFulfillmentSimulationOrders.customerCurrency, supplierCost: supplierFulfillmentSimulationOrders.supplierCost, supplierCurrency: supplierFulfillmentSimulationOrders.supplierCurrency, exchangeRate: supplierFulfillmentSimulationOrders.exchangeRate, markupPercent: supplierFulfillmentSimulationOrders.markupPercent, expectedProfit: supplierFulfillmentSimulationOrders.expectedProfit, paymentStatus: supplierFulfillmentSimulationOrders.paymentStatus, supplierStatus: supplierFulfillmentSimulationOrders.supplierStatus, orderStatus: supplierFulfillmentSimulationOrders.orderStatus, supplierReference: supplierFulfillmentSimulationOrders.supplierReference, simulationMode: supplierFulfillmentSimulationOrders.simulationMode, liveFulfillmentEnabled: supplierFulfillmentSimulationOrders.liveFulfillmentEnabled, createdAt: supplierFulfillmentSimulationOrders.createdAt, updatedAt: supplierFulfillmentSimulationOrders.updatedAt }).from(supplierFulfillmentSimulationOrders).leftJoin(masterProducts, eq(supplierFulfillmentSimulationOrders.masterProductId, masterProducts.id)).leftJoin(users, eq(supplierFulfillmentSimulationOrders.customerUserId, users.id)).where(predicates.length ? and(...predicates) : undefined).orderBy(desc(supplierFulfillmentSimulationOrders.createdAt)).limit(Math.min(250, Math.max(1, input?.limit ?? 100)));
+  return rows.map((row) => ({ ...row, liveFulfillmentEnabled: false, customerSellingPrice: Number(row.customerSellingPrice), supplierCost: row.supplierCost === null ? null : Number(row.supplierCost), exchangeRate: row.exchangeRate === null ? null : Number(row.exchangeRate), markupPercent: row.markupPercent === null ? null : Number(row.markupPercent), expectedProfit: row.expectedProfit === null ? null : Number(row.expectedProfit) }));
+}
+
+/** Creates a test-only immutable commercial snapshot. It does not create a real VAMNUX order, charge a customer, or submit a supplier request. */
+export async function createFulfillmentSimulationOrder(input: FulfillmentSimulationInput) {
+  const db = requireDb(await getDb());
+  const idempotencyKey = input.idempotencyKey.trim().slice(0, 160);
+  if (idempotencyKey.length < 8) throw new Error("Use an idempotency key with at least 8 characters to prevent duplicate test orders");
+  if (!Number.isFinite(input.customerSellingPrice) || input.customerSellingPrice <= 0) throw new Error("Customer selling price must be greater than zero");
+  const customerCurrency = input.customerCurrency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(customerCurrency)) throw new Error("Customer currency must be a three-letter code");
+  const [master, existing] = await Promise.all([
+    db.select().from(masterProducts).where(eq(masterProducts.id, input.masterProductId)).limit(1),
+    db.select({ id: supplierFulfillmentSimulationOrders.id, simulationOrderCode: supplierFulfillmentSimulationOrders.simulationOrderCode }).from(supplierFulfillmentSimulationOrders).where(eq(supplierFulfillmentSimulationOrders.idempotencyKey, idempotencyKey)).limit(1),
+  ]);
+  if (!master[0] || !isSupplierMappingCategory(master[0].category)) throw new Error("A category-safe VAMNUX Master Product is required for fulfillment simulation");
+  if (existing[0]) throw new Error(`Duplicate simulation prevented. This idempotency key already created ${existing[0].simulationOrderCode}`);
+  let selected: RoutingEligibilityRow | null = null;
+  if (input.selectedSupplierOfferId) {
+    const eligibility = await getSupplierRoutingEligibility(master[0].id);
+    selected = eligibility.offers.find((offer) => offer.supplierOfferId === input.selectedSupplierOfferId && offer.eligible) ?? null;
+    if (!selected) throw new Error("Selected supplier offer is not an approved, active, category-safe routing candidate");
+    if (selected.outputCurrency !== customerCurrency) throw new Error("Customer currency must match the approved offer's configured VAMNUX output currency for this simulation snapshot");
+  }
+  const supplierCost = selected?.supplierCost ?? null;
+  const exchangeRate = selected?.exchangeRate ?? null;
+  const convertedCost = selected?.convertedCost ?? null;
+  const expectedProfit = convertedCost === null ? null : input.customerSellingPrice - convertedCost;
+  const markupPercent = convertedCost === null || convertedCost <= 0 ? null : ((input.customerSellingPrice - convertedCost) / convertedCost) * 100;
+  const code = simulationOrderCode(idempotencyKey);
+  const [created] = await db.transaction(async (tx) => {
+    const [order] = await tx.insert(supplierFulfillmentSimulationOrders).values({ simulationOrderCode: code, idempotencyKey, masterProductId: master[0].id, selectedSupplierOfferId: selected?.supplierOfferId ?? null, selectedSupplierKey: selected?.supplierKey ?? null, selectedSupplierProductId: selected?.supplierProductId ?? null, customerSellingPrice: input.customerSellingPrice.toFixed(2), customerCurrency, supplierCost: supplierCost === null ? null : supplierCost.toFixed(2), supplierCurrency: selected?.supplierCurrency ?? null, exchangeRate: exchangeRate === null ? null : exchangeRate.toFixed(6), markupPercent: markupPercent === null ? null : markupPercent.toFixed(2), expectedProfit: expectedProfit === null ? null : expectedProfit.toFixed(2), paymentStatus: "NOT CHARGED", supplierStatus: "NOT SUBMITTED", orderStatus: "PENDING PAYMENT", customerDeliveryInput: normalizeSimulationDeliveryInput(input.customerDeliveryInput), simulationMode: true, liveFulfillmentEnabled: false, createdByAdminId: input.adminUserId }).$returningId();
+    if (!order) throw new Error("Simulation order could not be stored");
+    await tx.insert(supplierFulfillmentSimulationEvents).values({ simulationOrderId: order.id, previousOrderStatus: null, nextOrderStatus: "PENDING PAYMENT", eventType: "created", paymentStatus: "NOT CHARGED", supplierStatus: "NOT SUBMITTED", reason: LIVE_FULFILLMENT_DISABLED_MESSAGE, performedByAdminId: input.adminUserId });
+    return [order];
+  });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_fulfillment.simulation_created", targetType: "fulfillment_simulation_order", targetId: String(created.id), summary: `Created test-only fulfillment simulation ${code}`, metadata: { masterProductId: master[0].id, selectedSupplierOfferId: selected?.supplierOfferId ?? null, simulationMode: true, liveFulfillmentEnabled: false } });
+  return { id: created.id, simulationOrderCode: code, detail: LIVE_FULFILLMENT_DISABLED_MESSAGE };
+}
+
+/** Moves only a test simulation through its permitted lifecycle; it never acts on a real order, wallet, payment, or supplier API. */
+export async function transitionFulfillmentSimulationOrder(input: { simulationOrderId: number; nextStatus: FulfillmentOrderStatus; reason?: string | null; safeReference?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [current] = await db.select().from(supplierFulfillmentSimulationOrders).where(eq(supplierFulfillmentSimulationOrders.id, input.simulationOrderId)).limit(1);
+  if (!current) throw new Error("Fulfillment simulation order was not found");
+  if (!current.simulationMode || current.liveFulfillmentEnabled) throw new Error("Only a live-disabled simulation record may be transitioned");
+  const previousStatus = current.orderStatus as FulfillmentOrderStatus;
+  if (!canTransitionFulfillmentOrder(previousStatus, input.nextStatus)) throw new Error(`${input.nextStatus} is not an allowed transition from ${previousStatus}`);
+  let paymentStatus = current.paymentStatus; let supplierStatus = current.supplierStatus; let supplierReference = current.supplierReference;
+  if (input.nextStatus === "PAID") paymentStatus = "SIMULATION ONLY";
+  if (input.nextStatus === "SUPPLIER SUBMITTED") { supplierStatus = "SIMULATED SUBMITTED"; supplierReference = supplierReference || `SIM-REF-${current.id}`; }
+  if (input.nextStatus === "SUPPLIER PROCESSING") supplierStatus = "SIMULATED PROCESSING";
+  if (input.nextStatus === "COMPLETED") supplierStatus = "COMPLETED";
+  if (input.nextStatus === "FAILED") supplierStatus = "FAILED";
+  if (input.nextStatus === "REFUNDED") paymentStatus = "SIMULATION ONLY";
+  const eventType = input.nextStatus === "PROCESSING" && previousStatus === "FAILED" ? "retry_simulated" : fulfillmentEventForStatus[input.nextStatus];
+  const safeReference = input.safeReference?.trim().slice(0, 500) || null;
+  const reason = input.reason?.trim().slice(0, 1000) || LIVE_FULFILLMENT_DISABLED_MESSAGE;
+  await db.transaction(async (tx) => {
+    await tx.update(supplierFulfillmentSimulationOrders).set({ orderStatus: input.nextStatus, paymentStatus, supplierStatus, supplierReference, safeSupplierResponseReference: safeReference, liveFulfillmentEnabled: false }).where(eq(supplierFulfillmentSimulationOrders.id, current.id));
+    await tx.insert(supplierFulfillmentSimulationEvents).values({ simulationOrderId: current.id, previousOrderStatus: previousStatus, nextOrderStatus: input.nextStatus, eventType, paymentStatus, supplierStatus, supplierReference, reason, safeReference, performedByAdminId: input.adminUserId });
+  });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_fulfillment.simulation_transitioned", targetType: "fulfillment_simulation_order", targetId: String(current.id), summary: `Simulated ${previousStatus} → ${input.nextStatus} for ${current.simulationOrderCode}`, metadata: { eventType, simulationMode: true, liveFulfillmentEnabled: false } });
+  return { id: current.id, simulationOrderCode: current.simulationOrderCode, previousStatus, nextStatus: input.nextStatus, paymentStatus, supplierStatus, detail: LIVE_FULFILLMENT_DISABLED_MESSAGE };
+}
+
+export async function getFulfillmentSimulationOrderDetail(simulationOrderId: number) {
+  const db = requireDb(await getDb());
+  const [order] = await db.select({ order: supplierFulfillmentSimulationOrders, masterProductName: masterProducts.name, adminName: users.name }).from(supplierFulfillmentSimulationOrders).leftJoin(masterProducts, eq(supplierFulfillmentSimulationOrders.masterProductId, masterProducts.id)).leftJoin(users, eq(supplierFulfillmentSimulationOrders.createdByAdminId, users.id)).where(eq(supplierFulfillmentSimulationOrders.id, simulationOrderId)).limit(1);
+  if (!order) throw new Error("Fulfillment simulation order was not found");
+  const events = await db.select({ id: supplierFulfillmentSimulationEvents.id, previousOrderStatus: supplierFulfillmentSimulationEvents.previousOrderStatus, nextOrderStatus: supplierFulfillmentSimulationEvents.nextOrderStatus, eventType: supplierFulfillmentSimulationEvents.eventType, paymentStatus: supplierFulfillmentSimulationEvents.paymentStatus, supplierStatus: supplierFulfillmentSimulationEvents.supplierStatus, supplierReference: supplierFulfillmentSimulationEvents.supplierReference, reason: supplierFulfillmentSimulationEvents.reason, safeReference: supplierFulfillmentSimulationEvents.safeReference, adminName: users.name, createdAt: supplierFulfillmentSimulationEvents.createdAt }).from(supplierFulfillmentSimulationEvents).leftJoin(users, eq(supplierFulfillmentSimulationEvents.performedByAdminId, users.id)).where(eq(supplierFulfillmentSimulationEvents.simulationOrderId, simulationOrderId)).orderBy(supplierFulfillmentSimulationEvents.createdAt);
+  return { order: { ...order.order, liveFulfillmentEnabled: false, customerSellingPrice: Number(order.order.customerSellingPrice), supplierCost: order.order.supplierCost === null ? null : Number(order.order.supplierCost), exchangeRate: order.order.exchangeRate === null ? null : Number(order.order.exchangeRate), markupPercent: order.order.markupPercent === null ? null : Number(order.order.markupPercent), expectedProfit: order.order.expectedProfit === null ? null : Number(order.order.expectedProfit), masterProductName: order.masterProductName, adminName: order.adminName }, events };
 }
 
 export async function listActiveCatalogProducts() {

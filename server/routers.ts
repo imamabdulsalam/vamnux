@@ -23,6 +23,8 @@ import { listCurrencyManagement, listCurrencyRateHistory, listPricingRateSnapsho
 import { CURRENCY_RATE_SOURCES, CURRENCY_RATE_UPDATE_FREQUENCIES, VAMNUX_SUPPORTED_CURRENCIES } from "../shared/currencyManagement";
 import { getSupplierRoutingEligibility, getSupplierRoutingPolicy, listSupplierRoutingDecisions, listSupplierRoutingMasters, saveSupplierRoutingPolicy, simulateSupplierRouting, updateSupplierRoutingSupplier } from "./db";
 import { SUPPLIER_ROUTING_STRATEGIES } from "../shared/supplierRouting";
+import { createFulfillmentSimulationOrder, getFulfillmentSimulationOrderDetail, listFulfillmentSimulationOrders, transitionFulfillmentSimulationOrder } from "./db";
+import { FULFILLMENT_ORDER_STATUSES } from "../shared/supplierFulfillment";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -64,6 +66,7 @@ const currencyCodeSchema = z.enum(VAMNUX_SUPPORTED_CURRENCIES);
 const currencyRateSourceSchema = z.enum(CURRENCY_RATE_SOURCES);
 const currencyRateFrequencySchema = z.enum(CURRENCY_RATE_UPDATE_FREQUENCIES);
 const supplierRoutingStrategySchema = z.enum(SUPPLIER_ROUTING_STRATEGIES);
+const fulfillmentOrderStatusSchema = z.enum(FULFILLMENT_ORDER_STATUSES);
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -225,6 +228,10 @@ export const appRouter = router({
     updateSupplierRoutingSupplier: adminProcedure.input(z.object({ profileId: z.number().int().positive(), isActive: z.boolean(), priority: z.number().int().min(1).max(100_000) })).mutation(({ ctx, input }) => updateSupplierRoutingSupplier({ ...input, adminUserId: ctx.user.id })),
     simulateSupplierRouting: adminProcedure.input(z.object({ masterProductId: z.number().int().positive(), strategy: supplierRoutingStrategySchema.optional(), manualSupplierOfferId: z.number().int().positive().nullable().optional() })).mutation(({ ctx, input }) => simulateSupplierRouting({ ...input, adminUserId: ctx.user.id })),
     listSupplierRoutingDecisions: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listSupplierRoutingDecisions(input?.limit)),
+    listFulfillmentSimulationOrders: adminProcedure.input(z.object({ search: z.string().trim().max(120).optional(), status: fulfillmentOrderStatusSchema.optional(), limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listFulfillmentSimulationOrders(input)),
+    getFulfillmentSimulationOrderDetail: adminProcedure.input(z.object({ simulationOrderId: z.number().int().positive() })).query(({ input }) => getFulfillmentSimulationOrderDetail(input.simulationOrderId)),
+    createFulfillmentSimulationOrder: adminProcedure.input(z.object({ masterProductId: z.number().int().positive(), selectedSupplierOfferId: z.number().int().positive().nullable().optional(), customerSellingPrice: z.number().positive().max(1_000_000), customerCurrency: z.string().trim().length(3), idempotencyKey: z.string().trim().min(8).max(160), customerDeliveryInput: z.record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(300)).refine((input) => Object.keys(input).length <= 20, { message: "Provide no more than 20 delivery fields" }).nullable().optional() })).mutation(({ ctx, input }) => createFulfillmentSimulationOrder({ ...input, adminUserId: ctx.user.id })),
+    transitionFulfillmentSimulationOrder: adminProcedure.input(z.object({ simulationOrderId: z.number().int().positive(), nextStatus: fulfillmentOrderStatusSchema, reason: z.string().trim().max(1000).nullable().optional(), safeReference: z.string().trim().max(500).nullable().optional() })).mutation(({ ctx, input }) => transitionFulfillmentSimulationOrder({ ...input, adminUserId: ctx.user.id })),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),

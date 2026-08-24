@@ -1002,6 +1002,62 @@ export const orders = mysqlTable("orders", {
   supplierOrderIndex: index("orders_supplier_order_idx").on(table.supplierIntegrationId, table.supplierOrderId),
 }));
 
+/** Additive test-only order and commercial snapshot. It never replaces or changes the existing orders table. */
+export const supplierFulfillmentSimulationOrders = mysqlTable("supplier_fulfillment_simulation_orders", {
+  id: int("id").autoincrement().primaryKey(),
+  simulationOrderCode: varchar("simulationOrderCode", { length: 40 }).notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 160 }).notNull(),
+  sourceOrderId: int("sourceOrderId"),
+  customerUserId: int("customerUserId"),
+  masterProductId: int("masterProductId").notNull(),
+  selectedSupplierOfferId: int("selectedSupplierOfferId"),
+  selectedSupplierKey: varchar("selectedSupplierKey", { length: 80 }),
+  selectedSupplierProductId: varchar("selectedSupplierProductId", { length: 180 }),
+  customerSellingPrice: decimal("customerSellingPrice", { precision: 12, scale: 2 }).notNull(),
+  customerCurrency: varchar("customerCurrency", { length: 3 }).notNull(),
+  supplierCost: decimal("supplierCost", { precision: 12, scale: 2 }),
+  supplierCurrency: varchar("supplierCurrency", { length: 3 }),
+  exchangeRate: decimal("exchangeRate", { precision: 16, scale: 6 }),
+  markupPercent: decimal("markupPercent", { precision: 7, scale: 2 }),
+  expectedProfit: decimal("expectedProfit", { precision: 12, scale: 2 }),
+  paymentStatus: mysqlEnum("paymentStatus", ["NOT CHARGED", "SIMULATION ONLY", "PAID", "FAILED", "REFUNDED"]).default("NOT CHARGED").notNull(),
+  supplierStatus: mysqlEnum("supplierStatus", ["NOT SUBMITTED", "SIMULATED SUBMITTED", "SIMULATED PROCESSING", "COMPLETED", "FAILED"]).default("NOT SUBMITTED").notNull(),
+  orderStatus: mysqlEnum("orderStatus", ["PENDING PAYMENT", "PAID", "PROCESSING", "SUPPLIER SUBMITTED", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED"]).default("PENDING PAYMENT").notNull(),
+  supplierReference: varchar("supplierReference", { length: 160 }),
+  customerDeliveryInput: json("customerDeliveryInput"),
+  safeSupplierResponseReference: varchar("safeSupplierResponseReference", { length: 500 }),
+  simulationMode: boolean("simulationMode").default(true).notNull(),
+  liveFulfillmentEnabled: boolean("liveFulfillmentEnabled").default(false).notNull(),
+  createdByAdminId: int("createdByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  simulationCodeUnique: uniqueIndex("supplier_fulfillment_simulation_orders_code_unique").on(table.simulationOrderCode),
+  idempotencyKeyUnique: uniqueIndex("supplier_fulfillment_simulation_orders_idempotency_unique").on(table.idempotencyKey),
+  sourceOrderUnique: uniqueIndex("supplier_fulfillment_simulation_orders_source_order_unique").on(table.sourceOrderId),
+  lifecycleIndex: index("supplier_fulfillment_simulation_orders_lifecycle_idx").on(table.orderStatus, table.createdAt),
+  masterCreatedIndex: index("supplier_fulfillment_simulation_orders_master_created_idx").on(table.masterProductId, table.createdAt),
+}));
+
+/** Append-only lifecycle history for a test-only fulfillment simulation. No raw supplier API payloads, credentials, or payment data are retained. */
+export const supplierFulfillmentSimulationEvents = mysqlTable("supplier_fulfillment_simulation_events", {
+  id: int("id").autoincrement().primaryKey(),
+  simulationOrderId: int("simulationOrderId").notNull(),
+  previousOrderStatus: mysqlEnum("previousOrderStatus", ["PENDING PAYMENT", "PAID", "PROCESSING", "SUPPLIER SUBMITTED", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED"]),
+  nextOrderStatus: mysqlEnum("nextOrderStatus", ["PENDING PAYMENT", "PAID", "PROCESSING", "SUPPLIER SUBMITTED", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED"]).notNull(),
+  eventType: mysqlEnum("eventType", ["created", "payment_simulated", "processing_started", "supplier_submission_simulated", "supplier_processing_simulated", "completed_simulated", "failed_simulated", "retry_simulated", "cancelled_simulated", "refund_pending_simulated", "refunded_simulated"]).notNull(),
+  paymentStatus: mysqlEnum("paymentStatus", ["NOT CHARGED", "SIMULATION ONLY", "PAID", "FAILED", "REFUNDED"]).notNull(),
+  supplierStatus: mysqlEnum("supplierStatus", ["NOT SUBMITTED", "SIMULATED SUBMITTED", "SIMULATED PROCESSING", "COMPLETED", "FAILED"]).notNull(),
+  supplierReference: varchar("supplierReference", { length: 160 }),
+  reason: varchar("reason", { length: 1000 }),
+  safeReference: varchar("safeReference", { length: 500 }),
+  performedByAdminId: int("performedByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  simulationCreatedIndex: index("supplier_fulfillment_simulation_events_order_created_idx").on(table.simulationOrderId, table.createdAt),
+  statusCreatedIndex: index("supplier_fulfillment_simulation_events_status_created_idx").on(table.nextOrderStatus, table.createdAt),
+}));
+
 /** Immutable order-item snapshot. Product data can change, but prior customer orders must retain their original terms. */
 export const orderItems = mysqlTable("order_items", {
   id: int("id").autoincrement().primaryKey(),
