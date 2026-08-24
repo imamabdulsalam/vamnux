@@ -761,3 +761,6 @@
 - [x] Diagnose the reported Show more interruption and remaining storefront search, Admin Panel, and route-loading delays using measured request and render evidence.
 - [x] Restore normal continuous product scrolling with safe incremental prefetching, and optimize remaining targeted catalog/Admin loading paths without importing or modifying catalog records.
 - [x] Verify seamless browsing, search, Admin Panel, and route responsiveness on desktop/mobile; run regressions/build; checkpoint; and push the update to GitHub.
+- [x] Reproduce and diagnose catalog blinking during search, category changes, pagination, and background refreshes without changing catalog records.
+- [x] Preserve the last visible catalog results during in-flight requests and show only non-blocking refresh feedback, with a clear empty/error state only after a completed response.
+- [x] Verify stable product visibility across catalog search, filters, pagination, and responsive layouts; run regression tests/build; checkpoint; and push the correction to GitHub.

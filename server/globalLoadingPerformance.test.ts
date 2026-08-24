@@ -14,6 +14,12 @@ describe("global loading performance safeguards", () => {
     expect(homeSource).not.toContain("Show more products (");
   });
 
+  it("keeps visible cards mounted while a new catalog query is in flight", () => {
+    expect(homeSource).not.toContain("setLoadedCatalogItems([])");
+    expect(homeSource).toContain("supplierCatalog.isSuccess && compactProducts.length === 0");
+    expect(homeSource).toContain("Showing the last available products.");
+  });
+
   it("returns a compact page-plus-one catalog payload without supplier cost or source fields", () => {
     expect(dbSource).toContain(".limit(pageSize + 1).offset((page - 1) * pageSize)");
     expect(dbSource).toContain("const hasMore = pageRows.length > pageSize");

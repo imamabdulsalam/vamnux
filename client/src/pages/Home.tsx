@@ -12,6 +12,7 @@ import UniversalMarketplaceSearch from "@/components/UniversalMarketplaceSearch"
 import "./lowerStorefront.css";
 import "./mobileCategoryMenu.css";
 import "./gamesPlatformBrowser.css";
+import "./catalogRefreshStatus.css";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope } from "@shared/catalogVisibility";
@@ -320,7 +321,7 @@ export default function Home() {
     return new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(basePrice * config.rate);
   };
 
-  useEffect(() => { setCatalogPage(1); setLoadedCatalogItems([]); autoLoadPageRef.current = null; }, [activeCategory, activeGamesPlatform]);
+  useEffect(() => { setCatalogPage(1); autoLoadPageRef.current = null; }, [activeCategory, activeGamesPlatform]);
   useEffect(() => { setCatalogPage(1); autoLoadPageRef.current = null; }, [catalogSearchTerm]);
   useEffect(() => {
     if (!supplierCatalog.data) return;
@@ -697,15 +698,17 @@ export default function Home() {
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
           <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => { setQuery(""); setCatalogPage(1); }} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
-          <p>{query.trim() ? (supplierCatalog.isFetching ? "Searching live VAMNUX products…" : "Showing matching VAMNUX products.") : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
+          <p>{query.trim() ? (supplierCatalog.isFetching ? "Updating matching VAMNUX products…" : "Showing matching VAMNUX products.") : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
         </div>
 
         <div className="product-family-list compact-catalog-results">
-          {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading products…</h3><p>Please wait while the catalog is refreshed.</p></div>}
-          {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && supplierCatalog.data?.hasMore && <div ref={catalogLoadMoreRef} className="catalog-auto-load" aria-live="polite">{supplierCatalog.isFetching ? "Loading more products…" : ""}</div>}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (
+          {compactProducts.length > 0 && <>
+            {supplierCatalog.isFetching && <div className="catalog-refresh-status" role="status" aria-live="polite">Updating products…</div>}
+            {supplierCatalog.error && <div className="catalog-refresh-status catalog-refresh-error" role="status">Could not refresh just now. Showing the last available products.</div>}
+            <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />
+          </>}
+          {supplierCatalog.data?.hasMore && <div ref={catalogLoadMoreRef} className="catalog-auto-load" aria-live="polite">{supplierCatalog.isFetching ? "Loading more products…" : ""}</div>}
+          {supplierCatalog.isSuccess && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />
               {activeCategory !== "All" && activeCategory !== "Top-up" ? <>
