@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lte, notInArray, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, marketplaceSubcategories, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productSubcategoryClassifications, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
@@ -1004,20 +1004,103 @@ export function previewFinancialControls(input: { customerSellingPrice: number; 
   return { ...financial, alerts, note: "Preview only. No product price, supplier cost, order, payment, wallet, transaction, or refund record was changed." };
 }
 
-export async function listActiveCatalogProducts() {
+export type PublicCatalogCategory = "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars";
+export type PublicCatalogPageInput = { page?: number; pageSize?: number; category?: PublicCatalogCategory; search?: string; slug?: string; familyName?: string; scope?: "primary" | "all" };
+
+const PUBLIC_TOP_UP_FAMILY_PREFIXES = ["arena breakout", "bigo live diamonds", "free fire global", "mobile legends global", "pubg mobile", "ragnarok origin"];
+const PUBLIC_GLOBAL_REGION_LABELS = ["global", "glb", "worldwide", "ww"];
+
+function publicPrimaryCatalogCondition() {
+  const normalizedName = sql<string>`lower(${products.name})`;
+  const normalizedRegion = sql<string>`lower(coalesce(${products.regionLabel}, ''))`;
+  const topUpFamilies = or(...PUBLIC_TOP_UP_FAMILY_PREFIXES.map((family) => like(normalizedName, `${family}%`)));
+  const globalRegions = or(...PUBLIC_GLOBAL_REGION_LABELS.map((region) => like(normalizedRegion, region)));
+  return or(
+    and(eq(products.category, "top_up"), topUpFamilies),
+    eq(products.category, "telegram_stars"),
+    and(eq(products.category, "steam"), globalRegions),
+    and(eq(products.category, "steam_top_up"), globalRegions),
+  );
+}
+
+function publicCatalogSearchCondition(search: string) {
+  const normalized = search.trim().toLowerCase().slice(0, 100);
+  if (!normalized) return undefined;
+  const pattern = `%${normalized}%`;
+  const explicitRequirementSearch = /player\s*id|game\s*user|server\s*id|zone\s*id/.test(normalized);
+  return or(
+    like(sql<string>`lower(${products.name})`, pattern),
+    like(sql<string>`lower(coalesce(${products.regionLabel}, ''))`, pattern),
+    like(sql<string>`lower(coalesce(${products.supplierCategory}, ''))`, pattern),
+    explicitRequirementSearch ? eq(products.requiresPlayerId, true) : undefined,
+    explicitRequirementSearch ? eq(products.requiresServerId, true) : undefined,
+  );
+}
+
+/**
+ * Customer catalog reads are deliberately bounded after the GamesDrop import.
+ * The same active-category, hidden-product, and primary-market visibility
+ * policy is now enforced before database rows cross the network boundary.
+ */
+export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {
   const db = await getDb();
-  if (!db) return [];
+  const empty = { items: [], page: 1, pageSize: 48, total: 0, hasMore: false, categoryCounts: {} as Partial<Record<PublicCatalogCategory, number>> };
+  if (!db) return empty;
   await ensureDefaultMarketplaceCategories(db);
   const settings = await ensureMarketplacePricingSettings(db);
-  const activeProducts = await db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
-  const visibleCategoryRows = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true)));
+  const page = Math.max(1, Math.floor(input.page ?? 1));
+  const pageSize = Math.min(96, Math.max(12, Math.floor(input.pageSize ?? 48)));
+  const visibleCategoryRows = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories)
+    .where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true)));
   const visibleCategorySlugs = new Set(visibleCategoryRows.map((category) => category.slug));
-  const attributes = await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, newProduct: productAdminAttributes.newProduct, deal: productAdminAttributes.deal })
-    .from(productAdminAttributes);
+  const visibleProductCategories = (["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"] as PublicCatalogCategory[])
+    .filter((category) => visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(category)));
+  if (!visibleProductCategories.length) return { ...empty, page, pageSize };
+  const hiddenRows = await db.select({ productId: productAdminAttributes.productId }).from(productAdminAttributes).where(eq(productAdminAttributes.storefrontStatus, "hidden"));
+  const hiddenProductIds = hiddenRows.map((row) => row.productId);
+  const scopeConditions = [
+    eq(products.status, "active"),
+    inArray(products.category, visibleProductCategories),
+    input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
+    hiddenProductIds.length ? notInArray(products.id, hiddenProductIds) : undefined,
+    input.slug ? eq(products.slug, input.slug) : undefined,
+    input.familyName ? or(eq(products.name, input.familyName), like(products.name, `${input.familyName} —%`)) : undefined,
+    input.search ? publicCatalogSearchCondition(input.search) : undefined,
+  ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
+  const where = and(...scopeConditions, input.category ? eq(products.category, input.category) : undefined);
+  const [totalRow] = await db.select({ count: sql<number>`count(*)` }).from(products).where(where);
+  const activeProducts = await db.select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize);
+  const attributes = activeProducts.length
+    ? await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, deal: productAdminAttributes.deal })
+      .from(productAdminAttributes).where(inArray(productAdminAttributes.productId, activeProducts.map((product) => product.id)))
+    : [];
   const attributesByProductId = new Map(attributes.map((attribute) => [attribute.productId, attribute]));
-  return activeProducts
-    .filter((product) => attributesByProductId.get(product.id)?.storefrontStatus !== "hidden" && visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(product.category)))
-    .map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null }));
+  const categoryCountRows = await db.select({ category: products.category, count: sql<number>`count(*)` }).from(products).where(and(...scopeConditions)).groupBy(products.category);
+  const total = Number(totalRow?.count ?? 0);
+  return {
+    items: activeProducts.map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null })),
+    page,
+    pageSize,
+    total,
+    hasMore: page * pageSize < total,
+    categoryCounts: Object.fromEntries(categoryCountRows.map((row) => [row.category, Number(row.count)])) as Partial<Record<PublicCatalogCategory, number>>,
+  };
+}
+
+/** Bounded direct lookup for non-Top-up routes; it never loads the entire catalog. */
+export async function getActiveCatalogProductDetail(slug: string) {
+  const first = await listActiveCatalogProducts({ slug, pageSize: 1 });
+  const product = first.items[0] ?? null;
+  if (!product) return { product: null, family: [] };
+  const familyName = product.name.split(" — ")[0]?.trim() || product.name;
+  const family = await listActiveCatalogProducts({ familyName, category: product.category as PublicCatalogCategory, pageSize: 96 });
+  return { product, family: family.items };
+}
+
+/** Bounded exact family lookup for Top-up routes; title similarity is not used. */
+export async function getActiveCatalogGameFamily(familyName: string) {
+  const family = await listActiveCatalogProducts({ familyName, category: "top_up", pageSize: 96 });
+  return { family: family.items };
 }
 
 export async function getMarketplacePricingSettings() {

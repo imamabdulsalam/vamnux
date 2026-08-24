@@ -31,14 +31,14 @@ export default function DigitalProductDetail() {
   const [, setLocation] = useLocation();
   const slug = decodeDigitalProductSegment(params?.slug);
   const { isAuthenticated } = useAuth();
-  const supplierCatalog = trpc.marketplace.catalog.useQuery();
+  const supplierCatalog = trpc.marketplace.catalogProduct.useQuery({ slug: slug || "" }, { enabled: Boolean(slug) });
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [cart, setCart] = useState<LiveCatalogProduct[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
-  const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data]);
+  const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data?.family ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data?.family]);
   const product = products.find((item) => item.slug === slug && item.category !== "Top-up");
   const familyItems = useMemo(() => product ? products.filter((item) => item.category === product.category && item.name.toLowerCase() === product.name.toLowerCase()) : [], [product, products]);
   const selectedItem = familyItems.find((item) => item.id === selectedServiceId) ?? product;

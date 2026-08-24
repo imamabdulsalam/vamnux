@@ -762,3 +762,6 @@
 - [x] Import every confirmed new GamesDrop Games, Gift Cards, and Top-up source record using the approved primary categories and evidence-bound subcategories, retaining Unclassified/Admin Review where supplier subcategory evidence is absent.
 - [x] Verify imported source identity, supplier cost/currency/region/platform/input coverage, category/subcategory counts, zero duplicate source records, unchanged historical catalog/pricing/order/wallet data, and inactive routing/fulfilment.
 - [x] Write the final GamesDrop import reconciliation report, save a checkpoint, and push the verified import to GitHub.
+- [x] Diagnose the post-import catalog loading delay using runtime logs and the catalog query path, without modifying imported supplier or pricing data.
+- [x] Replace any unbounded customer catalog retrieval with a responsive paginated or otherwise bounded query flow that preserves search, category browsing, customer prices, and supplier-data isolation.
+- [x] Validate product loading responsiveness, test customer catalog regression paths, save a checkpoint, and push the verified performance fix to GitHub.
