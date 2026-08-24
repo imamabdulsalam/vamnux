@@ -758,3 +758,6 @@
 - [x] Inspect existing Games product metadata and catalog browser behavior to map the owner-provided platform filters without changing any product records.
 - [x] Add a responsive Games platform subcategory browser for Steam, Xbox, PlayStation, Nintendo, Battle.net, EA App, Ubisoft, Mobile, and Meta Quest, including an All option that retains all existing Games products.
 - [x] Verify Games All/platform browsing on desktop and mobile, run regression tests/build, save a checkpoint, and push the update to GitHub.
+- [x] Diagnose the reported Show more interruption and remaining storefront search, Admin Panel, and route-loading delays using measured request and render evidence.
+- [x] Restore normal continuous product scrolling with safe incremental prefetching, and optimize remaining targeted catalog/Admin loading paths without importing or modifying catalog records.
+- [x] Verify seamless browsing, search, Admin Panel, and route responsiveness on desktop/mobile; run regressions/build; checkpoint; and push the update to GitHub.

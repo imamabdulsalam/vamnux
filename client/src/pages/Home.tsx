@@ -2,7 +2,7 @@
  * VAMNUX Global Exchange: a clean marketplace header, USD-first price display,
  * technology-led colour rotation, and compact transactional product information.
  */
-import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
@@ -222,6 +222,7 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
   const [activeGamesPlatform, setActiveGamesPlatform] = useState<GamesPlatformFilter>("all");
   const [query, setQuery] = useState("");
+  const [catalogSearchTerm, setCatalogSearchTerm] = useState("");
   const [catalogPage, setCatalogPage] = useState(1);
   const [cart, setCart] = useState<Product[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -232,16 +233,22 @@ export default function Home() {
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const catalogSearchRef = useRef<HTMLInputElement>(null);
-  const deferredCatalogSearch = useDeferredValue(query.trim());
+  const catalogLoadMoreRef = useRef<HTMLDivElement>(null);
+  const autoLoadPageRef = useRef<number | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCatalogSearchTerm(query.trim()), 180);
+    return () => window.clearTimeout(timer);
+  }, [query]);
   const catalogInput = useMemo(() => ({
     page: catalogPage,
     pageSize: 48,
     scope: "primary" as const,
     category: activeCategory === "All" ? undefined : catalogCategoryForFilter[activeCategory],
     gamePlatform: activeCategory === "Games" && activeGamesPlatform !== "all" ? activeGamesPlatform : undefined,
-    search: deferredCatalogSearch || undefined,
-  }), [activeCategory, activeGamesPlatform, catalogPage, deferredCatalogSearch]);
+    search: catalogSearchTerm || undefined,
+  }), [activeCategory, activeGamesPlatform, catalogPage, catalogSearchTerm]);
   const supplierCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { staleTime: 30_000, refetchOnWindowFocus: false });
+  const catalogSummary = trpc.marketplace.catalog.useQuery({ page: 1, pageSize: 12, scope: "primary" as const, includeMetadata: true }, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const [loadedCatalogItems, setLoadedCatalogItems] = useState<NonNullable<typeof supplierCatalog.data>["items"]>([]);
   const revealCatalog = (focusSearch = false) => {
     const catalog = document.getElementById("products");
@@ -313,13 +320,28 @@ export default function Home() {
     return new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(basePrice * config.rate);
   };
 
-  useEffect(() => { setCatalogPage(1); setLoadedCatalogItems([]); }, [activeCategory, activeGamesPlatform, deferredCatalogSearch]);
+  useEffect(() => { setCatalogPage(1); setLoadedCatalogItems([]); autoLoadPageRef.current = null; }, [activeCategory, activeGamesPlatform]);
+  useEffect(() => { setCatalogPage(1); autoLoadPageRef.current = null; }, [catalogSearchTerm]);
   useEffect(() => {
     if (!supplierCatalog.data) return;
     setLoadedCatalogItems((current) => supplierCatalog.data.page === 1
       ? supplierCatalog.data.items
       : [...current, ...supplierCatalog.data.items.filter((item) => !current.some((loaded) => loaded.id === item.id))]);
   }, [supplierCatalog.data]);
+  useEffect(() => {
+    if (supplierCatalog.data?.page) autoLoadPageRef.current = null;
+  }, [supplierCatalog.data?.page]);
+  useEffect(() => {
+    const sentinel = catalogLoadMoreRef.current;
+    if (!sentinel || !supplierCatalog.data?.hasMore) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting || supplierCatalog.isFetching || autoLoadPageRef.current === catalogPage) return;
+      autoLoadPageRef.current = catalogPage;
+      setCatalogPage((current) => current + 1);
+    }, { rootMargin: "420px 0px" });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [catalogPage, supplierCatalog.data?.hasMore, supplierCatalog.isFetching]);
   const publicProducts = useMemo<Product[]>(() => loadedCatalogItems.map(toLiveCatalogProduct), [loadedCatalogItems]);
   const filteredProducts = publicProducts;
 
@@ -619,7 +641,7 @@ export default function Home() {
         <div className="category-list category-browser-grid">
           {visibleCategories.map(({ label, icon: Icon, filter }) => {
             const catalogCategory = catalogCategoryForFilter[filter];
-            const productCount = catalogCategory ? supplierCatalog.data?.categoryCounts[catalogCategory] ?? 0 : 0;
+            const productCount = catalogCategory ? catalogSummary.data?.categoryCounts[catalogCategory] ?? 0 : 0;
             return (
             <button key={label} onClick={() => chooseCategory(filter)} className="category-button category-browser-card">
               <span className="category-browser-icon"><Icon size={20} strokeWidth={1.9} /></span>
@@ -675,14 +697,14 @@ export default function Home() {
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
           <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => { setQuery(""); setCatalogPage(1); }} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
-          <p>{query.trim() ? `${supplierCatalog.data?.total ?? 0} live ${(supplierCatalog.data?.total ?? 0) === 1 ? "product" : "products"} match “${query.trim()}”` : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
+          <p>{query.trim() ? (supplierCatalog.isFetching ? "Searching live VAMNUX products…" : "Showing matching VAMNUX products.") : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
         </div>
 
         <div className="product-family-list compact-catalog-results">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading products…</h3><p>Please wait while the catalog is refreshed.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />}
-          {!supplierCatalog.isLoading && !supplierCatalog.error && supplierCatalog.data?.hasMore && <button type="button" className="all-products-button" onClick={() => setCatalogPage((current) => current + 1)} disabled={supplierCatalog.isFetching}>{supplierCatalog.isFetching ? "Loading more products…" : `Show more products (${Math.max(0, supplierCatalog.data.total - catalogPage * supplierCatalog.data.pageSize)} remaining)`} <ArrowRight size={17} /></button>}
+          {!supplierCatalog.isLoading && !supplierCatalog.error && supplierCatalog.data?.hasMore && <div ref={catalogLoadMoreRef} className="catalog-auto-load" aria-live="polite">{supplierCatalog.isFetching ? "Loading more products…" : ""}</div>}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />

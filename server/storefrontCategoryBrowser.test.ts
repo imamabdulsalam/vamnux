@@ -12,7 +12,7 @@ describe("storefront category browser", () => {
   });
 
   it("shows real available-product counts and routes every card through the category browser action", () => {
-    expect(homeSource).toContain("supplierCatalog.data?.categoryCounts[catalogCategory]");
+    expect(homeSource).toContain("catalogSummary.data?.categoryCounts[catalogCategory]");
     expect(homeSource).toContain("onClick={() => chooseCategory(filter)}");
     expect(homeSource).toContain("category-browser-card");
   });

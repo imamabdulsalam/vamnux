@@ -117,6 +117,7 @@ export const appRouter = router({
       slug: z.string().trim().max(255).optional(),
       familyName: z.string().trim().max(255).optional(),
       scope: z.enum(["primary", "all"]).default("primary"),
+      includeMetadata: z.boolean().default(false),
     }).optional()).query(({ input }) => listActiveCatalogProducts(input)),
     categories: publicProcedure.query(() => listMarketplaceCategories()),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),

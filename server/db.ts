@@ -1012,6 +1012,7 @@ export type PublicCatalogPageInput = {
   slug?: string;
   familyName?: string;
   scope?: "primary" | "all";
+  includeMetadata?: boolean;
 };
 
 const PUBLIC_PRIMARY_TOP_UP_PREFIXES = ["arena breakout", "bigo live diamonds", "free fire global", "mobile legends global", "pubg mobile", "ragnarok origin"];
@@ -1050,7 +1051,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
   const db = await getDb();
   const page = Math.max(1, Math.floor(input.page ?? 1));
   const pageSize = Math.min(96, Math.max(12, Math.floor(input.pageSize ?? 48)));
-  const empty = { items: [], page, pageSize, total: 0, hasMore: false, categoryCounts: {} as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> };
+  const empty = { items: [], page, pageSize, total: undefined, hasMore: false, categoryCounts: {} as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> };
   if (!db) return empty;
   await ensureDefaultMarketplaceCategories(db);
   const [settings, visibleCategoryRows, hiddenRows] = await Promise.all([
@@ -1075,28 +1076,43 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
     input.search ? publicCatalogSearchCondition(input.search) : undefined,
   ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
   const where = and(...conditions);
-  const [totalRows, rows, categoryCountsRows] = await Promise.all([
+  const pageRows = await db.select({
+    id: products.id,
+    slug: products.slug,
+    category: products.category,
+    name: products.name,
+    description: products.description,
+    imageUrl: products.imageUrl,
+    basePrice: products.basePrice,
+    baseCurrency: products.baseCurrency,
+    markupPercentOverride: products.markupPercentOverride,
+    displayPriceOverride: products.displayPriceOverride,
+    supplierEligible: products.supplierEligible,
+    regionLabel: products.regionLabel,
+    deliveryType: products.deliveryType,
+    requiresPlayerId: products.requiresPlayerId,
+    requiresServerId: products.requiresServerId,
+    inputRequirements: products.inputRequirements,
+  }).from(products).where(where).orderBy(desc(products.createdAt), desc(products.id)).limit(pageSize + 1).offset((page - 1) * pageSize);
+  const hasMore = pageRows.length > pageSize;
+  const rows = pageRows.slice(0, pageSize);
+  const metadata = input.includeMetadata ? await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(products).where(where),
-    db.select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize),
     db.select({ category: products.category, count: sql<number>`count(*)` }).from(products).where(and(
       eq(products.status, "active"),
       inArray(products.category, visibleProductCategories),
       input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
       hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
     )).groupBy(products.category),
-  ]);
-  const attributes = rows.length
-    ? await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, newProduct: productAdminAttributes.newProduct, deal: productAdminAttributes.deal }).from(productAdminAttributes).where(inArray(productAdminAttributes.productId, rows.map((product) => product.id)))
-    : [];
-  const attributesByProductId = new Map(attributes.map((attribute) => [attribute.productId, attribute]));
-  const categoryCounts = Object.fromEntries(categoryCountsRows.map((row) => [row.category, Number(row.count)])) as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>>;
-  const total = Number(totalRows[0]?.count ?? 0);
+  ]) : null;
+  const categoryCounts = metadata ? Object.fromEntries(metadata[1].map((row) => [row.category, Number(row.count)])) as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> : {};
+  const total = metadata ? Number(metadata[0][0]?.count ?? 0) : undefined;
   return {
-    items: rows.map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null })),
+    items: rows.map(({ basePrice, markupPercentOverride, displayPriceOverride, ...product }) => ({ ...product, ...customerPriceForProduct({ basePrice, markupPercentOverride, displayPriceOverride }, settings) })),
     page,
     pageSize,
     total,
-    hasMore: page * pageSize < total,
+    hasMore,
     categoryCounts,
   };
 }
@@ -2094,22 +2110,15 @@ const numericValue = (value: unknown) => Number(value ?? 0);
 
 export async function getSuperAdminOverview() {
   const db = requireDb(await getDb());
-  const [catalog] = await db.select({
-    total: sql<number>`count(*)`,
-    active: sql<number>`sum(case when ${products.status} = 'active' then 1 else 0 end)`,
-    paused: sql<number>`sum(case when ${products.status} = 'paused' then 1 else 0 end)`,
-  }).from(products);
-  const [customerCount] = await db.select({ total: sql<number>`count(*)` }).from(users).where(eq(users.role, "user"));
-  const [orderCount] = await db.select({ total: sql<number>`count(*)` }).from(orders);
-  const [walletEntryCount] = await db.select({ total: sql<number>`count(*)` }).from(walletEntries);
-  const [pendingFundingCount] = await db.select({ total: sql<number>`count(*)` }).from(walletFundingAttempts).where(eq(walletFundingAttempts.status, "pending"));
-  const suppliers = await db.select({
-    id: commerceIntegrations.id,
-    providerName: commerceIntegrations.providerName,
-    syncStatus: commerceIntegrations.syncStatus,
-    lastSyncAt: commerceIntegrations.lastSyncAt,
-    lastError: commerceIntegrations.lastError,
-  }).from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier")).orderBy(desc(commerceIntegrations.updatedAt));
+  const [[catalog], [customerCount], [orderCount], [walletEntryCount], [pendingFundingCount], suppliers, recentAudit] = await Promise.all([
+    db.select({ total: sql<number>`count(*)`, active: sql<number>`sum(case when ${products.status} = 'active' then 1 else 0 end)`, paused: sql<number>`sum(case when ${products.status} = 'paused' then 1 else 0 end)` }).from(products),
+    db.select({ total: sql<number>`count(*)` }).from(users).where(eq(users.role, "user")),
+    db.select({ total: sql<number>`count(*)` }).from(orders),
+    db.select({ total: sql<number>`count(*)` }).from(walletEntries),
+    db.select({ total: sql<number>`count(*)` }).from(walletFundingAttempts).where(eq(walletFundingAttempts.status, "pending")),
+    db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName, syncStatus: commerceIntegrations.syncStatus, lastSyncAt: commerceIntegrations.lastSyncAt, lastError: commerceIntegrations.lastError }).from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier")).orderBy(desc(commerceIntegrations.updatedAt)),
+    listSuperAdminAuditEvents(6),
+  ]);
   return {
     metrics: {
       totalProducts: numericValue(catalog?.total),
@@ -2121,7 +2130,7 @@ export async function getSuperAdminOverview() {
       pendingFundingRequests: numericValue(pendingFundingCount?.total),
     },
     suppliers,
-    recentAudit: await listSuperAdminAuditEvents(6),
+    recentAudit,
   };
 }
 

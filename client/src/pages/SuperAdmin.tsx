@@ -176,11 +176,11 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   }, []);
   const tabIs = (...tabs: AdminTab[]) => tabs.includes(activeTab);
   const overview = trpc.admin.getOverview.useQuery(undefined, { enabled: tabIs("overview") });
-  const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery(undefined, { enabled: tabIs("overview", "pricing", "products") });
+  const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery(undefined, { enabled: tabIs("pricing", "products") });
   const catalogPricing = trpc.admin.listCatalogPricing.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
   const priceHistory = trpc.admin.listPriceChangeHistory.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
   const productOperations = trpc.admin.listAdminProductOperations.useQuery({ limit: 100 }, { enabled: tabIs("products", "categories") });
-  const marketplaceCategories = trpc.admin.listMarketplaceCategories.useQuery(undefined, { enabled: tabIs("overview", "categories") });
+  const marketplaceCategories = trpc.admin.listMarketplaceCategories.useQuery(undefined, { enabled: tabIs("categories") });
   // Legacy supplier-normalised `steam` records are presented as Games in Admin
   // category operations. The duplicate Steam taxonomy row stays out of this
   // Admin-only view; storefront taxonomy is intentionally not changed here.
@@ -188,9 +188,9 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     () => (marketplaceCategories.data ?? []).filter((category) => category.slug !== "steam"),
     [marketplaceCategories.data],
   );
-  const exchangeRates = trpc.admin.listExchangeRates.useQuery(undefined, { enabled: tabIs("overview", "rates") });
-  const siteContentBlocks = trpc.admin.listSiteContentBlocks.useQuery(undefined, { enabled: tabIs("overview", "auth_settings", "policy") });
-  const syncRuns = trpc.admin.listSupplierSyncRuns.useQuery({ limit: 100 }, { enabled: tabIs("overview", "product_sync") });
+  const exchangeRates = trpc.admin.listExchangeRates.useQuery(undefined, { enabled: tabIs("rates") });
+  const siteContentBlocks = trpc.admin.listSiteContentBlocks.useQuery(undefined, { enabled: tabIs("auth_settings", "policy") });
+  const syncRuns = trpc.admin.listSupplierSyncRuns.useQuery({ limit: 100 }, { enabled: tabIs("product_sync") });
   const [analyticsWindow, setAnalyticsWindow] = useState<"all" | "today" | "7d" | "30d">("all");
   const [trafficWindow, setTrafficWindow] = useState<"1d" | "7d" | "14d" | "30d" | "3m">("30d");
   const financeAnalyticsInput = useMemo(() => {
@@ -201,16 +201,16 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     if (analyticsWindow === "30d") start.setDate(start.getDate() - 30);
     return { start, end };
   }, [analyticsWindow]);
-  const financeAnalytics = trpc.admin.getFinanceAnalytics.useQuery(financeAnalyticsInput, { enabled: tabIs("overview", "analytics", "financial") });
+  const financeAnalytics = trpc.admin.getFinanceAnalytics.useQuery(financeAnalyticsInput, { enabled: tabIs("analytics", "financial") });
   const dailyFinanceAnalyticsInput = useMemo(() => { const end = new Date(); const start = new Date(end); start.setHours(0, 0, 0, 0); return { start, end }; }, []);
   const weeklyFinanceAnalyticsInput = useMemo(() => { const end = new Date(); const start = new Date(end); start.setDate(start.getDate() - 7); return { start, end }; }, []);
   const dailyFinanceAnalytics = trpc.admin.getFinanceAnalytics.useQuery(dailyFinanceAnalyticsInput, { enabled: tabIs("analytics", "financial") });
   const weeklyFinanceAnalytics = trpc.admin.getFinanceAnalytics.useQuery(weeklyFinanceAnalyticsInput, { enabled: tabIs("analytics", "financial") });
-  const promotions = trpc.admin.listPromotions.useQuery(undefined, { enabled: tabIs("overview", "refunds") });
-  const referralSettings = trpc.admin.getReferralSettings.useQuery(undefined, { enabled: tabIs("overview", "auth_settings") });
-  const loyaltySettings = trpc.admin.getLoyaltySettings.useQuery(undefined, { enabled: tabIs("overview", "auth_settings") });
-  const resellers = trpc.admin.listResellers.useQuery(undefined, { enabled: tabIs("overview", "auth_settings") });
-  const siteSettings = trpc.admin.listSiteSettings.useQuery(undefined, { enabled: tabIs("overview", "auth_settings", "product_sync") });
+  const promotions = trpc.admin.listPromotions.useQuery(undefined, { enabled: tabIs("refunds") });
+  const referralSettings = trpc.admin.getReferralSettings.useQuery(undefined, { enabled: tabIs("auth_settings") });
+  const loyaltySettings = trpc.admin.getLoyaltySettings.useQuery(undefined, { enabled: tabIs("auth_settings") });
+  const resellers = trpc.admin.listResellers.useQuery(undefined, { enabled: tabIs("auth_settings") });
+  const siteSettings = trpc.admin.listSiteSettings.useQuery(undefined, { enabled: tabIs("auth_settings", "product_sync") });
   const notificationTemplates = trpc.admin.listNotificationTemplates.useQuery(undefined, { enabled: tabIs("overview", "notifications") });
   const apiRequestLogs = trpc.admin.listApiRequestLogs.useQuery({ limit: 100 }, { enabled: tabIs("api_access", "health") });
   const webhookEvents = trpc.admin.listSupplierWebhookEvents.useQuery({ limit: 100 }, { enabled: tabIs("api_access", "health") });
@@ -226,7 +226,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const supportTicketDetail = trpc.admin.getSupportTicket.useQuery({ ticketCode: selectedSupportTicket || "" }, { enabled: !!selectedSupportTicket });
   const fundingRequests = trpc.admin.listWalletFundingRequests.useQuery(undefined, { enabled: tabIs("funding") });
   const health = trpc.admin.getSystemHealth.useQuery(undefined, { enabled: tabIs("health") });
-  const auditEvents = trpc.admin.listAuditEvents.useQuery(undefined, { enabled: tabIs("overview", "risk", "health") });
+  const auditEvents = trpc.admin.listAuditEvents.useQuery(undefined, { enabled: tabIs("risk", "health") });
   const utils = trpc.useUtils();
   const [defaultMarkup, setDefaultMarkup] = useState("25");
   const [goalDraft, setGoalDraft] = useState({ orders: "0", revenue: "0", profit: "0" });

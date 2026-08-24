@@ -23,10 +23,8 @@ type CatalogSourceRow = {
   category: string;
   name: string;
   description: string | null;
-  basePrice: string | number;
   customerPrice: string | number;
   priceRule: string;
-  supplierKey: string | null;
   supplierEligible: boolean;
   regionLabel: string | null;
   deliveryType: string;
