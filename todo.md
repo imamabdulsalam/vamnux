@@ -782,3 +782,6 @@
 - [x] Audit the dedicated catalog page, User Dashboard, and Admin Panel category displays to identify why Games platform subcategories are not shown consistently.
 - [x] Create a shared customer/Admin category display model so Steam, Xbox, PlayStation, Nintendo, Battle.net, EA App, Ubisoft, Mobile, and Meta Quest appear under Games everywhere categories are listed.
 - [x] Validate the shared Games platform subcategories across catalog, User Dashboard, and Admin Panel, then run regression tests/build, checkpoint, and push the update to GitHub.
+- [x] Audit existing Top-up product metadata and shared category components to identify evidence-bound Direct Top Up and Activation Codes filters without changing product records.
+- [x] Create a shared Top-up subcategory model for All, Direct Top Up, and Activation Codes across the dedicated catalog page, User Dashboard, and Admin Panel.
+- [x] Validate Top-up All/subcategory browsing across catalog, User Dashboard, and Admin Panel; run regression tests/build; checkpoint; and push the update to GitHub.

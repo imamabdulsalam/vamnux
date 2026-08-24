@@ -1008,6 +1008,7 @@ export type PublicCatalogPageInput = {
   pageSize?: number;
   category?: "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars";
   gamePlatform?: "steam" | "xbox" | "playstation" | "nintendo" | "battlenet" | "ea" | "ubisoft" | "mobile" | "quest";
+  topUpMode?: "direct" | "activation";
   search?: string;
   slug?: string;
   familyName?: string;
@@ -1023,6 +1024,17 @@ function publicGamesPlatformCondition(platform: NonNullable<PublicCatalogPageInp
   return and(
     eq(products.category, "steam"),
     eq(sql<string>`lower(coalesce(json_unquote(json_extract(${products.metadata}, '$.platformCode')), ''))`, platform),
+  );
+}
+
+/** Direct Top Up is evidenced by required customer input. Activation Codes require explicit supplier delivery metadata and remain empty until supplied. */
+function publicTopUpModeCondition(mode: NonNullable<PublicCatalogPageInput["topUpMode"]>) {
+  if (mode === "direct") {
+    return and(eq(products.category, "top_up"), sql`coalesce(${products.inputRequirements}, '[]') <> '[]'`);
+  }
+  return and(
+    eq(products.category, "top_up"),
+    eq(sql<string>`lower(coalesce(json_unquote(json_extract(${products.metadata}, '$.deliveryFormat')), ''))`, "activation_code"),
   );
 }
 
@@ -1071,6 +1083,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
     hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
     input.category ? eq(products.category, input.category) : undefined,
     input.gamePlatform ? publicGamesPlatformCondition(input.gamePlatform) : undefined,
+    input.topUpMode ? publicTopUpModeCondition(input.topUpMode) : undefined,
     input.slug ? eq(products.slug, input.slug) : undefined,
     normalizedFamily ? or(eq(sql<string>`lower(${products.name})`, normalizedFamily), like(sql<string>`lower(${products.name})`, `${normalizedFamily} —%`)) : undefined,
     input.search ? publicCatalogSearchCondition(input.search) : undefined,
@@ -1664,6 +1677,8 @@ export async function listAdminProductOperations(limit = 10_000) {
     const price = customerPriceForProduct(product, settings);
     const metadata = product.metadata && typeof product.metadata === "object" ? product.metadata as Record<string, unknown> : null;
     const platformCode = typeof metadata?.platformCode === "string" ? metadata.platformCode : null;
+    const inputRequirements = typeof product.inputRequirements === "string" ? product.inputRequirements : "[]";
+    const topUpMode: "direct" | null = product.category === "top_up" && inputRequirements.trim() !== "[]" ? "direct" : null;
     return {
       id: product.id,
       name: product.name,
@@ -1671,6 +1686,7 @@ export async function listAdminProductOperations(limit = 10_000) {
       supplierKey: product.supplierKey,
       category: product.category,
       platformCode,
+      topUpMode,
       productStatus: product.status,
       supplierEligible: product.supplierEligible,
       basePrice: Number(product.basePrice),

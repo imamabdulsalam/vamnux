@@ -1,6 +1,7 @@
 import { Archive, CheckSquare, Eye, FolderOpen, GripVertical, Pencil, RotateCcw, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { GAMES_PLATFORM_SUBCATEGORIES } from "@shared/gamesPlatformCategories";
+import { TOP_UP_SUBCATEGORIES } from "@shared/topUpSubcategories";
 import "./adminGamesSubcategories.css";
 
 export type CategoryOperationCategory = {
@@ -19,7 +20,7 @@ export type CategoryOperationCategory = {
   updatedAt: Date;
 };
 
-export type CategoryOperationProduct = { id: number; name: string; supplierKey: string | null; displayPrice: number; baseCurrency: string; storefrontStatus: string; platformCode?: string | null };
+export type CategoryOperationProduct = { id: number; name: string; supplierKey: string | null; displayPrice: number; baseCurrency: string; storefrontStatus: string; platformCode?: string | null; topUpMode?: "direct" | "activation" | null };
 
 type BulkAction = "hide" | "archive" | "show" | "restore";
 
@@ -74,6 +75,7 @@ export function CategoryOperationsWorkspace({
         const products = productsForCategory(category);
         const isArchived = category.status === "archived";
         const isGames = category.slug === "games";
+        const isTopUp = category.slug === "game-top-up";
         return <article key={category.id} className={isArchived ? "archived" : category.visible ? "" : "hidden"} draggable onDragStart={() => setDraggedId(category.id)} onDragEnd={() => setDraggedId(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => move(category.id)}>
           <div className="admin-category-operation-ident">
             <button type="button" className="admin-category-checkbox" aria-label={`Select ${category.name}`} onClick={() => toggle(category.id)}>{selectedIds.includes(category.id) ? <CheckSquare size={16} /> : <Square size={16} />}</button>
@@ -87,6 +89,7 @@ export function CategoryOperationsWorkspace({
             {isArchived ? <button type="button" className="admin-primary-action" onClick={() => { if (window.confirm(`Restore ${category.name} to visible marketplace discovery? Its product records remain unchanged.`)) onUpdate(category, { status: "active", visible: true }); }}><RotateCcw size={14} />Restore</button> : <><button type="button" className={category.visible ? "admin-secondary-action" : "admin-primary-action"} onClick={() => onUpdate(category, { visible: !category.visible })}>{category.visible ? "Hide" : "Show"}</button><button type="button" className="admin-danger-action" onClick={() => { if (window.confirm(`Archive ${category.name}? It will be removed from marketplace navigation. Products are preserved and you can restore the category later.`)) onUpdate(category, { status: "archived", visible: false }); }}><Archive size={14} />Archive</button></>}
           </div>
           {isGames && <div className="admin-games-subcategory-list"><strong>Games subcategories</strong><p>Shared platform subcategories use stored platform metadata. All retains every Games product.</p><div>{GAMES_PLATFORM_SUBCATEGORIES.map((platform) => { const matching = platform.code === "all" ? products : products.filter((product) => product.platformCode === platform.code); return <button key={platform.code} type="button" onClick={() => onEditProduct(matching[0]?.id)} disabled={!matching.length}>{platform.label}<span>{matching.length} products</span></button>; })}</div></div>}
+          {isTopUp && <div className="admin-games-subcategory-list"><strong>Top-up subcategories</strong><p>Direct Top Up uses verified required customer input. Activation Codes appears only when supplier metadata explicitly identifies that delivery format. All retains every Top-up product.</p><div>{TOP_UP_SUBCATEGORIES.map((subcategory) => { const matching = subcategory.code === "all" ? products : products.filter((product) => product.topUpMode === subcategory.code); return <button key={subcategory.code} type="button" onClick={() => onEditProduct(matching[0]?.id)} disabled={!matching.length}>{subcategory.label}<span>{matching.length} products</span></button>; })}</div></div>}
         </article>;
       })}
     </div>

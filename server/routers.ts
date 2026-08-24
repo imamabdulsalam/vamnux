@@ -113,6 +113,7 @@ export const appRouter = router({
       pageSize: z.number().int().min(12).max(10_000).default(48),
       category: z.enum(["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"]).optional(),
       gamePlatform: z.enum(["steam", "xbox", "playstation", "nintendo", "battlenet", "ea", "ubisoft", "mobile", "quest"]).optional(),
+      topUpMode: z.enum(["direct", "activation"]).optional(),
       search: z.string().trim().max(100).optional(),
       slug: z.string().trim().max(255).optional(),
       familyName: z.string().trim().max(255).optional(),

@@ -4,6 +4,7 @@ import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, Lap
 import { trpc } from "@/lib/trpc";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { GAMES_PLATFORM_SUBCATEGORIES, gamesPlatformCatalogPath, type GamesPlatformCode } from "@shared/gamesPlatformCategories";
+import { TOP_UP_SUBCATEGORIES, topUpCatalogPath, type TopUpSubcategoryCode } from "@shared/topUpSubcategories";
 import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import "./fullCatalogPage.css";
 import "./catalogGamesPlatformBrowser.css";
@@ -42,6 +43,8 @@ export default function CatalogPage() {
   const [category, setCategory] = useState<CatalogFilter>(initialCategory && categoryValues.has(initialCategory) ? initialCategory : "All");
   const initialPlatform = initialParams.get("platform") as GamesPlatformCode | null;
   const [gamesPlatform, setGamesPlatform] = useState<GamesPlatformCode>(GAMES_PLATFORM_SUBCATEGORIES.some((option) => option.code === initialPlatform) ? initialPlatform! : "all");
+  const initialTopUpMode = initialParams.get("topUpMode") as TopUpSubcategoryCode | null;
+  const [topUpMode, setTopUpMode] = useState<TopUpSubcategoryCode>(TOP_UP_SUBCATEGORIES.some((option) => option.code === initialTopUpMode) ? initialTopUpMode! : "all");
   const [query, setQuery] = useState(initialParams.get("q") ?? "");
   const [sort, setSort] = useState<SortMode>("featured");
   const deferredQuery = useDeferredValue(query.trim());
@@ -50,10 +53,12 @@ export default function CatalogPage() {
     const params = new URLSearchParams(window.location.search);
     const nextCategory = params.get("category") as CatalogFilter | null;
     const nextPlatform = params.get("platform") as GamesPlatformCode | null;
+    const nextTopUpMode = params.get("topUpMode") as TopUpSubcategoryCode | null;
     const nextQuery = params.get("q") ?? "";
     if (nextCategory && categoryValues.has(nextCategory)) setCategory(nextCategory);
     else if (!nextCategory) setCategory("All");
     setGamesPlatform(GAMES_PLATFORM_SUBCATEGORIES.some((option) => option.code === nextPlatform) ? nextPlatform! : "all");
+    setTopUpMode(TOP_UP_SUBCATEGORIES.some((option) => option.code === nextTopUpMode) ? nextTopUpMode! : "all");
     setQuery(nextQuery);
   }, [location]);
 
@@ -64,8 +69,9 @@ export default function CatalogPage() {
     scope: "primary" as const,
     category: selectedCategory.api,
     gamePlatform: category === "Games" && gamesPlatform !== "all" ? gamesPlatform : undefined,
+    topUpMode: category === "Top-up" && topUpMode !== "all" ? topUpMode : undefined,
     search: deferredQuery || undefined,
-  }), [deferredQuery, selectedCategory.api]);
+  }), [category, deferredQuery, gamesPlatform, selectedCategory.api, topUpMode]);
   const catalog = trpc.marketplace.catalog.useQuery(catalogInput, {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
@@ -88,6 +94,7 @@ export default function CatalogPage() {
   const selectCategory = (next: CatalogFilter) => {
     setCategory(next);
     setGamesPlatform("all");
+    setTopUpMode("all");
     setQuery("");
     setLocation(next === "All" ? "/catalog" : `/catalog?category=${encodeURIComponent(next)}`);
   };
@@ -98,10 +105,17 @@ export default function CatalogPage() {
     setLocation(gamesPlatformCatalogPath(nextPlatform));
   };
 
+  const selectTopUpMode = (nextMode: TopUpSubcategoryCode) => {
+    setTopUpMode(nextMode);
+    setQuery("");
+    setLocation(topUpCatalogPath(nextMode));
+  };
+
   const onSearchChange = (value: string) => {
     setQuery(value);
     const params = new URLSearchParams();
     if (category !== "All") params.set("category", category);
+    if (category === "Top-up" && topUpMode !== "all") params.set("topUpMode", topUpMode);
     if (value.trim()) params.set("q", value.trim());
     setLocation(params.size ? `/catalog?${params.toString()}` : "/catalog", { replace: true });
   };
@@ -124,6 +138,7 @@ export default function CatalogPage() {
         {categoryOptions.map((option) => <button key={option.value} type="button" role="tab" aria-selected={category === option.value} className={category === option.value ? "active" : ""} onClick={() => selectCategory(option.value)}><option.icon size={15} />{option.label}</button>)}
       </div>
       {category === "Games" && <section className="full-catalog-games-platforms" aria-label="Games platform subcategories"><div><span>Games</span><strong>Browse by platform</strong></div><div>{GAMES_PLATFORM_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={gamesPlatform === option.code ? "active" : ""} onClick={() => selectGamesPlatform(option.code)}><i>{option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>All keeps every existing Games product visible.</p></section>}
+      {category === "Top-up" && <section className="full-catalog-games-platforms" aria-label="Top-up subcategories"><div><span>Top-up</span><strong>Choose a fulfillment type</strong></div><div>{TOP_UP_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={topUpMode === option.code ? "active" : ""} onClick={() => selectTopUpMode(option.code)}><i>{option.code === "all" ? "•" : option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>{topUpMode === "all" ? "All keeps every existing Top-up product visible." : topUpMode === "direct" ? "Direct Top Up uses verified customer account or player input." : "Activation Codes appears when explicit supplier code-delivery metadata is available."}</p></section>}
       <div className="full-catalog-controls">
         <label className="full-catalog-search"><Search size={20} /><input value={query} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search products, games, services, regions…" aria-label="Search all products" />{query && <button type="button" onClick={() => onSearchChange("")} aria-label="Clear product search"><X size={17} /></button>}</label>
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>
