@@ -1,0 +1,2 @@
+ALTER TABLE `financial_order_snapshots` DROP INDEX `financial_order_snapshots_order_unique`;--> statement-breakpoint
+ALTER TABLE `financial_order_snapshots` ADD CONSTRAINT `financial_order_snapshots_order_product_unique` UNIQUE(`orderId`,`productId`);

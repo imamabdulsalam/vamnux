@@ -1058,6 +1058,59 @@ export const supplierFulfillmentSimulationEvents = mysqlTable("supplier_fulfillm
   statusCreatedIndex: index("supplier_fulfillment_simulation_events_status_created_idx").on(table.nextOrderStatus, table.createdAt),
 }));
 
+/** Immutable server-side financial snapshot for a real future order or Step 7 test simulation. It never reprices the underlying order. */
+export const financialOrderSnapshots = mysqlTable("financial_order_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  sourceType: mysqlEnum("sourceType", ["simulation", "order"]).default("simulation").notNull(),
+  simulationOrderId: int("simulationOrderId"),
+  orderId: int("orderId"),
+  masterProductId: int("masterProductId"),
+  productId: int("productId"),
+  category: mysqlEnum("category", ["top_up", "gift_card", "game_key", "subscription", "ai_tool", "software", "steam", "steam_top_up", "telegram_stars"]),
+  supplierKey: varchar("supplierKey", { length: 80 }),
+  supplierOfferId: int("supplierOfferId"),
+  customerSellingPrice: decimal("customerSellingPrice", { precision: 12, scale: 2 }).notNull(),
+  customerCurrency: varchar("customerCurrency", { length: 3 }).notNull(),
+  supplierCost: decimal("supplierCost", { precision: 12, scale: 2 }),
+  supplierCurrency: varchar("supplierCurrency", { length: 3 }),
+  exchangeRate: decimal("exchangeRate", { precision: 16, scale: 6 }),
+  supplierCostInCustomerCurrency: decimal("supplierCostInCustomerCurrency", { precision: 12, scale: 2 }),
+  markupPercent: decimal("markupPercent", { precision: 7, scale: 2 }),
+  paymentProcessingFee: decimal("paymentProcessingFee", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  otherApplicableFees: decimal("otherApplicableFees", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  paymentFeeConfigured: boolean("paymentFeeConfigured").default(false).notNull(),
+  grossRevenue: decimal("grossRevenue", { precision: 12, scale: 2 }).notNull(),
+  grossProfit: decimal("grossProfit", { precision: 12, scale: 2 }).notNull(),
+  netRevenue: decimal("netRevenue", { precision: 12, scale: 2 }).notNull(),
+  netProfit: decimal("netProfit", { precision: 12, scale: 2 }).notNull(),
+  profitMarginPercent: decimal("profitMarginPercent", { precision: 7, scale: 2 }).notNull(),
+  orderStatus: mysqlEnum("orderStatus", ["PENDING PAYMENT", "PAID", "PROCESSING", "SUPPLIER SUBMITTED", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED"]).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  simulationOrderUnique: uniqueIndex("financial_order_snapshots_simulation_order_unique").on(table.simulationOrderId),
+  orderProductUnique: uniqueIndex("financial_order_snapshots_order_product_unique").on(table.orderId, table.productId),
+  createdIndex: index("financial_order_snapshots_created_idx").on(table.createdAt),
+  categoryCreatedIndex: index("financial_order_snapshots_category_created_idx").on(table.category, table.createdAt),
+  supplierCreatedIndex: index("financial_order_snapshots_supplier_created_idx").on(table.supplierKey, table.createdAt),
+  statusCreatedIndex: index("financial_order_snapshots_status_created_idx").on(table.orderStatus, table.createdAt),
+}));
+
+/** Append-only financial effects, including test-only refund events. The original financial snapshot stays immutable. */
+export const financialOrderEvents = mysqlTable("financial_order_events", {
+  id: int("id").autoincrement().primaryKey(),
+  financialSnapshotId: int("financialSnapshotId").notNull(),
+  eventType: mysqlEnum("eventType", ["snapshot_created", "payment_fee_recorded", "other_fee_recorded", "refund_recorded", "status_recorded"]).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  orderStatus: mysqlEnum("orderStatus", ["PENDING PAYMENT", "PAID", "PROCESSING", "SUPPLIER SUBMITTED", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED"]).notNull(),
+  simulationMode: boolean("simulationMode").default(true).notNull(),
+  note: varchar("note", { length: 1000 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  snapshotCreatedIndex: index("financial_order_events_snapshot_created_idx").on(table.financialSnapshotId, table.createdAt),
+  eventCreatedIndex: index("financial_order_events_type_created_idx").on(table.eventType, table.createdAt),
+}));
+
 /** Immutable order-item snapshot. Product data can change, but prior customer orders must retain their original terms. */
 export const orderItems = mysqlTable("order_items", {
   id: int("id").autoincrement().primaryKey(),

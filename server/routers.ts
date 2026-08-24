@@ -25,6 +25,7 @@ import { getSupplierRoutingEligibility, getSupplierRoutingPolicy, listSupplierRo
 import { SUPPLIER_ROUTING_STRATEGIES } from "../shared/supplierRouting";
 import { createFulfillmentSimulationOrder, getFulfillmentSimulationOrderDetail, listFulfillmentSimulationOrders, transitionFulfillmentSimulationOrder } from "./db";
 import { FULFILLMENT_ORDER_STATUSES } from "../shared/supplierFulfillment";
+import { getFinancialControlsDashboard, previewFinancialControls } from "./db";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -232,6 +233,8 @@ export const appRouter = router({
     getFulfillmentSimulationOrderDetail: adminProcedure.input(z.object({ simulationOrderId: z.number().int().positive() })).query(({ input }) => getFulfillmentSimulationOrderDetail(input.simulationOrderId)),
     createFulfillmentSimulationOrder: adminProcedure.input(z.object({ masterProductId: z.number().int().positive(), selectedSupplierOfferId: z.number().int().positive().nullable().optional(), customerSellingPrice: z.number().positive().max(1_000_000), customerCurrency: z.string().trim().length(3), idempotencyKey: z.string().trim().min(8).max(160), customerDeliveryInput: z.record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(300)).refine((input) => Object.keys(input).length <= 20, { message: "Provide no more than 20 delivery fields" }).nullable().optional() })).mutation(({ ctx, input }) => createFulfillmentSimulationOrder({ ...input, adminUserId: ctx.user.id })),
     transitionFulfillmentSimulationOrder: adminProcedure.input(z.object({ simulationOrderId: z.number().int().positive(), nextStatus: fulfillmentOrderStatusSchema, reason: z.string().trim().max(1000).nullable().optional(), safeReference: z.string().trim().max(500).nullable().optional() })).mutation(({ ctx, input }) => transitionFulfillmentSimulationOrder({ ...input, adminUserId: ctx.user.id })),
+    getFinancialControlsDashboard: adminProcedure.input(z.object({ start: z.coerce.date().optional(), end: z.coerce.date().optional(), productId: z.number().int().positive().optional(), category: supplierMappingCategorySchema.optional(), supplierKey: z.string().trim().min(2).max(80).optional(), currency: currencyCodeSchema.optional(), orderStatus: fulfillmentOrderStatusSchema.optional() }).optional()).query(({ input }) => getFinancialControlsDashboard(input)),
+    previewFinancialControls: adminProcedure.input(z.object({ customerSellingPrice: z.number().positive().max(1_000_000), supplierCost: z.number().min(0).max(1_000_000).nullable(), exchangeRate: z.number().positive().max(1_000_000).nullable(), supplierCostInCustomerCurrency: z.number().min(0).max(1_000_000).nullable(), paymentProcessingFee: z.number().min(0).max(1_000_000), otherApplicableFees: z.number().min(0).max(1_000_000), refundAmount: z.number().min(0).max(1_000_000), paymentFeeConfigured: z.boolean() })).query(({ input }) => previewFinancialControls(input)),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),
