@@ -770,3 +770,6 @@
 - [x] Assess selected catalog result sizes and rendering limits so full selected-result browsing can be restored without changing catalog records.
 - [x] Replace incremental automatic catalog paging with a single stable full selected-result request that supports normal user scrolling and server-side search without visible loading indicators.
 - [x] Validate full selected-result browsing, search, responsive rendering, tests/build, checkpoint, and GitHub push.
+- [x] Audit the current Admin product and category query limits, list rendering, and detail controls to identify why only 100 products are visible.
+- [x] Restore complete Admin product browsing with responsive search/filter navigation and ensure category detail views show every product’s correct category without changing product records.
+- [x] Validate full Admin product/catalog visibility, category details, responsive behavior, tests/build, checkpoint, and GitHub push.

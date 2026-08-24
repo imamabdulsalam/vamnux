@@ -1654,12 +1654,12 @@ export async function upsertExchangeRate(input: { baseCurrency: string; quoteCur
 }
 
 /** Storefront presentation settings are additive to supplier catalog records and never replace supplier source data. */
-export async function listAdminProductOperations(limit = 100) {
+export async function listAdminProductOperations(limit = 10_000) {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
   const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
     .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
-    .orderBy(desc(products.updatedAt)).limit(Math.min(250, Math.max(1, limit)));
+    .orderBy(desc(products.updatedAt)).limit(Math.min(10_000, Math.max(1, limit)));
   return rows.map(({ product, attributes }) => {
     const price = customerPriceForProduct(product, settings);
     return {

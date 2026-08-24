@@ -37,4 +37,11 @@ describe("catalog and admin loading performance", () => {
     expect(adminSource).toContain('enabled: tabIs("products", "categories")');
     expect(adminSource).toContain('enabled: tabIs("notifications")');
   });
+
+  it("gives Admin Products and Categories complete authorized catalog visibility instead of a 100-record cap", () => {
+    expect(dbSource).toContain("export async function listAdminProductOperations(limit = 10_000)");
+    expect(dbSource).toContain(".limit(Math.min(10_000, Math.max(1, limit)))");
+    expect(routerSource).toContain("listAdminProductOperations: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(10_000).default(10_000) })");
+    expect(adminSource).toContain("listAdminProductOperations.useQuery({ limit: 10_000 }");
+  });
 });

@@ -179,7 +179,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery(undefined, { enabled: tabIs("pricing", "products") });
   const catalogPricing = trpc.admin.listCatalogPricing.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
   const priceHistory = trpc.admin.listPriceChangeHistory.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
-  const productOperations = trpc.admin.listAdminProductOperations.useQuery({ limit: 100 }, { enabled: tabIs("products", "categories") });
+  const productOperations = trpc.admin.listAdminProductOperations.useQuery({ limit: 10_000 }, { enabled: tabIs("products", "categories") });
   const marketplaceCategories = trpc.admin.listMarketplaceCategories.useQuery(undefined, { enabled: tabIs("categories") });
   // Legacy supplier-normalised `steam` records are presented as Games in Admin
   // category operations. The duplicate Steam taxonomy row stays out of this
