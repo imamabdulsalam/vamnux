@@ -1662,12 +1662,15 @@ export async function listAdminProductOperations(limit = 10_000) {
     .orderBy(desc(products.updatedAt)).limit(Math.min(10_000, Math.max(1, limit)));
   return rows.map(({ product, attributes }) => {
     const price = customerPriceForProduct(product, settings);
+    const metadata = product.metadata && typeof product.metadata === "object" ? product.metadata as Record<string, unknown> : null;
+    const platformCode = typeof metadata?.platformCode === "string" ? metadata.platformCode : null;
     return {
       id: product.id,
       name: product.name,
       slug: product.slug,
       supplierKey: product.supplierKey,
       category: product.category,
+      platformCode,
       productStatus: product.status,
       supplierEligible: product.supplierEligible,
       basePrice: Number(product.basePrice),

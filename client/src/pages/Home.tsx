@@ -16,6 +16,7 @@ import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/mar
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope } from "@shared/catalogVisibility";
 import { categoryQuickLinks, interleaveTopUpFamilies } from "@shared/compactCatalog";
+import { GAMES_PLATFORM_SUBCATEGORIES, type GamesPlatformCode } from "@shared/gamesPlatformCategories";
 import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import {
   ArrowRight,
@@ -70,20 +71,8 @@ const catalogCategoryForFilter: Partial<Record<ProductCategory, "top_up" | "gift
   "Telegram Stars": "telegram_stars",
 };
 
-const gamesPlatformFilters = [
-  { code: "all", label: "All" },
-  { code: "steam", label: "Steam" },
-  { code: "xbox", label: "Xbox" },
-  { code: "playstation", label: "PlayStation" },
-  { code: "nintendo", label: "Nintendo" },
-  { code: "battlenet", label: "Battle.net" },
-  { code: "ea", label: "EA App" },
-  { code: "ubisoft", label: "Ubisoft" },
-  { code: "mobile", label: "Mobile" },
-  { code: "quest", label: "Meta Quest" },
-] as const;
-
-type GamesPlatformFilter = typeof gamesPlatformFilters[number]["code"];
+const gamesPlatformFilters = GAMES_PLATFORM_SUBCATEGORIES;
+type GamesPlatformFilter = GamesPlatformCode;
 
 const slides = [
   {

@@ -3,8 +3,10 @@ import { Link, useLocation } from "wouter";
 import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, Laptop, Search, Send, ShieldCheck, Sparkles, Tv, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
+import { GAMES_PLATFORM_SUBCATEGORIES, gamesPlatformCatalogPath, type GamesPlatformCode } from "@shared/gamesPlatformCategories";
 import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import "./fullCatalogPage.css";
+import "./catalogGamesPlatformBrowser.css";
 import "./fullCatalogMobileOverride.css";
 
 type CatalogFilter = "All" | ProductCategory;
@@ -38,6 +40,8 @@ export default function CatalogPage() {
   const initialParams = new URLSearchParams(window.location.search);
   const initialCategory = initialParams.get("category") as CatalogFilter | null;
   const [category, setCategory] = useState<CatalogFilter>(initialCategory && categoryValues.has(initialCategory) ? initialCategory : "All");
+  const initialPlatform = initialParams.get("platform") as GamesPlatformCode | null;
+  const [gamesPlatform, setGamesPlatform] = useState<GamesPlatformCode>(GAMES_PLATFORM_SUBCATEGORIES.some((option) => option.code === initialPlatform) ? initialPlatform! : "all");
   const [query, setQuery] = useState(initialParams.get("q") ?? "");
   const [sort, setSort] = useState<SortMode>("featured");
   const deferredQuery = useDeferredValue(query.trim());
@@ -45,9 +49,11 @@ export default function CatalogPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const nextCategory = params.get("category") as CatalogFilter | null;
+    const nextPlatform = params.get("platform") as GamesPlatformCode | null;
     const nextQuery = params.get("q") ?? "";
     if (nextCategory && categoryValues.has(nextCategory)) setCategory(nextCategory);
     else if (!nextCategory) setCategory("All");
+    setGamesPlatform(GAMES_PLATFORM_SUBCATEGORIES.some((option) => option.code === nextPlatform) ? nextPlatform! : "all");
     setQuery(nextQuery);
   }, [location]);
 
@@ -57,6 +63,7 @@ export default function CatalogPage() {
     pageSize: 10_000,
     scope: "primary" as const,
     category: selectedCategory.api,
+    gamePlatform: category === "Games" && gamesPlatform !== "all" ? gamesPlatform : undefined,
     search: deferredQuery || undefined,
   }), [deferredQuery, selectedCategory.api]);
   const catalog = trpc.marketplace.catalog.useQuery(catalogInput, {
@@ -80,8 +87,15 @@ export default function CatalogPage() {
 
   const selectCategory = (next: CatalogFilter) => {
     setCategory(next);
+    setGamesPlatform("all");
     setQuery("");
     setLocation(next === "All" ? "/catalog" : `/catalog?category=${encodeURIComponent(next)}`);
+  };
+
+  const selectGamesPlatform = (nextPlatform: GamesPlatformCode) => {
+    setGamesPlatform(nextPlatform);
+    setQuery("");
+    setLocation(gamesPlatformCatalogPath(nextPlatform));
   };
 
   const onSearchChange = (value: string) => {
@@ -109,6 +123,7 @@ export default function CatalogPage() {
       <div className="full-catalog-category-row" role="tablist" aria-label="Product categories">
         {categoryOptions.map((option) => <button key={option.value} type="button" role="tab" aria-selected={category === option.value} className={category === option.value ? "active" : ""} onClick={() => selectCategory(option.value)}><option.icon size={15} />{option.label}</button>)}
       </div>
+      {category === "Games" && <section className="full-catalog-games-platforms" aria-label="Games platform subcategories"><div><span>Games</span><strong>Browse by platform</strong></div><div>{GAMES_PLATFORM_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={gamesPlatform === option.code ? "active" : ""} onClick={() => selectGamesPlatform(option.code)}><i>{option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>All keeps every existing Games product visible.</p></section>}
       <div className="full-catalog-controls">
         <label className="full-catalog-search"><Search size={20} /><input value={query} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search products, games, services, regions…" aria-label="Search all products" />{query && <button type="button" onClick={() => onSearchChange("")} aria-label="Clear product search"><X size={17} /></button>}</label>
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>

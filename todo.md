@@ -779,3 +779,6 @@
 - [x] Audit every storefront and User Dashboard catalogue-entry action, category-specific destination, and legacy category URL that can still open the home-page catalog section.
 - [x] Route all customer-facing catalogue actions to the dedicated /catalog page with the correct category or search query, without changing the retained home catalog content.
 - [x] Validate complete catalog routing across storefront, footer, information pages, and User Dashboard links; run regression tests/build; checkpoint; and push the correction to GitHub.
+- [x] Audit the dedicated catalog page, User Dashboard, and Admin Panel category displays to identify why Games platform subcategories are not shown consistently.
+- [x] Create a shared customer/Admin category display model so Steam, Xbox, PlayStation, Nintendo, Battle.net, EA App, Ubisoft, Mobile, and Meta Quest appear under Games everywhere categories are listed.
+- [x] Validate the shared Games platform subcategories across catalog, User Dashboard, and Admin Panel, then run regression tests/build, checkpoint, and push the update to GitHub.

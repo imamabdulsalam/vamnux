@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const homeSource = readFileSync(new URL("../client/src/pages/Home.tsx", import.meta.url), "utf8");
+const gamesPlatformSource = readFileSync(new URL("../shared/gamesPlatformCategories.ts", import.meta.url), "utf8");
 
 describe("storefront category browser", () => {
   it("derives cards from active-visible categories and returns hidden active filters to All", () => {
@@ -18,10 +19,10 @@ describe("storefront category browser", () => {
   });
 
   it("provides the requested Games platform tabs while keeping an All Games view", () => {
-    expect(homeSource).toContain('const gamesPlatformFilters = [');
-    expect(homeSource).toContain('{ code: "all", label: "All" }');
-    expect(homeSource).toContain('{ code: "battlenet", label: "Battle.net" }');
-    expect(homeSource).toContain('{ code: "quest", label: "Meta Quest" }');
+    expect(homeSource).toContain("const gamesPlatformFilters = GAMES_PLATFORM_SUBCATEGORIES");
+    expect(gamesPlatformSource).toContain('{ code: "all", label: "All" }');
+    expect(gamesPlatformSource).toContain('{ code: "battlenet", label: "Battle.net" }');
+    expect(gamesPlatformSource).toContain('{ code: "quest", label: "Meta Quest" }');
     expect(homeSource).toContain('activeCategory === "Games" && activeGamesPlatform !== "all"');
     expect(homeSource).toContain("All existing Games products remain visible here.");
   });
