@@ -11,6 +11,7 @@ import FooterNavigation from "@/components/FooterNavigation";
 import UniversalMarketplaceSearch from "@/components/UniversalMarketplaceSearch";
 import "./lowerStorefront.css";
 import "./mobileCategoryMenu.css";
+import "./gamesPlatformBrowser.css";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { filterGameFamiliesForScope } from "@shared/catalogVisibility";
@@ -68,6 +69,21 @@ const catalogCategoryForFilter: Partial<Record<ProductCategory, "top_up" | "gift
   "Steam Top-Up": "steam_top_up",
   "Telegram Stars": "telegram_stars",
 };
+
+const gamesPlatformFilters = [
+  { code: "all", label: "All" },
+  { code: "steam", label: "Steam" },
+  { code: "xbox", label: "Xbox" },
+  { code: "playstation", label: "PlayStation" },
+  { code: "nintendo", label: "Nintendo" },
+  { code: "battlenet", label: "Battle.net" },
+  { code: "ea", label: "EA App" },
+  { code: "ubisoft", label: "Ubisoft" },
+  { code: "mobile", label: "Mobile" },
+  { code: "quest", label: "Meta Quest" },
+] as const;
+
+type GamesPlatformFilter = typeof gamesPlatformFilters[number]["code"];
 
 const slides = [
   {
@@ -204,6 +220,7 @@ export default function Home() {
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
 
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
+  const [activeGamesPlatform, setActiveGamesPlatform] = useState<GamesPlatformFilter>("all");
   const [query, setQuery] = useState("");
   const [catalogPage, setCatalogPage] = useState(1);
   const [cart, setCart] = useState<Product[]>([]);
@@ -221,8 +238,9 @@ export default function Home() {
     pageSize: 48,
     scope: "primary" as const,
     category: activeCategory === "All" ? undefined : catalogCategoryForFilter[activeCategory],
+    gamePlatform: activeCategory === "Games" && activeGamesPlatform !== "all" ? activeGamesPlatform : undefined,
     search: deferredCatalogSearch || undefined,
-  }), [activeCategory, catalogPage, deferredCatalogSearch]);
+  }), [activeCategory, activeGamesPlatform, catalogPage, deferredCatalogSearch]);
   const supplierCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { staleTime: 30_000, refetchOnWindowFocus: false });
   const [loadedCatalogItems, setLoadedCatalogItems] = useState<NonNullable<typeof supplierCatalog.data>["items"]>([]);
   const revealCatalog = (focusSearch = false) => {
@@ -295,7 +313,7 @@ export default function Home() {
     return new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(basePrice * config.rate);
   };
 
-  useEffect(() => { setCatalogPage(1); setLoadedCatalogItems([]); }, [activeCategory, deferredCatalogSearch]);
+  useEffect(() => { setCatalogPage(1); setLoadedCatalogItems([]); }, [activeCategory, activeGamesPlatform, deferredCatalogSearch]);
   useEffect(() => {
     if (!supplierCatalog.data) return;
     setLoadedCatalogItems((current) => supplierCatalog.data.page === 1
@@ -410,9 +428,17 @@ export default function Home() {
 
   const chooseCategory = (category: ProductCategory) => {
     setActiveCategory(category);
+    setActiveGamesPlatform("all");
     setQuery("");
     setOpenMegaCategory(null);
     window.requestAnimationFrame(() => revealCatalog(true));
+  };
+
+  const chooseGamesPlatform = (platform: GamesPlatformFilter) => {
+    setActiveCategory("Games");
+    setActiveGamesPlatform(platform);
+    setQuery("");
+    setCatalogPage(1);
   };
 
   const chooseQuickLink = (category: ProductCategory, label: string) => {
@@ -629,12 +655,22 @@ export default function Home() {
 
         <div className="filter-row" aria-label="Filter product list">
           {(["All", ...visibleCategories.map((category) => category.filter)] as Array<"All" | ProductCategory>).map((filter) => (
-            <button key={filter} onClick={() => { setActiveCategory(filter); setCatalogPage(1); }} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
+            <button key={filter} onClick={() => { setActiveCategory(filter); setActiveGamesPlatform("all"); setCatalogPage(1); }} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
               {filter === "All" ? "All picks" : filter}
             </button>
           ))}
           <span className="price-display-note">Prices shown in <strong>{currency}</strong></span>
         </div>
+
+        {activeCategory === "Games" && <div className="games-platform-browser" aria-label="Games platform subcategories">
+          <div className="games-platform-browser-heading"><span>Games</span><strong>Browse by platform</strong></div>
+          <div className="games-platform-tabs" role="tablist" aria-label="Games platform filters">
+            {gamesPlatformFilters.map((platform) => <button key={platform.code} type="button" role="tab" aria-selected={activeGamesPlatform === platform.code} className={activeGamesPlatform === platform.code ? "games-platform-tab active" : "games-platform-tab"} onClick={() => chooseGamesPlatform(platform.code)}>
+              <span aria-hidden="true">{platform.code === "all" ? "•" : platform.label.slice(0, 1)}</span>{platform.label}
+            </button>)}
+          </div>
+          <p>{activeGamesPlatform === "all" ? "All existing Games products remain visible here." : `Showing Games with verified ${gamesPlatformFilters.find((platform) => platform.code === activeGamesPlatform)?.label} platform data.`}</p>
+        </div>}
 
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>

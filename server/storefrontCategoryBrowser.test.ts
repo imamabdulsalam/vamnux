@@ -16,4 +16,13 @@ describe("storefront category browser", () => {
     expect(homeSource).toContain("onClick={() => chooseCategory(filter)}");
     expect(homeSource).toContain("category-browser-card");
   });
+
+  it("provides the requested Games platform tabs while keeping an All Games view", () => {
+    expect(homeSource).toContain('const gamesPlatformFilters = [');
+    expect(homeSource).toContain('{ code: "all", label: "All" }');
+    expect(homeSource).toContain('{ code: "battlenet", label: "Battle.net" }');
+    expect(homeSource).toContain('{ code: "quest", label: "Meta Quest" }');
+    expect(homeSource).toContain('activeCategory === "Games" && activeGamesPlatform !== "all"');
+    expect(homeSource).toContain("All existing Games products remain visible here.");
+  });
 });

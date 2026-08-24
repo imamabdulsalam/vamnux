@@ -17,6 +17,7 @@ describe("catalog and admin loading performance", () => {
   it("exposes bounded catalog controls through the public router", () => {
     expect(routerSource).toContain("pageSize: z.number().int().min(12).max(96)");
     expect(routerSource).toContain('scope: z.enum(["primary", "all"])');
+    expect(routerSource).toContain('gamePlatform: z.enum(["steam", "xbox", "playstation", "nintendo", "battlenet", "ea", "ubisoft", "mobile", "quest"])');
     expect(routerSource).toContain("listCatalogPricing(input?.limit)");
     expect(routerSource).toContain("listAdminProductOperations(input?.limit)");
   });

@@ -755,3 +755,6 @@
 - [x] Delete only the verified reverted-import GamesDrop cohort and its additive preparation artifacts in a reviewed transaction, without touching retained products, prices, orders, wallets, users, or other supplier data.
 - [x] Verify corrected catalog/dashboard counts and preserved legacy records, then save a checkpoint and push the cleanup result to GitHub.
 - [x] Permanently remove the verified empty and unused GamesDrop preparation table after the owner’s explicit confirmation, then re-verify retained catalog counts.
+- [x] Inspect existing Games product metadata and catalog browser behavior to map the owner-provided platform filters without changing any product records.
+- [x] Add a responsive Games platform subcategory browser for Steam, Xbox, PlayStation, Nintendo, Battle.net, EA App, Ubisoft, Mobile, and Meta Quest, including an All option that retains all existing Games products.
+- [x] Verify Games All/platform browsing on desktop and mobile, run regression tests/build, save a checkpoint, and push the update to GitHub.

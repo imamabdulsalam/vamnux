@@ -1,0 +1,128 @@
+.games-platform-browser {
+  display: grid;
+  gap: 10px;
+  width: min(1376px, 100%);
+  margin: 13px auto 0;
+  padding: 13px 15px 11px;
+  border: 1px solid #d8e1ee;
+  background: linear-gradient(135deg, #fbfdff, #f1f6ff);
+  box-shadow: 0 8px 18px rgba(22, 53, 103, 0.05);
+}
+
+.games-platform-browser-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.games-platform-browser-heading span {
+  color: #286dff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.games-platform-browser-heading strong {
+  color: #1c2941;
+  font-family: "Nunito Sans", sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.games-platform-tabs {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 1px 1px 6px;
+  scrollbar-width: thin;
+}
+
+.games-platform-tab {
+  display: inline-flex;
+  min-height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid #d8e0ec;
+  border-radius: 9px;
+  background: #fff;
+  color: #53627b;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out), color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.games-platform-tab > span {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border-radius: 6px;
+  background: #e8effb;
+  color: #286dff;
+  font-family: "Nunito Sans", sans-serif;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.games-platform-tab:hover,
+.games-platform-tab:focus-visible {
+  border-color: #91b5ff;
+  color: #173e95;
+  outline: none;
+}
+
+.games-platform-tab:active {
+  transform: scale(0.97);
+}
+
+.games-platform-tab.active {
+  border-color: #173e95;
+  background: #17233c;
+  color: #fff;
+  box-shadow: 0 7px 13px rgba(23, 62, 149, 0.18);
+}
+
+.games-platform-tab.active > span {
+  background: #c7ff47;
+  color: #17233c;
+}
+
+.games-platform-browser > p {
+  margin: 0;
+  color: #687891;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .games-platform-browser {
+    gap: 8px;
+    margin-top: 10px;
+    padding: 11px 12px 10px;
+  }
+
+  .games-platform-browser-heading strong {
+    font-size: 14px;
+  }
+
+  .games-platform-tabs {
+    gap: 6px;
+    margin-right: -12px;
+    padding-right: 12px;
+  }
+
+  .games-platform-tab {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 9px;
+  }
+
+  .games-platform-browser > p {
+    font-size: 9px;
+  }
+}

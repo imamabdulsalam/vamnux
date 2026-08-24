@@ -1007,6 +1007,7 @@ export type PublicCatalogPageInput = {
   page?: number;
   pageSize?: number;
   category?: "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars";
+  gamePlatform?: "steam" | "xbox" | "playstation" | "nintendo" | "battlenet" | "ea" | "ubisoft" | "mobile" | "quest";
   search?: string;
   slug?: string;
   familyName?: string;
@@ -1016,6 +1017,13 @@ export type PublicCatalogPageInput = {
 const PUBLIC_PRIMARY_TOP_UP_PREFIXES = ["arena breakout", "bigo live diamonds", "free fire global", "mobile legends global", "pubg mobile", "ragnarok origin"];
 const PUBLIC_GLOBAL_REGION_LABELS = ["global", "glb", "worldwide", "ww"];
 const PUBLIC_CATALOG_CATEGORIES: NonNullable<PublicCatalogPageInput["category"]>[] = ["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"];
+
+function publicGamesPlatformCondition(platform: NonNullable<PublicCatalogPageInput["gamePlatform"]>) {
+  return and(
+    eq(products.category, "steam"),
+    eq(sql<string>`lower(coalesce(json_unquote(json_extract(${products.metadata}, '$.platformCode')), ''))`, platform),
+  );
+}
 
 function publicPrimaryCatalogCondition() {
   const normalizedName = sql<string>`lower(${products.name})`;
@@ -1061,6 +1069,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
     input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
     hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
     input.category ? eq(products.category, input.category) : undefined,
+    input.gamePlatform ? publicGamesPlatformCondition(input.gamePlatform) : undefined,
     input.slug ? eq(products.slug, input.slug) : undefined,
     normalizedFamily ? or(eq(sql<string>`lower(${products.name})`, normalizedFamily), like(sql<string>`lower(${products.name})`, `${normalizedFamily} —%`)) : undefined,
     input.search ? publicCatalogSearchCondition(input.search) : undefined,
