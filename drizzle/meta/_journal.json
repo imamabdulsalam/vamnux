@@ -253,13 +253,6 @@
       "when": 1787560070639,
       "tag": "0035_sparkling_the_hood",
       "breakpoints": true
-    },
-    {
-      "idx": 36,
-      "version": "5",
-      "when": 1787586526627,
-      "tag": "0036_strange_maddog",
-      "breakpoints": true
     }
   ]
 }

@@ -25,7 +25,7 @@ export default function GameFamilyDetail() {
   const [, setLocation] = useLocation();
   const familyName = decodeGameFamilySegment(params?.family);
   const { isAuthenticated } = useAuth();
-  const supplierCatalog = trpc.marketplace.catalogGameFamily.useQuery({ familyName: familyName || "" }, { enabled: Boolean(familyName) });
+  const supplierCatalog = trpc.marketplace.catalog.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [cart, setCart] = useState<LiveCatalogProduct[]>([]);
@@ -51,7 +51,7 @@ export default function GameFamilyDetail() {
   });
   const recordCartAddition = trpc.marketplace.recordCartAddition.useMutation();
 
-  const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data?.family ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data?.family]);
+  const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data]);
   const family = useMemo(() => groupLiveProductFamilies(products.filter((product) => product.name.toLowerCase() === familyName?.toLowerCase()))[0], [familyName, products]);
   const selectedItem = family?.items.find((item) => item.id === selectedServiceId) ?? family?.items[0];
   useEffect(() => {

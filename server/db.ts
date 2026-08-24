@@ -1,7 +1,7 @@
-import { and, desc, eq, gte, inArray, like, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, marketplaceSubcategories, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productSubcategoryClassifications, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -18,7 +18,6 @@ import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzl
 import { customerProductRequests } from "../drizzle/schema";
 import { masterProducts, supplierOfferMappingReviews, supplierOffers } from "../drizzle/schema";
 import { isSupplierMappingCategory, mappingAttributesMatch, mappingIdentityValue, normalizeMappingAttributes, type MappingAttributes, type MappingStatus, type SupplierMappingCategory } from "../shared/supplierProductMapping";
-import { classifyExistingProductForGamesDropPreparation, GAMESDROP_PREPARED_SUBCATEGORIES } from "../shared/gamesdropCategoryPreparation";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -1004,103 +1003,20 @@ export function previewFinancialControls(input: { customerSellingPrice: number; 
   return { ...financial, alerts, note: "Preview only. No product price, supplier cost, order, payment, wallet, transaction, or refund record was changed." };
 }
 
-export type PublicCatalogCategory = "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars";
-export type PublicCatalogPageInput = { page?: number; pageSize?: number; category?: PublicCatalogCategory; search?: string; slug?: string; familyName?: string; scope?: "primary" | "all" };
-
-const PUBLIC_TOP_UP_FAMILY_PREFIXES = ["arena breakout", "bigo live diamonds", "free fire global", "mobile legends global", "pubg mobile", "ragnarok origin"];
-const PUBLIC_GLOBAL_REGION_LABELS = ["global", "glb", "worldwide", "ww"];
-
-function publicPrimaryCatalogCondition() {
-  const normalizedName = sql<string>`lower(${products.name})`;
-  const normalizedRegion = sql<string>`lower(coalesce(${products.regionLabel}, ''))`;
-  const topUpFamilies = or(...PUBLIC_TOP_UP_FAMILY_PREFIXES.map((family) => like(normalizedName, `${family}%`)));
-  const globalRegions = or(...PUBLIC_GLOBAL_REGION_LABELS.map((region) => like(normalizedRegion, region)));
-  return or(
-    and(eq(products.category, "top_up"), topUpFamilies),
-    eq(products.category, "telegram_stars"),
-    and(eq(products.category, "steam"), globalRegions),
-    and(eq(products.category, "steam_top_up"), globalRegions),
-  );
-}
-
-function publicCatalogSearchCondition(search: string) {
-  const normalized = search.trim().toLowerCase().slice(0, 100);
-  if (!normalized) return undefined;
-  const pattern = `%${normalized}%`;
-  const explicitRequirementSearch = /player\s*id|game\s*user|server\s*id|zone\s*id/.test(normalized);
-  return or(
-    like(sql<string>`lower(${products.name})`, pattern),
-    like(sql<string>`lower(coalesce(${products.regionLabel}, ''))`, pattern),
-    like(sql<string>`lower(coalesce(${products.supplierCategory}, ''))`, pattern),
-    explicitRequirementSearch ? eq(products.requiresPlayerId, true) : undefined,
-    explicitRequirementSearch ? eq(products.requiresServerId, true) : undefined,
-  );
-}
-
-/**
- * Customer catalog reads are deliberately bounded after the GamesDrop import.
- * The same active-category, hidden-product, and primary-market visibility
- * policy is now enforced before database rows cross the network boundary.
- */
-export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {
+export async function listActiveCatalogProducts() {
   const db = await getDb();
-  const empty = { items: [], page: 1, pageSize: 48, total: 0, hasMore: false, categoryCounts: {} as Partial<Record<PublicCatalogCategory, number>> };
-  if (!db) return empty;
+  if (!db) return [];
   await ensureDefaultMarketplaceCategories(db);
   const settings = await ensureMarketplacePricingSettings(db);
-  const page = Math.max(1, Math.floor(input.page ?? 1));
-  const pageSize = Math.min(96, Math.max(12, Math.floor(input.pageSize ?? 48)));
-  const visibleCategoryRows = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories)
-    .where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true)));
+  const activeProducts = await db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
+  const visibleCategoryRows = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true)));
   const visibleCategorySlugs = new Set(visibleCategoryRows.map((category) => category.slug));
-  const visibleProductCategories = (["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"] as PublicCatalogCategory[])
-    .filter((category) => visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(category)));
-  if (!visibleProductCategories.length) return { ...empty, page, pageSize };
-  const hiddenRows = await db.select({ productId: productAdminAttributes.productId }).from(productAdminAttributes).where(eq(productAdminAttributes.storefrontStatus, "hidden"));
-  const hiddenProductIds = hiddenRows.map((row) => row.productId);
-  const scopeConditions = [
-    eq(products.status, "active"),
-    inArray(products.category, visibleProductCategories),
-    input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
-    hiddenProductIds.length ? notInArray(products.id, hiddenProductIds) : undefined,
-    input.slug ? eq(products.slug, input.slug) : undefined,
-    input.familyName ? or(eq(products.name, input.familyName), like(products.name, `${input.familyName} —%`)) : undefined,
-    input.search ? publicCatalogSearchCondition(input.search) : undefined,
-  ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
-  const where = and(...scopeConditions, input.category ? eq(products.category, input.category) : undefined);
-  const [totalRow] = await db.select({ count: sql<number>`count(*)` }).from(products).where(where);
-  const activeProducts = await db.select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize);
-  const attributes = activeProducts.length
-    ? await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, deal: productAdminAttributes.deal })
-      .from(productAdminAttributes).where(inArray(productAdminAttributes.productId, activeProducts.map((product) => product.id)))
-    : [];
+  const attributes = await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, newProduct: productAdminAttributes.newProduct, deal: productAdminAttributes.deal })
+    .from(productAdminAttributes);
   const attributesByProductId = new Map(attributes.map((attribute) => [attribute.productId, attribute]));
-  const categoryCountRows = await db.select({ category: products.category, count: sql<number>`count(*)` }).from(products).where(and(...scopeConditions)).groupBy(products.category);
-  const total = Number(totalRow?.count ?? 0);
-  return {
-    items: activeProducts.map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null })),
-    page,
-    pageSize,
-    total,
-    hasMore: page * pageSize < total,
-    categoryCounts: Object.fromEntries(categoryCountRows.map((row) => [row.category, Number(row.count)])) as Partial<Record<PublicCatalogCategory, number>>,
-  };
-}
-
-/** Bounded direct lookup for non-Top-up routes; it never loads the entire catalog. */
-export async function getActiveCatalogProductDetail(slug: string) {
-  const first = await listActiveCatalogProducts({ slug, pageSize: 1 });
-  const product = first.items[0] ?? null;
-  if (!product) return { product: null, family: [] };
-  const familyName = product.name.split(" — ")[0]?.trim() || product.name;
-  const family = await listActiveCatalogProducts({ familyName, category: product.category as PublicCatalogCategory, pageSize: 96 });
-  return { product, family: family.items };
-}
-
-/** Bounded exact family lookup for Top-up routes; title similarity is not used. */
-export async function getActiveCatalogGameFamily(familyName: string) {
-  const family = await listActiveCatalogProducts({ familyName, category: "top_up", pageSize: 96 });
-  return { family: family.items };
+  return activeProducts
+    .filter((product) => attributesByProductId.get(product.id)?.storefrontStatus !== "hidden" && visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(product.category)))
+    .map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null }));
 }
 
 export async function getMarketplacePricingSettings() {
@@ -1444,117 +1360,6 @@ export async function updateMarketplaceCategory(input: MarketplaceCategoryInput 
     metadata: { previousSlug: existing.slug, nextSlug: slug, previousStatus: existing.status, nextStatus: input.status ?? existing.status },
   });
   return { id: existing.id, slug, name };
-}
-
-/**
- * Prepared GamesDrop taxonomy stays private until a later explicit storefront
- * decision. It never creates supplier products or changes legacy product rows.
- */
-export async function listMarketplaceSubcategoryPreparation() {
-  const db = requireDb(await getDb());
-  return db.select({
-    id: marketplaceSubcategories.id,
-    slug: marketplaceSubcategories.slug,
-    name: marketplaceSubcategories.name,
-    parentCategory: marketplaceSubcategories.parentCategory,
-    description: marketplaceSubcategories.description,
-    evidenceType: marketplaceSubcategories.evidenceType,
-    assignmentPolicy: marketplaceSubcategories.assignmentPolicy,
-    sourceSupplierKey: marketplaceSubcategories.sourceSupplierKey,
-    status: marketplaceSubcategories.status,
-    visible: marketplaceSubcategories.visible,
-  }).from(marketplaceSubcategories)
-    .orderBy(marketplaceSubcategories.parentCategory, marketplaceSubcategories.name);
-}
-
-/**
- * Seeds only reviewed category definitions and creates a separate, immutable
- * preparation record for every currently unclassified Games or Top-up product.
- * An existing classification is intentionally never overwritten.
- */
-export async function prepareGamesDropCategoryStructure(input: { adminUserId: number }) {
-  const db = requireDb(await getDb());
-  return db.transaction(async (tx) => {
-    const existingSubcategories = await tx.select({ slug: marketplaceSubcategories.slug }).from(marketplaceSubcategories);
-    const existingSlugs = new Set(existingSubcategories.map((subcategory) => subcategory.slug));
-    const definitionsToCreate = GAMESDROP_PREPARED_SUBCATEGORIES.filter((subcategory) => !existingSlugs.has(subcategory.slug));
-    if (definitionsToCreate.length) {
-      await tx.insert(marketplaceSubcategories).values(definitionsToCreate.map((subcategory) => ({
-        slug: subcategory.slug,
-        name: subcategory.name,
-        parentCategory: subcategory.parentCategory,
-        description: subcategory.description,
-        evidenceType: subcategory.evidenceType,
-        assignmentPolicy: subcategory.assignmentPolicy,
-        sourceSupplierKey: subcategory.sourceSupplierKey,
-        status: "draft" as const,
-        visible: false,
-        metadata: { preparedFor: "gamesdrop_category_preparation_v1" },
-      })));
-    }
-
-    const subcategories = await tx.select({ id: marketplaceSubcategories.id, slug: marketplaceSubcategories.slug })
-      .from(marketplaceSubcategories)
-      .where(inArray(marketplaceSubcategories.slug, GAMESDROP_PREPARED_SUBCATEGORIES.map((subcategory) => subcategory.slug)));
-    const subcategoryIdBySlug = new Map(subcategories.map((subcategory) => [subcategory.slug, subcategory.id]));
-    const existingClassifications = await tx.select({ productId: productSubcategoryClassifications.productId })
-      .from(productSubcategoryClassifications);
-    const classifiedProductIds = new Set(existingClassifications.map((classification) => classification.productId));
-    const candidateProducts = await tx.select({
-      id: products.id,
-      category: products.category,
-      supplierKey: products.supplierKey,
-      metadata: products.metadata,
-    }).from(products).where(or(eq(products.category, "steam"), eq(products.category, "top_up")));
-
-    const classifications = candidateProducts
-      .filter((product) => !classifiedProductIds.has(product.id))
-      .map(classifyExistingProductForGamesDropPreparation)
-      .filter((classification): classification is NonNullable<typeof classification> => classification !== null)
-      .map((classification) => {
-        const marketplaceSubcategoryId = subcategoryIdBySlug.get(classification.subcategorySlug);
-        if (!marketplaceSubcategoryId) throw new Error(`Prepared subcategory ${classification.subcategorySlug} is missing`);
-        const product = candidateProducts.find((candidate) => candidate.id === classification.productId);
-        if (!product) throw new Error(`Prepared product ${classification.productId} is missing`);
-        return {
-          productId: classification.productId,
-          parentCategory: product.category,
-          marketplaceSubcategoryId,
-          classificationStatus: classification.status,
-          evidenceType: classification.evidenceType,
-          evidence: classification.evidence,
-          classificationSource: "gamesdrop_category_preparation_v1",
-        };
-      });
-    if (classifications.length) await tx.insert(productSubcategoryClassifications).values(classifications);
-
-    const safeCount = classifications.filter((classification) => classification.classificationStatus === "SAFE").length;
-    const adminReviewCount = classifications.filter((classification) => classification.classificationStatus === "ADMIN_REVIEW").length;
-    const unclassifiedCount = classifications.filter((classification) => classification.classificationStatus === "UNCLASSIFIED").length;
-    await tx.insert(adminAuditEvents).values({
-      adminUserId: input.adminUserId,
-      action: "catalog.gamesdrop_category_prepared",
-      targetType: "gamesdrop_category_preparation",
-      targetId: "v1",
-      summary: "Prepared GamesDrop-supported Games and Top-up subcategories without importing supplier products",
-      metadata: {
-        createdSubcategories: definitionsToCreate.length,
-        preservedExistingClassifications: classifiedProductIds.size,
-        createdClassifications: classifications.length,
-        safeCount,
-        adminReviewCount,
-        unclassifiedCount,
-      },
-    });
-    return {
-      createdSubcategories: definitionsToCreate.length,
-      preservedExistingClassifications: classifiedProductIds.size,
-      createdClassifications: classifications.length,
-      safeCount,
-      adminReviewCount,
-      unclassifiedCount,
-    };
-  });
 }
 
 export async function reorderMarketplaceCategories(input: { categoryIds: number[]; adminUserId: number }) {
