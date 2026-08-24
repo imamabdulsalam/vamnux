@@ -748,3 +748,6 @@
 - [x] Locate every customer-facing product-list and View Details style that forces product names, denominations, prices, or related product copy to ALL CAPS, without changing product data or non-product UI text.
 - [x] Remove only the forced uppercase transformation from customer product presentation so original product text displays in readable title or normal case, while preserving typography size, prices, colors, layout, cart behavior, and all other functionality.
 - [x] Verify desktop and mobile customer product presentation, add focused casing coverage, run TypeScript/tests/build, and publish the text-casing-only update.
+- [x] Diagnose the current long-loading and white-fallback failures across the storefront catalog, Admin Panel, and page transitions using runtime logs and bounded read-only measurements.
+- [x] Replace any restored unbounded catalog or Admin data queries with paginated or scoped reads, and add resilient loading and error states without importing products or creating subcategories.
+- [x] Verify customer catalog, Admin Panel, and route loading responsiveness; run regression tests/build; save a checkpoint; and push the fix to GitHub.

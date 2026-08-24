@@ -2,7 +2,7 @@
  * VAMNUX Global Exchange: a clean marketplace header, USD-first price display,
  * technology-led colour rotation, and compact transactional product information.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
@@ -13,9 +13,9 @@ import "./lowerStorefront.css";
 import "./mobileCategoryMenu.css";
 import { createFulfillmentFieldKey, groupLiveProductFamilies } from "@shared/marketplace";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
-import { filterGameFamiliesForScope, filterPrimaryMarketProducts } from "@shared/catalogVisibility";
+import { filterGameFamiliesForScope } from "@shared/catalogVisibility";
 import { categoryQuickLinks, interleaveTopUpFamilies } from "@shared/compactCatalog";
-import { productMatchesKeyword, toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
+import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import {
   ArrowRight,
   Check,
@@ -56,6 +56,17 @@ const currencies: Record<CurrencyCode, { label: string; locale: string; rate: nu
   EUR: { label: "EUR", locale: "de-DE", rate: 0.92 },
   GBP: { label: "GBP", locale: "en-GB", rate: 0.78 },
   NGN: { label: "NGN", locale: "en-NG", rate: 1600 },
+};
+
+const catalogCategoryForFilter: Partial<Record<ProductCategory, "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars">> = {
+  "Top-up": "top_up",
+  "Gift cards": "gift_card",
+  "Subscription": "subscription",
+  "Software": "software",
+  "AI tools": "ai_tool",
+  "Games": "steam",
+  "Steam Top-Up": "steam_top_up",
+  "Telegram Stars": "telegram_stars",
 };
 
 const slides = [
@@ -188,13 +199,13 @@ export default function Home() {
   // nonce cookie and must run only at the moment of navigation.
   const { user, loading, isAuthenticated } = useAuth();
   const [location, setLocation] = useLocation();
-  const supplierCatalog = trpc.marketplace.catalog.useQuery();
   const publicCategories = trpc.marketplace.categories.useQuery(undefined, { refetchInterval: 15_000, refetchOnWindowFocus: true });
   const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
 
   const [activeCategory, setActiveCategory] = useState<"All" | ProductCategory>("All");
   const [query, setQuery] = useState("");
+  const [catalogPage, setCatalogPage] = useState(1);
   const [cart, setCart] = useState<Product[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
@@ -204,6 +215,16 @@ export default function Home() {
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const catalogSearchRef = useRef<HTMLInputElement>(null);
+  const deferredCatalogSearch = useDeferredValue(query.trim());
+  const catalogInput = useMemo(() => ({
+    page: catalogPage,
+    pageSize: 48,
+    scope: "primary" as const,
+    category: activeCategory === "All" ? undefined : catalogCategoryForFilter[activeCategory],
+    search: deferredCatalogSearch || undefined,
+  }), [activeCategory, catalogPage, deferredCatalogSearch]);
+  const supplierCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { staleTime: 30_000, refetchOnWindowFocus: false });
+  const [loadedCatalogItems, setLoadedCatalogItems] = useState<NonNullable<typeof supplierCatalog.data>["items"]>([]);
   const revealCatalog = (focusSearch = false) => {
     const catalog = document.getElementById("products");
     if (!catalog) return;
@@ -274,17 +295,15 @@ export default function Home() {
     return new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(basePrice * config.rate);
   };
 
-  const liveProducts = useMemo<Product[]>(() => (supplierCatalog.data ?? []).map(toLiveCatalogProduct), [supplierCatalog.data]);
-
-  const publicProducts = useMemo(() => filterPrimaryMarketProducts(liveProducts), [liveProducts]);
-  const filteredProducts = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return publicProducts.filter((item) => {
-      const matchesCategory = activeCategory === "All" || item.category === activeCategory;
-      const matchesSearch = productMatchesKeyword(item, normalized);
-      return matchesCategory && matchesSearch;
-    });
-  }, [activeCategory, publicProducts, query]);
+  useEffect(() => { setCatalogPage(1); setLoadedCatalogItems([]); }, [activeCategory, deferredCatalogSearch]);
+  useEffect(() => {
+    if (!supplierCatalog.data) return;
+    setLoadedCatalogItems((current) => supplierCatalog.data.page === 1
+      ? supplierCatalog.data.items
+      : [...current, ...supplierCatalog.data.items.filter((item) => !current.some((loaded) => loaded.id === item.id))]);
+  }, [supplierCatalog.data]);
+  const publicProducts = useMemo<Product[]>(() => loadedCatalogItems.map(toLiveCatalogProduct), [loadedCatalogItems]);
+  const filteredProducts = publicProducts;
 
   const visibleCategories = useMemo(() => {
     if (!publicCategories.data) return [];
@@ -573,7 +592,8 @@ export default function Home() {
         </div>
         <div className="category-list category-browser-grid">
           {visibleCategories.map(({ label, icon: Icon, filter }) => {
-            const productCount = publicProducts.filter((product) => product.category === filter).length;
+            const catalogCategory = catalogCategoryForFilter[filter];
+            const productCount = catalogCategory ? supplierCatalog.data?.categoryCounts[catalogCategory] ?? 0 : 0;
             return (
             <button key={label} onClick={() => chooseCategory(filter)} className="category-button category-browser-card">
               <span className="category-browser-icon"><Icon size={20} strokeWidth={1.9} /></span>
@@ -603,13 +623,13 @@ export default function Home() {
           </div>
           <div className="section-heading-right">
             <p>Search or use a category menu to go straight to available VAMNUX products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
-            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); window.requestAnimationFrame(() => revealCatalog(true)); }}>Browse VAMNUX products <ArrowRight size={17} /></button>
+            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); setCatalogPage(1); window.requestAnimationFrame(() => revealCatalog(true)); }}>Browse VAMNUX products <ArrowRight size={17} /></button>
           </div>
         </div>
 
         <div className="filter-row" aria-label="Filter product list">
           {(["All", ...visibleCategories.map((category) => category.filter)] as Array<"All" | ProductCategory>).map((filter) => (
-            <button key={filter} onClick={() => setActiveCategory(filter)} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
+            <button key={filter} onClick={() => { setActiveCategory(filter); setCatalogPage(1); }} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
               {filter === "All" ? "All picks" : filter}
             </button>
           ))}
@@ -618,14 +638,15 @@ export default function Home() {
 
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
-          <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
-          <p>{query.trim() ? `${compactProducts.length} live ${compactProducts.length === 1 ? "product" : "products"} match “${query.trim()}”` : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
+          <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => { setQuery(""); setCatalogPage(1); }} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
+          <p>{query.trim() ? `${supplierCatalog.data?.total ?? 0} live ${(supplierCatalog.data?.total ?? 0) === 1 ? "product" : "products"} match “${query.trim()}”` : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
         </div>
 
         <div className="product-family-list compact-catalog-results">
           {supplierCatalog.isLoading && <div className="empty-results"><Search size={28} /><h3>Loading products…</h3><p>Please wait while the catalog is refreshed.</p></div>}
           {supplierCatalog.error && <div className="empty-results"><ShieldCheck size={28} /><h3>Supplier catalog is temporarily unavailable.</h3><p>Try again shortly. No payment or order attempt has been made.</p></div>}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />}
+          {!supplierCatalog.isLoading && !supplierCatalog.error && supplierCatalog.data?.hasMore && <button type="button" className="all-products-button" onClick={() => setCatalogPage((current) => current + 1)} disabled={supplierCatalog.isFetching}>{supplierCatalog.isFetching ? "Loading more products…" : `Show more products (${Math.max(0, supplierCatalog.data.total - catalogPage * supplierCatalog.data.pageSize)} remaining)`} <ArrowRight size={17} /></button>}
           {!supplierCatalog.isLoading && !supplierCatalog.error && compactProducts.length === 0 && (
             <div className="empty-results">
               <Search size={28} />

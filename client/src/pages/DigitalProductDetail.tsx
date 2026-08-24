@@ -31,14 +31,15 @@ export default function DigitalProductDetail() {
   const [, setLocation] = useLocation();
   const slug = decodeDigitalProductSegment(params?.slug);
   const { isAuthenticated } = useAuth();
-  const supplierCatalog = trpc.marketplace.catalog.useQuery();
+  const productLookup = trpc.marketplace.catalog.useQuery({ page: 1, pageSize: 1, slug: slug || "", scope: "all" }, { enabled: Boolean(slug) });
+  const familyCatalog = trpc.marketplace.catalog.useQuery({ page: 1, pageSize: 96, familyName: productLookup.data?.items[0]?.name || "", scope: "all" }, { enabled: Boolean(productLookup.data?.items[0]?.name) });
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
   const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [cart, setCart] = useState<LiveCatalogProduct[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [fulfillmentDetails, setFulfillmentDetails] = useState<Record<string, string>>({});
-  const products = useMemo(() => filterPrimaryMarketProducts((supplierCatalog.data ?? []).map(toLiveCatalogProduct)), [supplierCatalog.data]);
+  const products = useMemo(() => (familyCatalog.data?.items ?? productLookup.data?.items ?? []).map(toLiveCatalogProduct), [familyCatalog.data?.items, productLookup.data?.items]);
   const product = products.find((item) => item.slug === slug && item.category !== "Top-up");
   const familyItems = useMemo(() => product ? products.filter((item) => item.category === product.category && item.name.toLowerCase() === product.name.toLowerCase()) : [], [product, products]);
   const selectedItem = familyItems.find((item) => item.id === selectedServiceId) ?? product;
@@ -70,7 +71,7 @@ export default function DigitalProductDetail() {
     if (!isAuthenticated) { toast.message("Sign in to use your VAMNUX wallet", { description: "Product orders require sufficient settled wallet balance; direct product payment is not offered." }); startLogin(); return; }
     createDraftOrder.mutate({ currency: "USD", items: cart.reduce<Array<{ productId: number; quantity: number }>>((items, item) => { const existing = items.find((line) => line.productId === item.id); if (existing) existing.quantity += 1; else items.push({ productId: item.id, quantity: 1 }); return items; }, []), fulfillmentDetails });
   };
-  if (supplierCatalog.isLoading) return <main className="family-page-loading"><Search size={28} /><p>Loading products…</p></main>;
+  if (productLookup.isLoading || familyCatalog.isLoading) return <main className="family-page-loading"><Search size={28} /><p>Loading products…</p></main>;
   if (!product) return <main className="family-page-loading"><ShieldCheck size={28} /><h1>Digital product unavailable.</h1><p>This product is not currently an active synchronised VAMNUX listing.</p><button onClick={() => setLocation("/")}>Back to catalog</button></main>;
   const isSaved = selectedItem ? customerDashboard.data?.savedProducts.some((savedProduct) => savedProduct.id === selectedItem.id) ?? false : false;
   const saveProduct = () => {

@@ -108,7 +108,15 @@ export const appRouter = router({
     }),
   }),
   marketplace: router({
-    catalog: publicProcedure.query(() => listActiveCatalogProducts()),
+    catalog: publicProcedure.input(z.object({
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(12).max(96).default(48),
+      category: z.enum(["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"]).optional(),
+      search: z.string().trim().max(100).optional(),
+      slug: z.string().trim().max(255).optional(),
+      familyName: z.string().trim().max(255).optional(),
+      scope: z.enum(["primary", "all"]).default("primary"),
+    }).optional()).query(({ input }) => listActiveCatalogProducts(input)),
     categories: publicProcedure.query(() => listMarketplaceCategories()),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     subscribeNewsletter: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), consent: z.literal(true) }))
@@ -294,7 +302,7 @@ export const appRouter = router({
     getFinanceAnalytics: adminProcedure.input(z.object({ start: z.coerce.date().optional(), end: z.coerce.date().optional() }).refine((input) => !input.start || !input.end || input.start <= input.end, { message: "Analytics start time must be before end time" }).optional()).query(({ input }) => getSuperAdminFinanceAnalytics(input)),
     getTrafficAnalytics: adminProcedure.input(z.object({ window: z.enum(["1d", "3d", "7d", "14d", "1m", "3m", "1y"]) })).query(({ input }) => getSuperAdminTrafficAnalytics(input.window)),
     getMarketplacePricingSettings: adminProcedure.query(() => getMarketplacePricingSettings()),
-    listCatalogPricing: adminProcedure.query(() => listCatalogPricing()),
+    listCatalogPricing: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listCatalogPricing(input?.limit)),
     listPriceChangeHistory: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPriceChangeHistory(input?.limit)),
     updateMarketplacePricingSettings: adminProcedure.input(z.object({ defaultMarkupPercent: z.number().min(-100).max(500) })).mutation(({ ctx, input }) => updateMarketplacePricingSettings({ ...input, adminUserId: ctx.user.id })),
     updateCatalogProductPricing: adminProcedure.input(z.object({
@@ -319,7 +327,7 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => reorderMarketplaceCategories({ ...input, adminUserId: ctx.user.id })),
     bulkUpdateMarketplaceCategoryStatus: adminProcedure.input(z.object({ categoryIds: z.array(z.number().int().positive()).min(1).max(100), action: z.enum(["hide", "archive", "show", "restore"]) }))
       .mutation(({ ctx, input }) => bulkUpdateMarketplaceCategoryStatus({ ...input, adminUserId: ctx.user.id })),
-    listAdminProductOperations: adminProcedure.query(() => listAdminProductOperations()),
+    listAdminProductOperations: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listAdminProductOperations(input?.limit)),
     updateProductAdminAttributes: adminProcedure.input(z.object({
       productId: z.number().int().positive(), storefrontStatus: z.enum(["visible", "hidden", "coming_soon"]), featured: z.boolean(), trending: z.boolean(), bestSeller: z.boolean(), newProduct: z.boolean(), deal: z.boolean(), seoTitle: z.string().trim().max(180).nullable().optional(), seoDescription: z.string().trim().max(300).nullable().optional(), internalNote: z.string().trim().max(5000).nullable().optional(),
     })).mutation(({ ctx, input }) => updateProductAdminAttributes({ ...input, adminUserId: ctx.user.id })),

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, lte, notInArray, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
@@ -1003,20 +1003,93 @@ export function previewFinancialControls(input: { customerSellingPrice: number; 
   return { ...financial, alerts, note: "Preview only. No product price, supplier cost, order, payment, wallet, transaction, or refund record was changed." };
 }
 
-export async function listActiveCatalogProducts() {
+export type PublicCatalogPageInput = {
+  page?: number;
+  pageSize?: number;
+  category?: "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars";
+  search?: string;
+  slug?: string;
+  familyName?: string;
+  scope?: "primary" | "all";
+};
+
+const PUBLIC_PRIMARY_TOP_UP_PREFIXES = ["arena breakout", "bigo live diamonds", "free fire global", "mobile legends global", "pubg mobile", "ragnarok origin"];
+const PUBLIC_GLOBAL_REGION_LABELS = ["global", "glb", "worldwide", "ww"];
+const PUBLIC_CATALOG_CATEGORIES: NonNullable<PublicCatalogPageInput["category"]>[] = ["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"];
+
+function publicPrimaryCatalogCondition() {
+  const normalizedName = sql<string>`lower(${products.name})`;
+  const normalizedRegion = sql<string>`lower(coalesce(${products.regionLabel}, ''))`;
+  return or(
+    and(eq(products.category, "top_up"), or(...PUBLIC_PRIMARY_TOP_UP_PREFIXES.map((family) => like(normalizedName, `${family}%`)))),
+    eq(products.category, "telegram_stars"),
+    and(inArray(products.category, ["steam", "steam_top_up"]), or(...PUBLIC_GLOBAL_REGION_LABELS.map((region) => like(normalizedRegion, region)))),
+  );
+}
+
+function publicCatalogSearchCondition(search: string) {
+  const normalized = search.trim().toLowerCase().slice(0, 100);
+  if (!normalized) return undefined;
+  const pattern = `%${normalized}%`;
+  return or(
+    like(sql<string>`lower(${products.name})`, pattern),
+    like(sql<string>`lower(coalesce(${products.regionLabel}, ''))`, pattern),
+    like(sql<string>`lower(coalesce(${products.supplierCategory}, ''))`, pattern),
+  );
+}
+
+export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {
   const db = await getDb();
-  if (!db) return [];
+  const page = Math.max(1, Math.floor(input.page ?? 1));
+  const pageSize = Math.min(96, Math.max(12, Math.floor(input.pageSize ?? 48)));
+  const empty = { items: [], page, pageSize, total: 0, hasMore: false, categoryCounts: {} as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> };
+  if (!db) return empty;
   await ensureDefaultMarketplaceCategories(db);
-  const settings = await ensureMarketplacePricingSettings(db);
-  const activeProducts = await db.select().from(products).where(eq(products.status, "active")).orderBy(desc(products.createdAt));
-  const visibleCategoryRows = await db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true)));
+  const [settings, visibleCategoryRows, hiddenRows] = await Promise.all([
+    ensureMarketplacePricingSettings(db),
+    db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true))),
+    db.select({ productId: productAdminAttributes.productId }).from(productAdminAttributes).where(eq(productAdminAttributes.storefrontStatus, "hidden")),
+  ]);
   const visibleCategorySlugs = new Set(visibleCategoryRows.map((category) => category.slug));
-  const attributes = await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, newProduct: productAdminAttributes.newProduct, deal: productAdminAttributes.deal })
-    .from(productAdminAttributes);
+  const visibleProductCategories = PUBLIC_CATALOG_CATEGORIES.filter((category) => visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(category)));
+  if (!visibleProductCategories.length) return empty;
+  const hiddenIds = hiddenRows.map((row) => row.productId);
+  const normalizedFamily = input.familyName?.trim().toLowerCase();
+  const conditions = [
+    eq(products.status, "active"),
+    inArray(products.category, visibleProductCategories),
+    input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
+    hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
+    input.category ? eq(products.category, input.category) : undefined,
+    input.slug ? eq(products.slug, input.slug) : undefined,
+    normalizedFamily ? or(eq(sql<string>`lower(${products.name})`, normalizedFamily), like(sql<string>`lower(${products.name})`, `${normalizedFamily} —%`)) : undefined,
+    input.search ? publicCatalogSearchCondition(input.search) : undefined,
+  ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
+  const where = and(...conditions);
+  const [totalRows, rows, categoryCountsRows] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` }).from(products).where(where),
+    db.select().from(products).where(where).orderBy(desc(products.createdAt), desc(products.id)).limit(pageSize).offset((page - 1) * pageSize),
+    db.select({ category: products.category, count: sql<number>`count(*)` }).from(products).where(and(
+      eq(products.status, "active"),
+      inArray(products.category, visibleProductCategories),
+      input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
+      hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
+    )).groupBy(products.category),
+  ]);
+  const attributes = rows.length
+    ? await db.select({ productId: productAdminAttributes.productId, storefrontStatus: productAdminAttributes.storefrontStatus, featured: productAdminAttributes.featured, trending: productAdminAttributes.trending, bestSeller: productAdminAttributes.bestSeller, newProduct: productAdminAttributes.newProduct, deal: productAdminAttributes.deal }).from(productAdminAttributes).where(inArray(productAdminAttributes.productId, rows.map((product) => product.id)))
+    : [];
   const attributesByProductId = new Map(attributes.map((attribute) => [attribute.productId, attribute]));
-  return activeProducts
-    .filter((product) => attributesByProductId.get(product.id)?.storefrontStatus !== "hidden" && visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(product.category)))
-    .map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null }));
+  const categoryCounts = Object.fromEntries(categoryCountsRows.map((row) => [row.category, Number(row.count)])) as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>>;
+  const total = Number(totalRows[0]?.count ?? 0);
+  return {
+    items: rows.map((product) => ({ ...product, ...customerPriceForProduct(product, settings), storefrontAttributes: attributesByProductId.get(product.id) ?? null })),
+    page,
+    pageSize,
+    total,
+    hasMore: page * pageSize < total,
+    categoryCounts,
+  };
 }
 
 export async function getMarketplacePricingSettings() {
@@ -1048,10 +1121,10 @@ export async function updateMarketplacePricingSettings(input: { defaultMarkupPer
   return getMarketplacePricingSettings();
 }
 
-export async function listCatalogPricing() {
+export async function listCatalogPricing(limit = 100) {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
-  const catalog = await db.select().from(products).orderBy(desc(products.updatedAt));
+  const catalog = await db.select().from(products).orderBy(desc(products.updatedAt)).limit(Math.min(250, Math.max(1, limit)));
   return catalog.map((product) => ({
     id: product.id, name: product.name, slug: product.slug, supplierKey: product.supplierKey, category: product.category, status: product.status,
     supplierBasePrice: Number(product.basePrice),
@@ -1556,12 +1629,12 @@ export async function upsertExchangeRate(input: { baseCurrency: string; quoteCur
 }
 
 /** Storefront presentation settings are additive to supplier catalog records and never replace supplier source data. */
-export async function listAdminProductOperations() {
+export async function listAdminProductOperations(limit = 100) {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
   const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
     .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
-    .orderBy(desc(products.updatedAt));
+    .orderBy(desc(products.updatedAt)).limit(Math.min(250, Math.max(1, limit)));
   return rows.map(({ product, attributes }) => {
     const price = customerPriceForProduct(product, settings);
     return {

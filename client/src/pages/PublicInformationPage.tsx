@@ -74,12 +74,9 @@ export function PublicHeader() {
 }
 
 function CatalogShelf({ category, pagePath }: { category?: CatalogCategory; pagePath: string }) {
-  const catalog = trpc.marketplace.catalog.useQuery();
+  const catalog = trpc.marketplace.catalog.useQuery({ page: 1, pageSize: 48, category, scope: "all", search: pagePath === "/game-keys" ? "key" : undefined });
   const products = useMemo(() => {
-    const active = catalog.data ?? [];
-    if (pagePath === "/game-keys") return active.filter((product) => /key|code/i.test(`${product.name} ${product.description || ""}`));
-    if (!category) return active;
-    return active.filter((product) => product.category === category);
+    return catalog.data?.items ?? [];
   }, [catalog.data, category, pagePath]);
 
   if (catalog.isLoading) return <div className="info-state">Loading the active VAMNUX catalog…</div>;
