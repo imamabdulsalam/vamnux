@@ -28,6 +28,7 @@ import { FULFILLMENT_ORDER_STATUSES } from "../shared/supplierFulfillment";
 import { getFinancialControlsDashboard, previewFinancialControls } from "./db";
 import { getCatalogPreparationComparison, getCatalogPreparationSummary, keepCatalogPreparationProductsSeparate, listCatalogPreparationProducts } from "./db";
 import { addTopUpPilotOfferForReview, approveTopUpPilotOffer, createTopUpPilotMaster, getTopUpCatalogPilot, keepTopUpPilotProductsSeparate, markTopUpPilotProductReviewed, rejectTopUpPilotOffer } from "./db";
+import { MOBILE_LEGENDS_ADAPTER_PROFILES, simulateSupplierInputAdapter, SUPPLIER_INPUT_ADAPTER_MODE } from "../shared/supplierInputAdapter";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -71,6 +72,13 @@ const currencyRateFrequencySchema = z.enum(CURRENCY_RATE_UPDATE_FREQUENCIES);
 const supplierRoutingStrategySchema = z.enum(SUPPLIER_ROUTING_STRATEGIES);
 const fulfillmentOrderStatusSchema = z.enum(FULFILLMENT_ORDER_STATUSES);
 const catalogPreparationStatusSchema = z.enum(["UNMAPPED", "REVIEW REQUIRED", "APPROVED MATCH", "REJECTED MATCH"]);
+const supplierAdapterCanonicalInputSchema = z.object({
+  gameUserId: z.string().trim().min(1).max(80),
+  serverId: z.string().trim().min(1).max(80),
+  region: z.enum(["GLOBAL", "RUSSIA"]),
+  productId: z.string().trim().min(1).max(120),
+  denomination: z.string().trim().min(1).max(32),
+});
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -249,6 +257,8 @@ export const appRouter = router({
     approveTopUpPilotOffer: adminProcedure.input(z.object({ supplierOfferId: z.number().int().positive(), note: z.string().trim().max(500).nullable().optional() })).mutation(({ ctx, input }) => approveTopUpPilotOffer({ ...input, adminUserId: ctx.user.id })),
     rejectTopUpPilotOffer: adminProcedure.input(z.object({ supplierOfferId: z.number().int().positive(), note: z.string().trim().max(500).nullable().optional() })).mutation(({ ctx, input }) => rejectTopUpPilotOffer({ ...input, adminUserId: ctx.user.id })),
     keepTopUpPilotProductsSeparate: adminProcedure.input(z.object({ leftProductId: z.number().int().positive(), rightProductId: z.number().int().positive(), note: z.string().trim().max(500).nullable().optional() })).mutation(({ ctx, input }) => keepTopUpPilotProductsSeparate({ ...input, adminUserId: ctx.user.id })),
+    listSupplierInputAdapterProfiles: adminProcedure.query(() => ({ mode: SUPPLIER_INPUT_ADAPTER_MODE, profiles: MOBILE_LEGENDS_ADAPTER_PROFILES })),
+    previewSupplierInputAdapter: adminProcedure.input(z.object({ pairId: z.string().trim().min(1).max(120), canonicalInput: supplierAdapterCanonicalInputSchema })).mutation(({ input }) => simulateSupplierInputAdapter(input)),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),
