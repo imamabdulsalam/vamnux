@@ -37,8 +37,14 @@ describe("Supplier Product Mapping", () => {
     expect(dbSource).toContain("Only a PENDING REVIEW mapping can be approved");
     expect(dbSource).toContain("Supplier products may only be reviewed against a Master Product in the exact same category.");
     expect(dbSource).not.toContain("automaticSupplierMapping");
-    expect(uiSource).toContain("No automatic matching exists in this workspace.");
-    expect(uiSource).toContain("five Telegram Stars candidate groups remain separate");
+    expect(uiSource).toContain("no automatic matching exists in this workspace.");
+    expect(uiSource).toContain("Telegram Stars and Mobile Legends adapter candidates remain separate");
+  });
+
+  it("counts populated but still UNMAPPED Supplier Offer snapshots by their mapping status", () => {
+    expect(dbSource).toContain('const unmappedCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "UNMAPPED").length;');
+    expect(dbSource).toContain("unmappedProductCount: unmappedCount + Math.max(0, totalLegacyProducts - supplierOfferRows.length)");
+    expect(uiSource).toContain("Every legacy product has a traceable Supplier Offer snapshot.");
   });
 
   it("keeps mapping data owner-only and does not expose credentials to browser code", () => {

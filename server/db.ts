@@ -306,12 +306,13 @@ function createMasterProductKey(category: SupplierMappingCategory, attributes: M
 }
 
 function mappingStatusSummary(totalLegacyProducts: number, supplierOfferRows: Array<{ mappingStatus: MappingStatus }>) {
+  const unmappedCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "UNMAPPED").length;
   const pendingReviewCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "PENDING REVIEW").length;
   const approvedMappingCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "APPROVED").length;
   const rejectedMappingCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "REJECTED").length;
   return {
     mappedProductCount: approvedMappingCount,
-    unmappedProductCount: Math.max(0, totalLegacyProducts - supplierOfferRows.length),
+    unmappedProductCount: unmappedCount + Math.max(0, totalLegacyProducts - supplierOfferRows.length),
     requiringAdminReviewCount: pendingReviewCount,
     approvedMappingCount,
     rejectedMappingCount,
