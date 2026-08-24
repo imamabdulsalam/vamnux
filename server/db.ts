@@ -520,6 +520,103 @@ export async function keepCatalogPreparationProductsSeparate(input: { leftProduc
   return { status: "UNMAPPED" as const, detail: "Products remain separate. No Master Product, Supplier Offer, price, supplier link, or storefront record was changed." };
 }
 
+const TOP_UP_PILOT_LIMIT = 25;
+const TOP_UP_PILOT_ACTION = "catalog_pilot.";
+type MarketplaceDb = NonNullable<Awaited<ReturnType<typeof getDb>>>;
+
+async function getTopUpPilotCandidateRows(db: MarketplaceDb) {
+  const settings = await ensureMarketplacePricingSettings(db);
+  const rows = await db.select({ product: products, offerId: supplierOffers.id, masterProductId: supplierOffers.masterProductId, mappingStatus: supplierOffers.mappingStatus }).from(products)
+    .leftJoin(supplierOffers, eq(products.id, supplierOffers.legacyProductId))
+    .where(eq(products.category, "top_up")).orderBy(products.id).limit(TOP_UP_PILOT_LIMIT);
+  return rows.map((row, index) => ({ candidateNumber: index + 1, ...toCatalogPreparationProduct(row, settings) }));
+}
+
+async function assertTopUpPilotCandidate(db: MarketplaceDb, legacyProductId: number) {
+  const candidates = await getTopUpPilotCandidateRows(db);
+  const candidate = candidates.find((row) => row.id === legacyProductId);
+  if (!candidate) throw new Error("This supplier product is outside the fixed 25-product Game Top-Up pilot cohort.");
+  return candidate;
+}
+
+async function getTopUpPilotOffer(db: MarketplaceDb, supplierOfferId: number) {
+  const [offer] = await db.select().from(supplierOffers).where(eq(supplierOffers.id, supplierOfferId)).limit(1);
+  if (!offer) throw new Error("Supplier Offer review record was not found.");
+  await assertTopUpPilotCandidate(db, offer.legacyProductId);
+  return offer;
+}
+
+/** Fixed, read-only first cohort for the controlled Step 10 Game Top-Up pilot. It never creates a mapping or alters a legacy product. */
+export async function getTopUpCatalogPilot() {
+  const db = requireDb(await getDb());
+  const candidates = await getTopUpPilotCandidateRows(db);
+  const candidateIds = new Set(candidates.map((candidate) => candidate.id));
+  const auditRows = await db.select({ action: adminAuditEvents.action, targetId: adminAuditEvents.targetId, metadata: adminAuditEvents.metadata, createdAt: adminAuditEvents.createdAt }).from(adminAuditEvents).where(like(adminAuditEvents.action, `${TOP_UP_PILOT_ACTION}%`)).orderBy(desc(adminAuditEvents.createdAt)).limit(500);
+  const actions = auditRows.filter((event) => {
+    const metadata = event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata) ? event.metadata as Record<string, unknown> : {};
+    const ids = Array.isArray(metadata.legacyProductIds) ? metadata.legacyProductIds.map(Number) : [Number(metadata.legacyProductId ?? event.targetId)];
+    return ids.some((id) => candidateIds.has(id));
+  });
+  const uniqueTargetsFor = (action: string) => new Set(actions.filter((event) => event.action === action).flatMap((event) => {
+    const metadata = event.metadata && typeof event.metadata === "object" && !Array.isArray(event.metadata) ? event.metadata as Record<string, unknown> : {};
+    return Array.isArray(metadata.legacyProductIds) ? metadata.legacyProductIds.map(Number) : [Number(metadata.legacyProductId ?? event.targetId)];
+  }).filter((id) => candidateIds.has(id)));
+  const reviewedIds = uniqueTargetsFor("catalog_pilot.reviewed");
+  const keptSeparateIds = uniqueTargetsFor("catalog_pilot.kept_separate");
+  const approvedIds = uniqueTargetsFor("catalog_pilot.offer_approved");
+  const rejectedIds = uniqueTargetsFor("catalog_pilot.offer_rejected");
+  const terminalIds = new Set<number>(Array.from(keptSeparateIds).concat(Array.from(approvedIds), Array.from(rejectedIds)));
+  return { pilot: { category: "top_up" as const, limit: TOP_UP_PILOT_LIMIT, automaticActionsDisabled: true, liveRoutingDisabled: true, liveFulfillmentDisabled: true }, candidates, outcome: { productsReviewed: reviewedIds.size, masterProductsCreated: actions.filter((event) => event.action === "catalog_pilot.master_created").length, supplierOffersCreated: actions.filter((event) => event.action === "catalog_pilot.offer_created").length, approved: approvedIds.size, rejected: rejectedIds.size, keptSeparate: keptSeparateIds.size, requiringFurtherAdminReview: candidates.filter((candidate) => !terminalIds.has(candidate.id)).map((candidate) => ({ id: candidate.id, name: candidate.name, supplierName: candidate.supplierName, supplierProductId: candidate.supplierProductId, reason: "No explicit approved, rejected, or keep-separate Admin pilot outcome has been recorded." })), auditEvents: actions.slice(0, 50) } };
+}
+
+/** Records only an Admin acknowledgement that a pilot candidate was reviewed; it does not create or modify a mapping. */
+export async function markTopUpPilotProductReviewed(input: { legacyProductId: number; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const candidate = await assertTopUpPilotCandidate(db, input.legacyProductId);
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog_pilot.reviewed", targetType: "legacy_supplier_product", targetId: String(candidate.id), summary: `Reviewed Game Top-Up pilot candidate ${candidate.name}`, metadata: { legacyProductId: candidate.id, category: "top_up", note: input.note?.trim().slice(0, 500) || null, mappingChanged: false } });
+  return { legacyProductId: candidate.id, status: "REVIEWED" as const };
+}
+
+export async function createTopUpPilotMaster(input: { legacyProductId: number; name: string; subcategory?: string | null; productType?: string | null; regionLabel?: string | null; currency?: string | null; denomination?: string | null; imageUrl?: string | null; mappingAttributes: Record<string, unknown>; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const candidate = await assertTopUpPilotCandidate(db, input.legacyProductId);
+  const created = await createSupplierProductMappingMaster({ ...input, category: "top_up" });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog_pilot.master_created", targetType: "master_product", targetId: String(created.id), summary: `Created pilot draft Master Product ${created.name}`, metadata: { legacyProductId: candidate.id, masterProductId: created.id, category: "top_up", automatic: false } });
+  return created;
+}
+
+export async function addTopUpPilotOfferForReview(input: { masterProductId: number; legacyProductId: number; mappingAttributes: Record<string, unknown>; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const candidate = await assertTopUpPilotCandidate(db, input.legacyProductId);
+  const result = await addSupplierOfferToMasterForReview(input);
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog_pilot.offer_created", targetType: "supplier_offer", targetId: String(result.supplierOfferId), summary: `Created REVIEW REQUIRED Game Top-Up pilot Supplier Offer`, metadata: { legacyProductId: candidate.id, supplierOfferId: result.supplierOfferId, masterProductId: result.masterProductId, category: "top_up", automatic: false } });
+  return result;
+}
+
+export async function approveTopUpPilotOffer(input: { supplierOfferId: number; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const offer = await getTopUpPilotOffer(db, input.supplierOfferId);
+  const result = await approveSupplierOfferMapping(input);
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog_pilot.offer_approved", targetType: "supplier_offer", targetId: String(offer.id), summary: "Approved Game Top-Up pilot Supplier Offer mapping", metadata: { legacyProductId: offer.legacyProductId, supplierOfferId: offer.id, category: "top_up", automatic: false } });
+  return result;
+}
+
+export async function rejectTopUpPilotOffer(input: { supplierOfferId: number; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const offer = await getTopUpPilotOffer(db, input.supplierOfferId);
+  const result = await rejectSupplierOfferMapping(input);
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog_pilot.offer_rejected", targetType: "supplier_offer", targetId: String(offer.id), summary: "Rejected Game Top-Up pilot Supplier Offer mapping", metadata: { legacyProductId: offer.legacyProductId, supplierOfferId: offer.id, category: "top_up", automatic: false } });
+  return result;
+}
+
+export async function keepTopUpPilotProductsSeparate(input: { leftProductId: number; rightProductId: number; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  await Promise.all([assertTopUpPilotCandidate(db, input.leftProductId), assertTopUpPilotCandidate(db, input.rightProductId)]);
+  const result = await keepCatalogPreparationProductsSeparate(input);
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "catalog_pilot.kept_separate", targetType: "legacy_supplier_products", targetId: `${input.leftProductId}:${input.rightProductId}`, summary: "Kept Game Top-Up pilot products separate", metadata: { legacyProductIds: [input.leftProductId, input.rightProductId], category: "top_up", note: input.note?.trim().slice(0, 500) || null, automatic: false, mappingChanged: false } });
+  return result;
+}
+
 /** Creates an empty VAMNUX-owned Master Product only after an owner supplies exact category identity attributes. */
 export async function createSupplierProductMappingMaster(input: { name: string; category: SupplierMappingCategory; subcategory?: string | null; productType?: string | null; regionLabel?: string | null; currency?: string | null; denomination?: string | null; imageUrl?: string | null; mappingAttributes: Record<string, unknown>; adminUserId: number }) {
   const db = requireDb(await getDb());
