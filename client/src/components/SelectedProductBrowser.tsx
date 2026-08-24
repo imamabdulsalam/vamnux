@@ -26,7 +26,7 @@ export default function SelectedProductBrowser({ products, formatPrice, onOpenPr
   return <div className="selected-product-browser">
     <div className="selected-browser-list" aria-label="Available products">
       <div className="selected-browser-list-head"><span>{products.length} available {products.length === 1 ? "product" : "products"}</span><span>Choose one to preview</span></div>
-      <div className="selected-browser-scroll">
+      <div className="selected-browser-scroll" aria-label="Scroll through all available products">
         {products.map((product) => {
           const presentation = catalogProductPresentation(product);
           const isSelected = selectedProduct.id === product.id;

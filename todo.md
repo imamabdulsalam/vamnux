@@ -767,3 +767,6 @@
 - [x] Identify the remaining catalog refresh trigger and rendering shift that produces the visible Updating products banner, without changing catalog data.
 - [x] Remove visible catalog refresh banners and prevent unnecessary background catalog refreshes while keeping search, filters, and automatic pagination stable.
 - [x] Verify silent stable catalog browsing across product lists and routes, run regression tests/build, checkpoint, and push the correction to GitHub.
+- [x] Assess selected catalog result sizes and rendering limits so full selected-result browsing can be restored without changing catalog records.
+- [x] Replace incremental automatic catalog paging with a single stable full selected-result request that supports normal user scrolling and server-side search without visible loading indicators.
+- [x] Validate full selected-result browsing, search, responsive rendering, tests/build, checkpoint, and GitHub push.

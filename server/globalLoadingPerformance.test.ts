@@ -8,9 +8,10 @@ const adminSource = fs.readFileSync(path.join(root, "client/src/pages/SuperAdmin
 const dbSource = fs.readFileSync(path.join(root, "server/db.ts"), "utf8");
 
 describe("global loading performance safeguards", () => {
-  it("keeps continuous catalog browsing automatic and does not restore a manual show-more interruption", () => {
-    expect(homeSource).toContain("IntersectionObserver");
-    expect(homeSource).toContain("catalogLoadMoreRef");
+  it("loads complete selected results once and does not restore incremental catalog reading", () => {
+    expect(homeSource).toContain("pageSize: 10_000");
+    expect(homeSource).not.toContain("IntersectionObserver");
+    expect(homeSource).not.toContain("catalogLoadMoreRef");
     expect(homeSource).not.toContain("Show more products (");
   });
 

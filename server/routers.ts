@@ -110,7 +110,7 @@ export const appRouter = router({
   marketplace: router({
     catalog: publicProcedure.input(z.object({
       page: z.number().int().min(1).default(1),
-      pageSize: z.number().int().min(12).max(96).default(48),
+      pageSize: z.number().int().min(12).max(10_000).default(48),
       category: z.enum(["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"]).optional(),
       gamePlatform: z.enum(["steam", "xbox", "playstation", "nintendo", "battlenet", "ea", "ubisoft", "mobile", "quest"]).optional(),
       search: z.string().trim().max(100).optional(),
