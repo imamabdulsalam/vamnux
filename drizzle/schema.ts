@@ -449,6 +449,52 @@ export const marketplaceCategories = mysqlTable("marketplace_categories", {
   publicOrderIndex: index("marketplace_categories_public_order_idx").on(table.status, table.visible, table.sortOrder),
 }));
 
+/**
+ * Prepared child taxonomy for the managed marketplace categories. These rows
+ * are additive and do not alter a legacy product's category, source identity,
+ * supplier cost, customer price, or public catalog visibility.
+ */
+export const marketplaceSubcategories = mysqlTable("marketplace_subcategories", {
+  id: int("id").autoincrement().primaryKey(),
+  slug: varchar("slug", { length: 120 }).notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  parentCategory: mysqlEnum("parentCategory", ["top_up", "gift_card", "game_key", "subscription", "ai_tool", "software", "steam", "steam_top_up", "telegram_stars"]).notNull(),
+  description: text("description"),
+  evidenceType: mysqlEnum("evidenceType", ["supplier_platform", "owner_reference", "safety_unclassified"]).notNull(),
+  assignmentPolicy: mysqlEnum("assignmentPolicy", ["automatic_evidence_only", "admin_review_only"]).notNull(),
+  sourceSupplierKey: varchar("sourceSupplierKey", { length: 80 }),
+  status: mysqlEnum("status", ["draft", "active", "archived"]).default("draft").notNull(),
+  visible: boolean("visible").default(false).notNull(),
+  metadata: json("metadata"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  slugUnique: uniqueIndex("marketplace_subcategories_slug_unique").on(table.slug),
+  parentStatusIndex: index("marketplace_subcategories_parent_status_idx").on(table.parentCategory, table.status, table.visible),
+}));
+
+/**
+ * Additive product-to-subcategory preparation records. The unique product link
+ * protects against duplicate classifications; absence of supplier proof is
+ * preserved as an explicit Admin Review or Unclassified outcome.
+ */
+export const productSubcategoryClassifications = mysqlTable("product_subcategory_classifications", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  parentCategory: mysqlEnum("parentCategory", ["top_up", "gift_card", "game_key", "subscription", "ai_tool", "software", "steam", "steam_top_up", "telegram_stars"]).notNull(),
+  marketplaceSubcategoryId: int("marketplaceSubcategoryId").notNull(),
+  classificationStatus: mysqlEnum("classificationStatus", ["SAFE", "ADMIN_REVIEW", "UNCLASSIFIED"]).notNull(),
+  evidenceType: mysqlEnum("evidenceType", ["supplier_platform", "owner_reference", "missing_supplier_data"]).notNull(),
+  evidence: json("evidence"),
+  classificationSource: varchar("classificationSource", { length: 120 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  productUnique: uniqueIndex("product_subcategory_classifications_product_unique").on(table.productId),
+  subcategoryStatusIndex: index("product_subcategory_classifications_subcategory_status_idx").on(table.marketplaceSubcategoryId, table.classificationStatus),
+  parentStatusIndex: index("product_subcategory_classifications_parent_status_idx").on(table.parentCategory, table.classificationStatus),
+}));
+
 /** Admin-managed product presentation flags and internal notes. Never stores supplier secrets or digital fulfilment codes. */
 export const productAdminAttributes = mysqlTable("product_admin_attributes", {
   id: int("id").autoincrement().primaryKey(),

@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, marketplaceSubcategories, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productSubcategoryClassifications, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -18,6 +18,7 @@ import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzl
 import { customerProductRequests } from "../drizzle/schema";
 import { masterProducts, supplierOfferMappingReviews, supplierOffers } from "../drizzle/schema";
 import { isSupplierMappingCategory, mappingAttributesMatch, mappingIdentityValue, normalizeMappingAttributes, type MappingAttributes, type MappingStatus, type SupplierMappingCategory } from "../shared/supplierProductMapping";
+import { classifyExistingProductForGamesDropPreparation, GAMESDROP_PREPARED_SUBCATEGORIES } from "../shared/gamesdropCategoryPreparation";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -1360,6 +1361,117 @@ export async function updateMarketplaceCategory(input: MarketplaceCategoryInput 
     metadata: { previousSlug: existing.slug, nextSlug: slug, previousStatus: existing.status, nextStatus: input.status ?? existing.status },
   });
   return { id: existing.id, slug, name };
+}
+
+/**
+ * Prepared GamesDrop taxonomy stays private until a later explicit storefront
+ * decision. It never creates supplier products or changes legacy product rows.
+ */
+export async function listMarketplaceSubcategoryPreparation() {
+  const db = requireDb(await getDb());
+  return db.select({
+    id: marketplaceSubcategories.id,
+    slug: marketplaceSubcategories.slug,
+    name: marketplaceSubcategories.name,
+    parentCategory: marketplaceSubcategories.parentCategory,
+    description: marketplaceSubcategories.description,
+    evidenceType: marketplaceSubcategories.evidenceType,
+    assignmentPolicy: marketplaceSubcategories.assignmentPolicy,
+    sourceSupplierKey: marketplaceSubcategories.sourceSupplierKey,
+    status: marketplaceSubcategories.status,
+    visible: marketplaceSubcategories.visible,
+  }).from(marketplaceSubcategories)
+    .orderBy(marketplaceSubcategories.parentCategory, marketplaceSubcategories.name);
+}
+
+/**
+ * Seeds only reviewed category definitions and creates a separate, immutable
+ * preparation record for every currently unclassified Games or Top-up product.
+ * An existing classification is intentionally never overwritten.
+ */
+export async function prepareGamesDropCategoryStructure(input: { adminUserId: number }) {
+  const db = requireDb(await getDb());
+  return db.transaction(async (tx) => {
+    const existingSubcategories = await tx.select({ slug: marketplaceSubcategories.slug }).from(marketplaceSubcategories);
+    const existingSlugs = new Set(existingSubcategories.map((subcategory) => subcategory.slug));
+    const definitionsToCreate = GAMESDROP_PREPARED_SUBCATEGORIES.filter((subcategory) => !existingSlugs.has(subcategory.slug));
+    if (definitionsToCreate.length) {
+      await tx.insert(marketplaceSubcategories).values(definitionsToCreate.map((subcategory) => ({
+        slug: subcategory.slug,
+        name: subcategory.name,
+        parentCategory: subcategory.parentCategory,
+        description: subcategory.description,
+        evidenceType: subcategory.evidenceType,
+        assignmentPolicy: subcategory.assignmentPolicy,
+        sourceSupplierKey: subcategory.sourceSupplierKey,
+        status: "draft" as const,
+        visible: false,
+        metadata: { preparedFor: "gamesdrop_category_preparation_v1" },
+      })));
+    }
+
+    const subcategories = await tx.select({ id: marketplaceSubcategories.id, slug: marketplaceSubcategories.slug })
+      .from(marketplaceSubcategories)
+      .where(inArray(marketplaceSubcategories.slug, GAMESDROP_PREPARED_SUBCATEGORIES.map((subcategory) => subcategory.slug)));
+    const subcategoryIdBySlug = new Map(subcategories.map((subcategory) => [subcategory.slug, subcategory.id]));
+    const existingClassifications = await tx.select({ productId: productSubcategoryClassifications.productId })
+      .from(productSubcategoryClassifications);
+    const classifiedProductIds = new Set(existingClassifications.map((classification) => classification.productId));
+    const candidateProducts = await tx.select({
+      id: products.id,
+      category: products.category,
+      supplierKey: products.supplierKey,
+      metadata: products.metadata,
+    }).from(products).where(or(eq(products.category, "steam"), eq(products.category, "top_up")));
+
+    const classifications = candidateProducts
+      .filter((product) => !classifiedProductIds.has(product.id))
+      .map(classifyExistingProductForGamesDropPreparation)
+      .filter((classification): classification is NonNullable<typeof classification> => classification !== null)
+      .map((classification) => {
+        const marketplaceSubcategoryId = subcategoryIdBySlug.get(classification.subcategorySlug);
+        if (!marketplaceSubcategoryId) throw new Error(`Prepared subcategory ${classification.subcategorySlug} is missing`);
+        const product = candidateProducts.find((candidate) => candidate.id === classification.productId);
+        if (!product) throw new Error(`Prepared product ${classification.productId} is missing`);
+        return {
+          productId: classification.productId,
+          parentCategory: product.category,
+          marketplaceSubcategoryId,
+          classificationStatus: classification.status,
+          evidenceType: classification.evidenceType,
+          evidence: classification.evidence,
+          classificationSource: "gamesdrop_category_preparation_v1",
+        };
+      });
+    if (classifications.length) await tx.insert(productSubcategoryClassifications).values(classifications);
+
+    const safeCount = classifications.filter((classification) => classification.classificationStatus === "SAFE").length;
+    const adminReviewCount = classifications.filter((classification) => classification.classificationStatus === "ADMIN_REVIEW").length;
+    const unclassifiedCount = classifications.filter((classification) => classification.classificationStatus === "UNCLASSIFIED").length;
+    await tx.insert(adminAuditEvents).values({
+      adminUserId: input.adminUserId,
+      action: "catalog.gamesdrop_category_prepared",
+      targetType: "gamesdrop_category_preparation",
+      targetId: "v1",
+      summary: "Prepared GamesDrop-supported Games and Top-up subcategories without importing supplier products",
+      metadata: {
+        createdSubcategories: definitionsToCreate.length,
+        preservedExistingClassifications: classifiedProductIds.size,
+        createdClassifications: classifications.length,
+        safeCount,
+        adminReviewCount,
+        unclassifiedCount,
+      },
+    });
+    return {
+      createdSubcategories: definitionsToCreate.length,
+      preservedExistingClassifications: classifiedProductIds.size,
+      createdClassifications: classifications.length,
+      safeCount,
+      adminReviewCount,
+      unclassifiedCount,
+    };
+  });
 }
 
 export async function reorderMarketplaceCategories(input: { categoryIds: number[]; adminUserId: number }) {
