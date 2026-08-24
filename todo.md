@@ -740,3 +740,7 @@
 - [x] Identify the Bulnix reference font and the current VAMNUX global typography configuration without re-reading the supplied images or changing any non-typographic design property.
 - [x] Apply only the selected reference font family across storefront, product/category pages, User Dashboard, and Admin Panel while preserving wording, colors, layouts, spacing, controls, interactions, and functionality.
 - [x] Verify typography coverage across desktop and mobile storefront, User Dashboard, and Admin Panel views; run focused tests/build and publish the typography-only update.
+
+- [x] Inspect all customer-facing View Details entry points, product-list selectors, and product detail presentation styles without changing products, prices, categories, supplier information, cart behavior, colors, dashboards, or Admin views.
+- [x] Refine only the View Details product-list/detail visual hierarchy and typography to use moderate readable sizing and a clearer responsive presentation for every product category, while preserving all data and interactions.
+- [x] Verify desktop and mobile product list/detail views, add focused presentation coverage, run TypeScript/tests/build, and publish the presentation-only update.
