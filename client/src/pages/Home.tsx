@@ -553,9 +553,6 @@ export default function Home() {
             <div className="terminal-bars"><i /><i /><i /><i /><i /><i /><i /></div>
             <div className="terminal-bottom"><span>READY</span><span>{String(activeSlide + 1).padStart(2, "0")} / {String(carouselSlides.length).padStart(2, "0")}</span></div>
           </div>
-          <div className="carousel-controls" aria-label="Carousel slides">
-            {carouselSlides.map((item, index) => <button key={`${item.key}-${index}`} onClick={() => setActiveSlide(index)} aria-label={`Show ${item.kicker}`} className={activeSlide === index ? "active" : ""}>{String(index + 1).padStart(2, "0")}</button>)}
-          </div>
         </div>
       </section>
 

@@ -733,3 +733,6 @@
 - [x] Reassign the duplicate Steam-admin category products to Games with an audit record, then retire Steam from the Admin Categories workspace while preserving all prices, supplier links, mappings, orders, wallets, and unrelated category behavior.
 - [x] Confirm the Admin Categories workspace shows the moved products under Games and no separate Steam category, without changing storefront category labels, layout, routes, pricing, supplier data, or any other website area.
 - [x] Verify the Admin-only correction with database checks, focused tests, production build, and visual review; publish and push the verified update.
+
+- [x] Remove only the numbered 01–07 hero slide navigation strip and underline indicators from the storefront while preserving automatic slide changes, slide content, timing, hero styling, and all other pages.
+- [x] Verify the storefront hero continues to rotate without the numbered indicators, add focused regression coverage, and publish the verified update.
