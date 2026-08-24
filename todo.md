@@ -785,3 +785,5 @@
 - [x] Audit existing Top-up product metadata and shared category components to identify evidence-bound Direct Top Up and Activation Codes filters without changing product records.
 - [x] Create a shared Top-up subcategory model for All, Direct Top Up, and Activation Codes across the dedicated catalog page, User Dashboard, and Admin Panel.
 - [x] Validate Top-up All/subcategory browsing across catalog, User Dashboard, and Admin Panel; run regression tests/build; checkpoint; and push the update to GitHub.
+- [x] Remove the Games and Top-up subcategory sections only from the User Dashboard, without changing website catalog or Admin Panel subcategory displays.
+- [x] Verify the User Dashboard no longer shows the subcategory sections while catalog and Admin views retain them; run regression tests/build, checkpoint, and push the targeted correction.

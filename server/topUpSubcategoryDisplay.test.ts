@@ -15,10 +15,10 @@ describe("shared Top-up subcategory display", () => {
     expect(shared).toContain('label: "Activation Codes"');
   });
 
-  it("uses the shared Top-up model across catalog, dashboard, and Admin Categories", () => {
+  it("uses the shared Top-up model on catalog and Admin Categories but not the User Dashboard", () => {
     expect(catalog).toContain("TOP_UP_SUBCATEGORIES");
     expect(catalog).toContain("topUpMode:");
-    expect(dashboard).toContain("TOP_UP_SUBCATEGORIES");
+    expect(dashboard).not.toContain("TOP_UP_SUBCATEGORIES");
     expect(admin).toContain("TOP_UP_SUBCATEGORIES");
     expect(db).toContain("publicTopUpModeCondition");
   });
