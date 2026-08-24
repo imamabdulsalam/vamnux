@@ -2,7 +2,7 @@
  * VAMNUX Global Exchange: crisp global commerce, USD-first display, controlled technology colour rotation,
  * rounded modern typography across headlines and interface text, and no image-led upper hero.
  */
-@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,300;0,6..12,400;0,6..12,500;0,6..12,600;0,6..12,700;0,6..12,800;0,6..12,900;1,6..12,400;1,6..12,600;1,6..12,700;1,6..12,800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -50,8 +50,9 @@
 :root { --ink:#10121a; --ink-2:#171b28; --paper:#f5f6f8; --white:#fff; --lime:#b8ff43; --blue:#286dff; --violet:#7c44ff; --coral:#ff6347; --line:#dfe3eb; --muted:#697287; --background:#10121a; --foreground:#f7f8fa; --card:#181d2a; --card-foreground:#f7f8fa; --popover:#181d2a; --popover-foreground:#f7f8fa; --primary:#b8ff43; --primary-foreground:#10121a; --secondary:#252b39; --secondary-foreground:#f7f8fa; --muted-foreground:#b3bac9; --accent:#286dff; --accent-foreground:#fff; --destructive:#ff6347; --destructive-foreground:#10121a; --border:rgba(255,255,255,.15); --input:rgba(255,255,255,.2); --ring:#b8ff43; --radius:.25rem; }
 * { box-sizing:border-box; } html { scroll-behavior:smooth; background:var(--paper); } body { margin:0; min-width:320px; background:var(--paper); color:var(--ink); font-family:"Nunito Sans",sans-serif; } button,input,select { font:inherit; } button,a { -webkit-tap-highlight-color:transparent; } button { border:0; } a { color:inherit; text-decoration:none; }
 
-/* Typography-only update: one clean, rounded family for every VAMNUX text surface. */
-body,body * { font-family:"Nunito Sans",sans-serif !important; }
+/* Typography-only update: Bulnix-style Inter interface text with Poppins headings. */
+body,body * { font-family:"Inter",system-ui,sans-serif !important; }
+h1,h2,h3,h4,h5,h6 { font-family:"Poppins","Inter",sans-serif !important; }
 .user-hero h1 { max-width:100%; font-size:clamp(48px,5.2vw,76px); letter-spacing:-.05em; line-height:.82; overflow-wrap:anywhere; }
 
 .global-marketplace { overflow:clip; background:var(--paper); }.global-announcement { min-height:34px; display:flex; align-items:center; justify-content:center; gap:50px; padding:7px 25px; background:#0c0e14; color:#aab2c3; font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }.global-announcement span { display:inline-flex; align-items:center; gap:6px; }.global-announcement svg { color:var(--lime); }.global-announcement strong { color:#fff; font-weight:700; }

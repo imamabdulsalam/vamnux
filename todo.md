@@ -736,3 +736,7 @@
 
 - [x] Remove only the numbered 01–07 hero slide navigation strip and underline indicators from the storefront while preserving automatic slide changes, slide content, timing, hero styling, and all other pages.
 - [x] Verify the storefront hero continues to rotate without the numbered indicators, add focused regression coverage, and publish the verified update.
+
+- [x] Identify the Bulnix reference font and the current VAMNUX global typography configuration without re-reading the supplied images or changing any non-typographic design property.
+- [x] Apply only the selected reference font family across storefront, product/category pages, User Dashboard, and Admin Panel while preserving wording, colors, layouts, spacing, controls, interactions, and functionality.
+- [x] Verify typography coverage across desktop and mobile storefront, User Dashboard, and Admin Panel views; run focused tests/build and publish the typography-only update.
