@@ -751,3 +751,7 @@
 - [x] Diagnose the current long-loading and white-fallback failures across the storefront catalog, Admin Panel, and page transitions using runtime logs and bounded read-only measurements.
 - [x] Replace any restored unbounded catalog or Admin data queries with paginated or scoped reads, and add resilient loading and error states without importing products or creating subcategories.
 - [x] Verify customer catalog, Admin Panel, and route loading responsiveness; run regression tests/build; save a checkpoint; and push the fix to GitHub.
+- [x] Identify and verify the exact GamesDrop source rows, Supplier Offer snapshots, audits, and category-preparation artifacts created by the reverted import, excluding all pre-existing GamesDrop records.
+- [x] Delete only the verified reverted-import GamesDrop cohort and its additive preparation artifacts in a reviewed transaction, without touching retained products, prices, orders, wallets, users, or other supplier data.
+- [x] Verify corrected catalog/dashboard counts and preserved legacy records, then save a checkpoint and push the cleanup result to GitHub.
+- [x] Permanently remove the verified empty and unused GamesDrop preparation table after the owner’s explicit confirmation, then re-verify retained catalog counts.
