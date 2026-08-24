@@ -659,3 +659,9 @@
 - [x] Require explicit Admin confirmation before any bulk price application; record previous/new price, previous/new markup, Admin, date/time, and optional reason without changing supplier API costs or historical transaction prices.
 - [x] Preserve current customer prices until an Admin explicitly applies a confirmed rule; do not modify existing products, supplier APIs, orders, payments, historical prices, wallet balances, routing, supplier selection, fulfilment, or storefront behavior.
 - [x] Verify pricing isolation, audit history, Admin authorization, deterministic tests, production build, and preservation counts; stop after Step 4 for owner approval before Step 5.
+
+- [x] Create additive owner-only currency configuration, exchange-rate version history, rate source, update-frequency, effective-time, activation, and audit support for USD, NGN, EUR, and GBP without modifying existing exchange-rate records or customer prices automatically.
+- [x] Provide Admin controls to view currencies, set/edit/manual activate/deactivate VAMNUX rates, designate manual or approved external source metadata, preview a Step 4 compatible currency conversion, and view previous rates; do not contact any external rate provider unless separately configured and approved.
+- [x] Preserve supplier currency and original supplier cost, record selected rate snapshots for future pricing/order reconstruction, and require explicit Admin confirmation before any future pricing update caused by a material rate change.
+- [x] Do not modify current product prices, supplier APIs, orders, historical transaction prices, payments, wallets, routing, supplier selection, fulfilment, or storefront behavior during Step 5.
+- [x] Verify currency isolation, rate history, Admin authorization, deterministic tests, production build, visual Admin review, and preservation counts; stop after Step 5 for owner approval before Step 6.

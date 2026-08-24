@@ -502,6 +502,63 @@ export const exchangeRates = mysqlTable("exchange_rates", {
   activeIndex: index("exchange_rates_active_idx").on(table.active, table.baseCurrency, table.quoteCurrency),
 }));
 
+/** Admin-managed support and source policy for VAMNUX currencies. No external provider is contacted by this table. */
+export const currencyConfigurations = mysqlTable("currency_configurations", {
+  currencyCode: varchar("currencyCode", { length: 3 }).primaryKey(),
+  displayName: varchar("displayName", { length: 80 }).notNull(),
+  symbol: varchar("symbol", { length: 12 }).notNull(),
+  active: boolean("active").default(true).notNull(),
+  rateUpdateFrequency: mysqlEnum("rateUpdateFrequency", ["manual", "hourly", "daily", "weekly"]).default("manual").notNull(),
+  preferredRateSource: mysqlEnum("preferredRateSource", ["manual", "approved_external"]).default("manual").notNull(),
+  approvedSourceLabel: varchar("approvedSourceLabel", { length: 160 }),
+  updatedByAdminId: int("updatedByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/** Append-only VAMNUX exchange-rate versions. Saving a new rate never reprices catalog rows. */
+export const currencyRateVersions = mysqlTable("currency_rate_versions", {
+  id: int("id").autoincrement().primaryKey(),
+  baseCurrency: varchar("baseCurrency", { length: 3 }).notNull(),
+  quoteCurrency: varchar("quoteCurrency", { length: 3 }).notNull(),
+  rate: decimal("rate", { precision: 16, scale: 6 }).notNull(),
+  bufferPercent: decimal("bufferPercent", { precision: 7, scale: 2 }).default("0.00").notNull(),
+  source: mysqlEnum("source", ["manual", "approved_external"]).default("manual").notNull(),
+  sourceLabel: varchar("sourceLabel", { length: 160 }),
+  rateUpdateFrequency: mysqlEnum("rateUpdateFrequency", ["manual", "hourly", "daily", "weekly"]).default("manual").notNull(),
+  effectiveAt: timestamp("effectiveAt").notNull(),
+  active: boolean("active").default(true).notNull(),
+  supersedesRateVersionId: int("supersedesRateVersionId"),
+  createdByAdminId: int("createdByAdminId").notNull(),
+  reason: varchar("reason", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  pairEffectiveIndex: index("currency_rate_versions_pair_effective_idx").on(table.baseCurrency, table.quoteCurrency, table.active, table.effectiveAt),
+  adminCreatedIndex: index("currency_rate_versions_admin_created_idx").on(table.createdByAdminId, table.createdAt),
+}));
+
+/** Immutable rate snapshots reserved for explicitly applied pricing and future orders, not transient Admin previews. */
+export const pricingRateSnapshots = mysqlTable("pricing_rate_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  pricingRuleId: int("pricingRuleId"),
+  productId: int("productId"),
+  orderId: int("orderId"),
+  rateVersionId: int("rateVersionId"),
+  context: mysqlEnum("context", ["price_application", "order"]).notNull(),
+  supplierCost: decimal("supplierCost", { precision: 12, scale: 2 }).notNull(),
+  supplierCurrency: varchar("supplierCurrency", { length: 3 }).notNull(),
+  outputCurrency: varchar("outputCurrency", { length: 3 }).notNull(),
+  exchangeRate: decimal("exchangeRate", { precision: 16, scale: 6 }).notNull(),
+  convertedCost: decimal("convertedCost", { precision: 12, scale: 2 }).notNull(),
+  rateSource: varchar("rateSource", { length: 32 }).notNull(),
+  sourceLabel: varchar("sourceLabel", { length: 160 }),
+  recordedAt: timestamp("recordedAt").defaultNow().notNull(),
+}, (table) => ({
+  productRecordedIndex: index("pricing_rate_snapshots_product_recorded_idx").on(table.productId, table.recordedAt),
+  orderRecordedIndex: index("pricing_rate_snapshots_order_recorded_idx").on(table.orderId, table.recordedAt),
+  versionRecordedIndex: index("pricing_rate_snapshots_version_recorded_idx").on(table.rateVersionId, table.recordedAt),
+}));
+
 /** Managed storefront content blocks. Only published blocks are eligible for a public rendering path. */
 export const siteContentBlocks = mysqlTable("site_content_blocks", {
   id: int("id").autoincrement().primaryKey(),

@@ -1,11 +1,12 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import { calculatePricingPreview, type PricingRoundingRule, type PricingRuleScope } from "../shared/pricingEngine";
+import { CURRENCY_DEFINITIONS, MATERIAL_RATE_CHANGE_PERCENT, type CurrencyRateSource, type CurrencyRateUpdateFrequency, type VamnuxSupportedCurrency, VAMNUX_SUPPORTED_CURRENCIES } from "../shared/currencyManagement";
 import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDeliveryMinutesFromMetadata, type ManualDeliveryStatus } from "../shared/manualDelivery";
 import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
@@ -655,10 +656,8 @@ export async function previewPricingEngine(input: { supplierCost: number; suppli
   const outputCurrency = input.outputCurrency.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(supplierCurrency) || !/^[A-Z]{3}$/.test(outputCurrency)) throw new Error("Use three-letter currencies for the pricing preview");
   const providedRate = input.exchangeRate ?? null;
-  const [storedRate] = supplierCurrency === outputCurrency ? [] : await db.select({ rate: exchangeRates.rate, bufferPercent: exchangeRates.bufferPercent }).from(exchangeRates).where(and(eq(exchangeRates.baseCurrency, supplierCurrency), eq(exchangeRates.quoteCurrency, outputCurrency), eq(exchangeRates.active, true))).limit(1);
-  const exchangeRate = supplierCurrency === outputCurrency ? 1 : providedRate ?? (storedRate ? Number(storedRate.rate) * (1 + Number(storedRate.bufferPercent) / 100) : null);
-  if (!exchangeRate) throw new Error(`No active ${supplierCurrency}/${outputCurrency} exchange rate is configured. Save a manual rate or enter a preview rate.`);
-  return { supplierCurrency, outputCurrency, ...calculatePricingPreview({ supplierCost: input.supplierCost, exchangeRate, percentageMarkup: input.percentageMarkup, fixedMarkup: input.fixedMarkup, fixedFee: input.fixedFee, minimumSellingPrice: input.minimumSellingPrice, maximumDiscountPercent: input.maximumDiscountPercent, roundingRule: input.roundingRule, manualPriceOverride: input.manualPriceOverride }) };
+  const effectiveRate = providedRate === null ? await resolveVamnuxExchangeRate(db, supplierCurrency, outputCurrency) : { rate: providedRate, rateVersionId: null as number | null, source: "preview_manual", sourceLabel: "Admin preview-only rate", effectiveAt: new Date() };
+  return { supplierCurrency, outputCurrency, rateVersionId: effectiveRate.rateVersionId, rateSource: effectiveRate.source, rateSourceLabel: effectiveRate.sourceLabel, rateEffectiveAt: effectiveRate.effectiveAt, ...calculatePricingPreview({ supplierCost: input.supplierCost, exchangeRate: effectiveRate.rate, percentageMarkup: input.percentageMarkup, fixedMarkup: input.fixedMarkup, fixedFee: input.fixedFee, minimumSellingPrice: input.minimumSellingPrice, maximumDiscountPercent: input.maximumDiscountPercent, roundingRule: input.roundingRule, manualPriceOverride: input.manualPriceOverride }) };
 }
 
 export async function savePricingEngineRule(input: PricingEngineRuleInput) {
@@ -714,6 +713,7 @@ export async function applyPricingEngineRule(input: { pricingRuleId: number; pro
       await tx.update(products).set({ displayPriceOverride: preview.finalSellingPrice.toFixed(2) }).where(eq(products.id, product.id));
       await tx.insert(priceChangeHistory).values({ productId: product.id, adminUserId: input.adminUserId, changeType: "product_fixed_price", oldValue: String(previousPrice), newValue: String(preview.finalSellingPrice), reason: reason || `Confirmed pricing rule ${rule.ruleName}` });
       await tx.insert(pricingRuleAuditEvents).values({ pricingRuleId: rule.id, productId: product.id, adminUserId: input.adminUserId, action: "price_applied", previousPrice: previousPrice.toFixed(2), newPrice: preview.finalSellingPrice.toFixed(2), previousMarkup: previousMarkup.toFixed(2), newMarkup: Number(rule.percentageMarkup).toFixed(2), reason, metadata: { ruleName: rule.ruleName, supplierCost, supplierCurrency, outputCurrency: rule.outputCurrency, convertedCost: preview.convertedCost, fixedMarkup: preview.fixedMarkup, fixedFee: preview.fixedFee, roundingRule: preview.roundingRule, expectedProfit: preview.expectedProfit, expectedProfitPercent: preview.expectedProfitPercent } });
+      await tx.insert(pricingRateSnapshots).values({ pricingRuleId: rule.id, productId: product.id, orderId: null, rateVersionId: null, context: "price_application", supplierCost: supplierCost.toFixed(2), supplierCurrency, outputCurrency: rule.outputCurrency, exchangeRate: "1.000000", convertedCost: preview.convertedCost.toFixed(2), rateSource: "identity", sourceLabel: "Supplier and VAMNUX base currency matched" });
     }
     await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "pricing_engine.price_applied", targetType: "pricing_rule_batch", targetId: `${rule.id}:${productIds.join(",")}`, summary: `Applied pricing rule ${rule.ruleName} to ${selected.length} selected products`, metadata: { pricingRuleId: rule.id, productIds, confirmation: "APPLY" } });
   });
@@ -906,6 +906,125 @@ export async function listPriceChangeHistory(limit = 100) {
     createdAt: priceChangeHistory.createdAt,
   }).from(priceChangeHistory).leftJoin(products, eq(priceChangeHistory.productId, products.id))
     .orderBy(desc(priceChangeHistory.createdAt)).limit(Math.min(250, Math.max(1, limit)));
+}
+
+type CurrencyConfigurationInput = {
+  currencyCode: VamnuxSupportedCurrency;
+  active: boolean;
+  rateUpdateFrequency: CurrencyRateUpdateFrequency;
+  preferredRateSource: CurrencyRateSource;
+  approvedSourceLabel?: string | null;
+  adminUserId: number;
+};
+
+type CurrencyRateVersionInput = {
+  baseCurrency: VamnuxSupportedCurrency;
+  quoteCurrency: VamnuxSupportedCurrency;
+  rate: number;
+  bufferPercent: number;
+  source: CurrencyRateSource;
+  sourceLabel?: string | null;
+  rateUpdateFrequency: CurrencyRateUpdateFrequency;
+  effectiveAt: Date;
+  active: boolean;
+  reason?: string | null;
+  adminUserId: number;
+};
+
+function assertSupportedCurrency(value: string): asserts value is VamnuxSupportedCurrency {
+  if (!VAMNUX_SUPPORTED_CURRENCIES.includes(value as VamnuxSupportedCurrency)) throw new Error("VAMNUX supports USD, NGN, EUR, and GBP in this release");
+}
+
+async function resolveVamnuxExchangeRate(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, baseCurrencyInput: string, quoteCurrencyInput: string, at = new Date()) {
+  const baseCurrency = baseCurrencyInput.trim().toUpperCase();
+  const quoteCurrency = quoteCurrencyInput.trim().toUpperCase();
+  if (baseCurrency === quoteCurrency) return { rate: 1, rateVersionId: null as number | null, source: "identity", sourceLabel: "Same-currency conversion", effectiveAt: at };
+  assertSupportedCurrency(baseCurrency);
+  assertSupportedCurrency(quoteCurrency);
+  const configs = await db.select({ currencyCode: currencyConfigurations.currencyCode, active: currencyConfigurations.active }).from(currencyConfigurations).where(inArray(currencyConfigurations.currencyCode, [baseCurrency, quoteCurrency]));
+  if (configs.some((config) => !config.active)) throw new Error(`Currency conversion is unavailable because ${configs.find((config) => !config.active)?.currencyCode} is inactive`);
+  const [version] = await db.select().from(currencyRateVersions).where(and(eq(currencyRateVersions.baseCurrency, baseCurrency), eq(currencyRateVersions.quoteCurrency, quoteCurrency), eq(currencyRateVersions.active, true), lte(currencyRateVersions.effectiveAt, at))).orderBy(desc(currencyRateVersions.effectiveAt), desc(currencyRateVersions.id)).limit(1);
+  if (version) return { rate: Number(version.rate) * (1 + Number(version.bufferPercent) / 100), rateVersionId: version.id, source: version.source, sourceLabel: version.sourceLabel, effectiveAt: version.effectiveAt };
+  const [legacy] = await db.select().from(exchangeRates).where(and(eq(exchangeRates.baseCurrency, baseCurrency), eq(exchangeRates.quoteCurrency, quoteCurrency), eq(exchangeRates.active, true))).limit(1);
+  if (legacy) return { rate: Number(legacy.rate) * (1 + Number(legacy.bufferPercent) / 100), rateVersionId: null as number | null, source: "legacy_manual", sourceLabel: "Existing VAMNUX manual exchange-rate record", effectiveAt: legacy.updatedAt };
+  throw new Error(`No active VAMNUX ${baseCurrency}/${quoteCurrency} rate is effective at this time`);
+}
+
+/** Lists only VAMNUX's four supported currencies; defaults remain virtual until an owner saves a configuration. */
+export async function listCurrencyManagement() {
+  const db = requireDb(await getDb());
+  const [configs, latestVersions] = await Promise.all([
+    db.select().from(currencyConfigurations).orderBy(currencyConfigurations.currencyCode),
+    db.select().from(currencyRateVersions).where(eq(currencyRateVersions.active, true)).orderBy(desc(currencyRateVersions.effectiveAt), desc(currencyRateVersions.id)),
+  ]);
+  const configByCode = new Map(configs.map((config) => [config.currencyCode, config]));
+  const currentVersionByPair = new Map<string, typeof latestVersions[number]>();
+  for (const version of latestVersions) {
+    const pair = `${version.baseCurrency}/${version.quoteCurrency}`;
+    if (!currentVersionByPair.has(pair) && version.effectiveAt <= new Date()) currentVersionByPair.set(pair, version);
+  }
+  return {
+    currencies: VAMNUX_SUPPORTED_CURRENCIES.map((currencyCode) => {
+      const configured = configByCode.get(currencyCode);
+      const definition = CURRENCY_DEFINITIONS[currencyCode];
+      return { currencyCode, displayName: configured?.displayName ?? definition.name, symbol: configured?.symbol ?? definition.symbol, active: configured?.active ?? true, rateUpdateFrequency: configured?.rateUpdateFrequency ?? "manual", preferredRateSource: configured?.preferredRateSource ?? "manual", approvedSourceLabel: configured?.approvedSourceLabel ?? null, configured: Boolean(configured), updatedAt: configured?.updatedAt ?? null };
+    }),
+    currentRates: Array.from(currentVersionByPair.values()).map((version) => ({ ...version, rate: Number(version.rate), bufferPercent: Number(version.bufferPercent), effectiveRate: Number(version.rate) * (1 + Number(version.bufferPercent) / 100) })),
+  };
+}
+
+export async function saveCurrencyConfiguration(input: CurrencyConfigurationInput) {
+  const db = requireDb(await getDb());
+  assertSupportedCurrency(input.currencyCode);
+  const approvedSourceLabel = input.approvedSourceLabel?.trim().slice(0, 160) || null;
+  if (input.preferredRateSource === "approved_external" && !approvedSourceLabel) throw new Error("An approved external source label is required before it can be selected. This release does not connect to the provider automatically.");
+  const definition = CURRENCY_DEFINITIONS[input.currencyCode];
+  const [previous] = await db.select().from(currencyConfigurations).where(eq(currencyConfigurations.currencyCode, input.currencyCode)).limit(1);
+  await db.insert(currencyConfigurations).values({ currencyCode: input.currencyCode, displayName: definition.name, symbol: definition.symbol, active: input.active, rateUpdateFrequency: input.rateUpdateFrequency, preferredRateSource: input.preferredRateSource, approvedSourceLabel, updatedByAdminId: input.adminUserId }).onDuplicateKeyUpdate({ set: { active: input.active, rateUpdateFrequency: input.rateUpdateFrequency, preferredRateSource: input.preferredRateSource, approvedSourceLabel, updatedByAdminId: input.adminUserId } });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: previous ? "currency.configuration_updated" : "currency.configuration_created", targetType: "currency", targetId: input.currencyCode, summary: `${previous ? "Updated" : "Configured"} VAMNUX ${input.currencyCode} currency controls`, metadata: { previousActive: previous?.active ?? null, active: input.active, rateUpdateFrequency: input.rateUpdateFrequency, preferredRateSource: input.preferredRateSource, approvedSourceLabel } });
+  return listCurrencyManagement();
+}
+
+export async function saveCurrencyRateVersion(input: CurrencyRateVersionInput) {
+  const db = requireDb(await getDb());
+  assertSupportedCurrency(input.baseCurrency);
+  assertSupportedCurrency(input.quoteCurrency);
+  if (input.baseCurrency === input.quoteCurrency) throw new Error("Choose two different supported currencies");
+  if (!Number.isFinite(input.rate) || input.rate <= 0) throw new Error("VAMNUX exchange rate must be greater than zero");
+  if (!Number.isFinite(input.bufferPercent) || input.bufferPercent < 0 || input.bufferPercent > 100) throw new Error("Exchange-rate buffer must be between 0% and 100%");
+  if (!(input.effectiveAt instanceof Date) || Number.isNaN(input.effectiveAt.getTime())) throw new Error("A valid effective date and time is required");
+  const sourceLabel = input.sourceLabel?.trim().slice(0, 160) || null;
+  if (input.source === "approved_external" && !sourceLabel) throw new Error("Record the approved external source label. This release stores its metadata only and does not contact the provider.");
+  const [previous] = await db.select().from(currencyRateVersions).where(and(eq(currencyRateVersions.baseCurrency, input.baseCurrency), eq(currencyRateVersions.quoteCurrency, input.quoteCurrency), eq(currencyRateVersions.active, true))).orderBy(desc(currencyRateVersions.effectiveAt), desc(currencyRateVersions.id)).limit(1);
+  const priorRate = previous ? Number(previous.rate) * (1 + Number(previous.bufferPercent) / 100) : null;
+  const nextRate = input.rate * (1 + input.bufferPercent / 100);
+  const changePercent = priorRate === null ? null : ((nextRate - priorRate) / priorRate) * 100;
+  const [created] = await db.insert(currencyRateVersions).values({ baseCurrency: input.baseCurrency, quoteCurrency: input.quoteCurrency, rate: input.rate.toFixed(6), bufferPercent: input.bufferPercent.toFixed(2), source: input.source, sourceLabel, rateUpdateFrequency: input.rateUpdateFrequency, effectiveAt: input.effectiveAt, active: input.active, supersedesRateVersionId: previous?.id ?? null, createdByAdminId: input.adminUserId, reason: input.reason?.trim().slice(0, 500) || null }).$returningId();
+  if (!created) throw new Error("Currency rate version could not be saved");
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "currency.rate_version_saved", targetType: "currency_rate_version", targetId: String(created.id), summary: `Saved ${input.baseCurrency}/${input.quoteCurrency} VAMNUX rate version`, metadata: { previousRate: priorRate, nextRate, changePercent, significantChange: changePercent !== null && Math.abs(changePercent) >= MATERIAL_RATE_CHANGE_PERCENT, source: input.source, sourceLabel, effectiveAt: input.effectiveAt.toISOString(), active: input.active } });
+  return { id: created.id, previousRate: priorRate, effectiveRate: nextRate, changePercent, significantChange: changePercent !== null && Math.abs(changePercent) >= MATERIAL_RATE_CHANGE_PERCENT };
+}
+
+export async function listCurrencyRateHistory(input: { baseCurrency?: VamnuxSupportedCurrency; quoteCurrency?: VamnuxSupportedCurrency; limit?: number } = {}) {
+  const db = requireDb(await getDb());
+  const conditions = [];
+  if (input.baseCurrency) conditions.push(eq(currencyRateVersions.baseCurrency, input.baseCurrency));
+  if (input.quoteCurrency) conditions.push(eq(currencyRateVersions.quoteCurrency, input.quoteCurrency));
+  const rows = await db.select({ id: currencyRateVersions.id, baseCurrency: currencyRateVersions.baseCurrency, quoteCurrency: currencyRateVersions.quoteCurrency, rate: currencyRateVersions.rate, bufferPercent: currencyRateVersions.bufferPercent, source: currencyRateVersions.source, sourceLabel: currencyRateVersions.sourceLabel, rateUpdateFrequency: currencyRateVersions.rateUpdateFrequency, effectiveAt: currencyRateVersions.effectiveAt, active: currencyRateVersions.active, supersedesRateVersionId: currencyRateVersions.supersedesRateVersionId, reason: currencyRateVersions.reason, createdAt: currencyRateVersions.createdAt, adminName: users.name }).from(currencyRateVersions).leftJoin(users, eq(currencyRateVersions.createdByAdminId, users.id)).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(currencyRateVersions.effectiveAt), desc(currencyRateVersions.id)).limit(Math.min(250, Math.max(1, input.limit ?? 100)));
+  return rows.map((row) => ({ ...row, rate: Number(row.rate), bufferPercent: Number(row.bufferPercent), effectiveRate: Number(row.rate) * (1 + Number(row.bufferPercent) / 100) }));
+}
+
+export async function previewCurrencyManagement(input: { supplierCost: number; supplierCurrency: VamnuxSupportedCurrency; outputCurrency: VamnuxSupportedCurrency; percentageMarkup: number; fixedMarkup: number; fixedFee: number; minimumSellingPrice?: number | null; maximumDiscountPercent?: number | null; roundingRule: PricingRoundingRule; manualPriceOverride?: number | null; at?: Date }) {
+  const db = requireDb(await getDb());
+  const rate = await resolveVamnuxExchangeRate(db, input.supplierCurrency, input.outputCurrency, input.at ?? new Date());
+  const preview = calculatePricingPreview({ supplierCost: input.supplierCost, exchangeRate: rate.rate, percentageMarkup: input.percentageMarkup, fixedMarkup: input.fixedMarkup, fixedFee: input.fixedFee, minimumSellingPrice: input.minimumSellingPrice, maximumDiscountPercent: input.maximumDiscountPercent, roundingRule: input.roundingRule, manualPriceOverride: input.manualPriceOverride });
+  return { supplierCurrency: input.supplierCurrency, outputCurrency: input.outputCurrency, rateVersionId: rate.rateVersionId, rateSource: rate.source, rateSourceLabel: rate.sourceLabel, rateEffectiveAt: rate.effectiveAt, ...preview };
+}
+
+export async function listPricingRateSnapshots(limit = 100) {
+  const db = requireDb(await getDb());
+  const rows = await db.select({ id: pricingRateSnapshots.id, pricingRuleId: pricingRateSnapshots.pricingRuleId, productId: pricingRateSnapshots.productId, productName: products.name, orderId: pricingRateSnapshots.orderId, rateVersionId: pricingRateSnapshots.rateVersionId, context: pricingRateSnapshots.context, supplierCost: pricingRateSnapshots.supplierCost, supplierCurrency: pricingRateSnapshots.supplierCurrency, outputCurrency: pricingRateSnapshots.outputCurrency, exchangeRate: pricingRateSnapshots.exchangeRate, convertedCost: pricingRateSnapshots.convertedCost, rateSource: pricingRateSnapshots.rateSource, sourceLabel: pricingRateSnapshots.sourceLabel, recordedAt: pricingRateSnapshots.recordedAt }).from(pricingRateSnapshots).leftJoin(products, eq(pricingRateSnapshots.productId, products.id)).orderBy(desc(pricingRateSnapshots.recordedAt)).limit(Math.min(250, Math.max(1, limit)));
+  return rows.map((row) => ({ ...row, supplierCost: Number(row.supplierCost), exchangeRate: Number(row.exchangeRate), convertedCost: Number(row.convertedCost) }));
 }
 
 export async function listExchangeRates() {
@@ -2591,6 +2710,12 @@ export async function createMarketplaceOrder(input: {
     if (!product) throw new Error("Selected product is unavailable");
     return { product, quantity: item.quantity, unitPrice: customerPriceForProduct(product, settings).customerPrice };
   });
+  const orderRateSnapshots = await Promise.all(orderLines.map(async (line) => {
+    const supplierCost = line.product.supplierPrice === null ? Number(line.product.basePrice) : Number(line.product.supplierPrice);
+    const supplierCurrency = line.product.supplierCurrency || line.product.baseCurrency;
+    const rate = await resolveVamnuxExchangeRate(db, supplierCurrency, line.product.baseCurrency);
+    return { productId: line.product.id, supplierCost, supplierCurrency, outputCurrency: line.product.baseCurrency, exchangeRate: rate.rate, convertedCost: supplierCost * rate.rate, rateVersionId: rate.rateVersionId, rateSource: rate.source, sourceLabel: rate.sourceLabel };
+  }));
   for (const line of orderLines) {
     const requirements = Array.isArray(line.product.inputRequirements)
       ? line.product.inputRequirements as Array<{ key?: string; label?: string; required?: boolean }>
@@ -2641,6 +2766,7 @@ export async function createMarketplaceOrder(input: {
     return [{ orderId: created.id, orderItemId: item.id, userId: input.userId, productId: line.product.id, status: "pending_payment" as const, deliveryMinimumMinutes: delivery.minimumMinutes, deliveryMaximumMinutes: delivery.maximumMinutes, customerStatusNote: delivery.minimumMinutes || delivery.maximumMinutes ? `Personal VAMNUX delivery is planned within ${formatManualDeliveryWindow(delivery.minimumMinutes, delivery.maximumMinutes)} after payment review.` : "Personal VAMNUX delivery timing will be confirmed after payment review." }];
   });
   if (manualTaskRows.length) await db.insert(manualDeliveryTasks).values(manualTaskRows);
+  await db.insert(pricingRateSnapshots).values(orderRateSnapshots.map((snapshot) => ({ pricingRuleId: null, productId: snapshot.productId, orderId: created.id, rateVersionId: snapshot.rateVersionId, context: "order" as const, supplierCost: snapshot.supplierCost.toFixed(2), supplierCurrency: snapshot.supplierCurrency, outputCurrency: snapshot.outputCurrency, exchangeRate: snapshot.exchangeRate.toFixed(6), convertedCost: snapshot.convertedCost.toFixed(2), rateSource: snapshot.rateSource, sourceLabel: snapshot.sourceLabel })));
 
   return { orderCode, status: "draft" as const, total: total.toFixed(2), currency: input.currency };
 }

@@ -19,6 +19,8 @@ import { addSupplierOfferToMasterForReview, approveSupplierOfferMapping, createS
 import { SUPPLIER_MAPPING_CATEGORIES } from "../shared/supplierProductMapping";
 import { applyPricingEngineRule, listPricingEngineAudit, listPricingEngineProducts, listPricingEngineRules, previewPricingEngine, savePricingEngineRule } from "./db";
 import { PRICING_ROUNDING_RULES, PRICING_RULE_SCOPES } from "../shared/pricingEngine";
+import { listCurrencyManagement, listCurrencyRateHistory, listPricingRateSnapshots, previewCurrencyManagement, saveCurrencyConfiguration, saveCurrencyRateVersion } from "./db";
+import { CURRENCY_RATE_SOURCES, CURRENCY_RATE_UPDATE_FREQUENCIES, VAMNUX_SUPPORTED_CURRENCIES } from "../shared/currencyManagement";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -56,6 +58,9 @@ const pricingRuleInputSchema = z.object({
   isActive: z.boolean(),
   reason: z.string().trim().max(500).nullable().optional(),
 });
+const currencyCodeSchema = z.enum(VAMNUX_SUPPORTED_CURRENCIES);
+const currencyRateSourceSchema = z.enum(CURRENCY_RATE_SOURCES);
+const currencyRateFrequencySchema = z.enum(CURRENCY_RATE_UPDATE_FREQUENCIES);
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -200,6 +205,16 @@ export const appRouter = router({
     applyPricingEngineRule: adminProcedure.input(z.object({ pricingRuleId: z.number().int().positive(), productIds: z.array(z.number().int().positive()).min(1).max(100), confirmation: z.literal("APPLY"), reason: z.string().trim().max(500).nullable().optional() }))
       .mutation(({ ctx, input }) => applyPricingEngineRule({ ...input, adminUserId: ctx.user.id })),
     listPricingEngineAudit: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPricingEngineAudit(input?.limit)),
+    getCurrencyManagement: adminProcedure.query(() => listCurrencyManagement()),
+    saveCurrencyConfiguration: adminProcedure.input(z.object({ currencyCode: currencyCodeSchema, active: z.boolean(), rateUpdateFrequency: currencyRateFrequencySchema, preferredRateSource: currencyRateSourceSchema, approvedSourceLabel: z.string().trim().max(160).nullable().optional() }))
+      .mutation(({ ctx, input }) => saveCurrencyConfiguration({ ...input, adminUserId: ctx.user.id })),
+    saveCurrencyRateVersion: adminProcedure.input(z.object({ baseCurrency: currencyCodeSchema, quoteCurrency: currencyCodeSchema, rate: z.number().positive().max(10_000_000), bufferPercent: z.number().min(0).max(100), source: currencyRateSourceSchema, sourceLabel: z.string().trim().max(160).nullable().optional(), rateUpdateFrequency: currencyRateFrequencySchema, effectiveAt: z.date(), active: z.boolean(), reason: z.string().trim().max(500).nullable().optional() }))
+      .mutation(({ ctx, input }) => saveCurrencyRateVersion({ ...input, adminUserId: ctx.user.id })),
+    listCurrencyRateHistory: adminProcedure.input(z.object({ baseCurrency: currencyCodeSchema.optional(), quoteCurrency: currencyCodeSchema.optional(), limit: z.number().int().min(1).max(250).default(100) }).optional())
+      .query(({ input }) => listCurrencyRateHistory(input)),
+    previewCurrencyManagement: adminProcedure.input(z.object({ supplierCost: z.number().min(0).max(1_000_000), supplierCurrency: currencyCodeSchema, outputCurrency: currencyCodeSchema, percentageMarkup: z.number().min(-100).max(500), fixedMarkup: z.number().min(0).max(1_000_000), fixedFee: z.number().min(0).max(1_000_000), minimumSellingPrice: z.number().min(0).max(1_000_000).nullable().optional(), maximumDiscountPercent: z.number().min(0).max(100).nullable().optional(), roundingRule: pricingRoundingRuleSchema, manualPriceOverride: z.number().min(0).max(1_000_000).nullable().optional(), at: z.date().optional() }))
+      .query(({ input }) => previewCurrencyManagement(input)),
+    listPricingRateSnapshots: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPricingRateSnapshots(input?.limit)),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),
