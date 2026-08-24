@@ -15,6 +15,8 @@ import { replyToSuperAdminNotification } from "./db";
 import { getSuperAdminTrafficAnalytics } from "./db";
 import { getSafeSupplierApiAccessStatus } from "./apiAccessControl";
 import { getMasterCatalogFoundationSummary } from "./db";
+import { addSupplierOfferToMasterForReview, approveSupplierOfferMapping, createSupplierProductMappingMaster, getSupplierProductMappingMaster, getSupplierProductMappingSummary, listSupplierProductMappingMasters, rejectSupplierOfferMapping, removeSupplierOfferMapping, searchSupplierProductsForMapping } from "./db";
+import { SUPPLIER_MAPPING_CATEGORIES } from "../shared/supplierProductMapping";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -29,6 +31,9 @@ const customerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   await assertCustomerAccountActive(ctx.user.id);
   return next();
 });
+
+const supplierMappingCategorySchema = z.enum(SUPPLIER_MAPPING_CATEGORIES);
+const supplierMappingAttributesSchema = z.record(z.string().trim().min(1).max(80), z.string().trim().min(1).max(200)).refine((attributes) => Object.keys(attributes).length <= 20, { message: "Provide no more than 20 mapping attributes" });
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -141,6 +146,30 @@ export const appRouter = router({
     regenerateMfaRecoveryCodes: adminProcedure.input(z.object({ code: z.string().trim().length(6) })).mutation(({ ctx, input }) => regenerateAdminMfaRecoveryCodes({ userId: ctx.user.id, label: "Super Admin", code: input.code })),
     getOverview: adminProcedure.query(() => getSuperAdminOverview()),
     getMasterCatalogFoundation: adminProcedure.query(() => getMasterCatalogFoundationSummary()),
+    getSupplierProductMappingSummary: adminProcedure.query(() => getSupplierProductMappingSummary()),
+    listSupplierProductMappingMasters: adminProcedure.query(() => listSupplierProductMappingMasters()),
+    getSupplierProductMappingMaster: adminProcedure.input(z.object({ masterProductId: z.number().int().positive() })).query(({ input }) => getSupplierProductMappingMaster(input.masterProductId)),
+    searchSupplierProductsForMapping: adminProcedure.input(z.object({ query: z.string().trim().min(2).max(120), category: supplierMappingCategorySchema.optional(), limit: z.number().int().min(1).max(50).optional() }))
+      .query(({ input }) => searchSupplierProductsForMapping(input)),
+    createSupplierProductMappingMaster: adminProcedure.input(z.object({
+      name: z.string().trim().min(2).max(255),
+      category: supplierMappingCategorySchema,
+      subcategory: z.string().trim().max(120).nullable().optional(),
+      productType: z.string().trim().max(120).nullable().optional(),
+      regionLabel: z.string().trim().max(120).nullable().optional(),
+      currency: z.string().trim().length(3).nullable().optional(),
+      denomination: z.string().trim().max(120).nullable().optional(),
+      imageUrl: z.string().trim().url().max(2_000).nullable().optional(),
+      mappingAttributes: supplierMappingAttributesSchema,
+    })).mutation(({ ctx, input }) => createSupplierProductMappingMaster({ ...input, adminUserId: ctx.user.id })),
+    addSupplierOfferToMasterForReview: adminProcedure.input(z.object({ masterProductId: z.number().int().positive(), legacyProductId: z.number().int().positive(), mappingAttributes: supplierMappingAttributesSchema, note: z.string().trim().max(1_000).nullable().optional() }))
+      .mutation(({ ctx, input }) => addSupplierOfferToMasterForReview({ ...input, adminUserId: ctx.user.id })),
+    approveSupplierOfferMapping: adminProcedure.input(z.object({ supplierOfferId: z.number().int().positive(), note: z.string().trim().max(1_000).nullable().optional() }))
+      .mutation(({ ctx, input }) => approveSupplierOfferMapping({ ...input, adminUserId: ctx.user.id })),
+    rejectSupplierOfferMapping: adminProcedure.input(z.object({ supplierOfferId: z.number().int().positive(), note: z.string().trim().max(1_000).nullable().optional() }))
+      .mutation(({ ctx, input }) => rejectSupplierOfferMapping({ ...input, adminUserId: ctx.user.id })),
+    removeSupplierOfferMapping: adminProcedure.input(z.object({ supplierOfferId: z.number().int().positive(), note: z.string().trim().max(1_000).nullable().optional() }))
+      .mutation(({ ctx, input }) => removeSupplierOfferMapping({ ...input, adminUserId: ctx.user.id })),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),

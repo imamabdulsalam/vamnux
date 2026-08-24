@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
 import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
@@ -10,7 +11,8 @@ import type { SupplierCatalogRow } from "./catalogTypes";
 import { ENV } from './_core/env';
 import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzle/schema";
 import { customerProductRequests } from "../drizzle/schema";
-import { masterProducts, supplierOffers } from "../drizzle/schema";
+import { masterProducts, supplierOfferMappingReviews, supplierOffers } from "../drizzle/schema";
+import { isSupplierMappingCategory, mappingAttributesMatch, mappingIdentityValue, normalizeMappingAttributes, type MappingAttributes, type MappingStatus, type SupplierMappingCategory } from "../shared/supplierProductMapping";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
@@ -267,6 +269,235 @@ export async function getMasterCatalogFoundationSummary() {
     supplierOfferCount: Number(offerRows[0]?.total ?? 0),
     mappingMode: "unmapped_foundation" as const,
   };
+}
+
+const MAPPING_SUPPLIER_NAMES: Record<string, string> = {
+  flashtopup: "FlashTopUp",
+  foxreload: "FoxReload",
+  gamesdrop: "GamesDrop",
+};
+
+function mappingSupplierName(supplierKey: string | null) {
+  if (!supplierKey) return "Unassigned supplier";
+  return MAPPING_SUPPLIER_NAMES[supplierKey] || supplierKey.replace(/[-_]+/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function mappingAttributesFromMaster(master: typeof masterProducts.$inferSelect): MappingAttributes {
+  const metadata = master.metadata && typeof master.metadata === "object" && !Array.isArray(master.metadata) ? master.metadata as Record<string, unknown> : {};
+  const attributes = metadata.mappingAttributes && typeof metadata.mappingAttributes === "object" && !Array.isArray(metadata.mappingAttributes) ? metadata.mappingAttributes as Record<string, unknown> : null;
+  if (!isSupplierMappingCategory(master.category) || !attributes) throw new Error("This Master Product does not contain verified category-specific mapping attributes.");
+  return normalizeMappingAttributes(master.category, attributes);
+}
+
+function mappingAttributesFromOffer(offer: typeof supplierOffers.$inferSelect, category: SupplierMappingCategory): MappingAttributes {
+  const attributes = offer.mappingAttributes && typeof offer.mappingAttributes === "object" && !Array.isArray(offer.mappingAttributes) ? offer.mappingAttributes as Record<string, unknown> : null;
+  if (!attributes) throw new Error("This supplier offer does not contain verified category-specific mapping attributes.");
+  return normalizeMappingAttributes(category, attributes);
+}
+
+function createMasterProductKey(category: SupplierMappingCategory, attributes: MappingAttributes) {
+  const identity = `${category}|${mappingIdentityValue(category, attributes)}`;
+  return `master-${category}-${createHash("sha256").update(identity).digest("hex").slice(0, 20)}`;
+}
+
+function mappingStatusSummary(totalLegacyProducts: number, supplierOfferRows: Array<{ mappingStatus: MappingStatus }>) {
+  const pendingReviewCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "PENDING REVIEW").length;
+  const approvedMappingCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "APPROVED").length;
+  const rejectedMappingCount = supplierOfferRows.filter((offer) => offer.mappingStatus === "REJECTED").length;
+  return {
+    mappedProductCount: approvedMappingCount,
+    unmappedProductCount: Math.max(0, totalLegacyProducts - supplierOfferRows.length),
+    requiringAdminReviewCount: pendingReviewCount,
+    approvedMappingCount,
+    rejectedMappingCount,
+  };
+}
+
+/** Owner-only Step 3 counts. It never creates mappings or changes legacy products. */
+export async function getSupplierProductMappingSummary() {
+  const db = requireDb(await getDb());
+  const [legacyRows, masterRows, supplierOfferRows] = await Promise.all([
+    db.select({ total: sql<number>`count(*)` }).from(products),
+    db.select({ total: sql<number>`count(*)` }).from(masterProducts),
+    db.select({ mappingStatus: supplierOffers.mappingStatus }).from(supplierOffers),
+  ]);
+  const legacyProductCount = Number(legacyRows[0]?.total ?? 0);
+  return {
+    legacyProductCount,
+    masterProductCount: Number(masterRows[0]?.total ?? 0),
+    ...mappingStatusSummary(legacyProductCount, supplierOfferRows),
+  };
+}
+
+export async function listSupplierProductMappingMasters() {
+  const db = requireDb(await getDb());
+  const [masters, offers] = await Promise.all([
+    db.select().from(masterProducts).orderBy(desc(masterProducts.updatedAt)).limit(150),
+    db.select({ masterProductId: supplierOffers.masterProductId, mappingStatus: supplierOffers.mappingStatus }).from(supplierOffers),
+  ]);
+  return masters.map((master) => {
+    const masterOffers = offers.filter((offer) => offer.masterProductId === master.id);
+    const metadata = master.metadata && typeof master.metadata === "object" && !Array.isArray(master.metadata) ? master.metadata as Record<string, unknown> : {};
+    return {
+      ...master,
+      mappingAttributes: metadata.mappingAttributes ?? {},
+      pendingOfferCount: masterOffers.filter((offer) => offer.mappingStatus === "PENDING REVIEW").length,
+      approvedOfferCount: masterOffers.filter((offer) => offer.mappingStatus === "APPROVED").length,
+    };
+  });
+}
+
+export async function getSupplierProductMappingMaster(masterProductId: number) {
+  const db = requireDb(await getDb());
+  const [master] = await db.select().from(masterProducts).where(eq(masterProducts.id, masterProductId)).limit(1);
+  if (!master) throw new Error("Master Product was not found");
+  const offers = await db.select({
+    id: supplierOffers.id,
+    legacyProductId: supplierOffers.legacyProductId,
+    supplierKey: supplierOffers.supplierKey,
+    supplierSku: supplierOffers.supplierSku,
+    supplierOfferId: supplierOffers.supplierOfferId,
+    supplierProductName: supplierOffers.supplierProductName,
+    supplierCost: supplierOffers.supplierCost,
+    supplierCurrency: supplierOffers.supplierCurrency,
+    regionLabel: supplierOffers.regionLabel,
+    mappingStatus: supplierOffers.mappingStatus,
+    mappingAttributes: supplierOffers.mappingAttributes,
+  }).from(supplierOffers).where(eq(supplierOffers.masterProductId, master.id)).orderBy(supplierOffers.mappingStatus, supplierOffers.supplierKey);
+  const metadata = master.metadata && typeof master.metadata === "object" && !Array.isArray(master.metadata) ? master.metadata as Record<string, unknown> : {};
+  return {
+    ...master,
+    mappingAttributes: metadata.mappingAttributes ?? {},
+    supplierOffers: offers.map((offer) => ({ ...offer, supplierName: mappingSupplierName(offer.supplierKey), supplierProductId: offer.supplierOfferId || offer.supplierSku || String(offer.legacyProductId), supplierCost: offer.supplierCost === null ? null : Number(offer.supplierCost) })),
+  };
+}
+
+/** Search existing supplier-normalised legacy products. Search never creates an offer or mapping. */
+export async function searchSupplierProductsForMapping(input: { query: string; category?: SupplierMappingCategory; limit?: number }) {
+  const db = requireDb(await getDb());
+  const query = input.query.trim();
+  if (query.length < 2) return [];
+  const wildcard = `%${query.replace(/[%_]/g, "\\$&")}%`;
+  const conditions = [or(like(products.name, wildcard), like(products.supplierSku, wildcard), like(products.supplierOfferId, wildcard))];
+  if (input.category) conditions.push(eq(products.category, input.category));
+  const legacyProducts = await db.select({
+    id: products.id,
+    supplierKey: products.supplierKey,
+    supplierSku: products.supplierSku,
+    supplierOfferId: products.supplierOfferId,
+    name: products.name,
+    category: products.category,
+    supplierPrice: products.supplierPrice,
+    supplierCurrency: products.supplierCurrency,
+    regionLabel: products.regionLabel,
+    deliveryType: products.deliveryType,
+    inputRequirements: products.inputRequirements,
+    status: products.status,
+  }).from(products).where(and(...conditions)).orderBy(products.name).limit(Math.min(50, Math.max(1, input.limit ?? 30)));
+  const mapped = legacyProducts.length ? await db.select({ legacyProductId: supplierOffers.legacyProductId, id: supplierOffers.id, masterProductId: supplierOffers.masterProductId, mappingStatus: supplierOffers.mappingStatus, mappingAttributes: supplierOffers.mappingAttributes })
+    .from(supplierOffers).where(inArray(supplierOffers.legacyProductId, legacyProducts.map((product) => product.id))) : [];
+  const offerByLegacyProduct = new Map(mapped.map((offer) => [offer.legacyProductId, offer]));
+  return legacyProducts.map((product) => {
+    const offer = offerByLegacyProduct.get(product.id);
+    return {
+      ...product,
+      supplierName: mappingSupplierName(product.supplierKey),
+      supplierProductId: product.supplierOfferId || product.supplierSku || String(product.id),
+      supplierCost: product.supplierPrice === null ? null : Number(product.supplierPrice),
+      mappingStatus: offer?.mappingStatus ?? "UNMAPPED" as const,
+      mappingOfferId: offer?.id ?? null,
+      masterProductId: offer?.masterProductId ?? null,
+      mappingAttributes: offer?.mappingAttributes ?? null,
+    };
+  });
+}
+
+/** Creates an empty VAMNUX-owned Master Product only after an owner supplies exact category identity attributes. */
+export async function createSupplierProductMappingMaster(input: { name: string; category: SupplierMappingCategory; subcategory?: string | null; productType?: string | null; regionLabel?: string | null; currency?: string | null; denomination?: string | null; imageUrl?: string | null; mappingAttributes: Record<string, unknown>; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const name = input.name.trim().slice(0, 255);
+  if (!name) throw new Error("Master Product name is required");
+  const mappingAttributes = normalizeMappingAttributes(input.category, input.mappingAttributes);
+  const masterKey = createMasterProductKey(input.category, mappingAttributes);
+  const existing = await db.select({ id: masterProducts.id }).from(masterProducts).where(eq(masterProducts.masterKey, masterKey)).limit(1);
+  if (existing[0]) throw new Error("A Master Product already exists for these exact category-specific attributes.");
+  const [created] = await db.insert(masterProducts).values({ masterKey, name, category: input.category, subcategory: input.subcategory?.trim() || null, productType: input.productType?.trim() || null, regionLabel: input.regionLabel?.trim() || null, currency: input.currency?.trim().toUpperCase() || null, denomination: input.denomination?.trim() || null, imageUrl: input.imageUrl?.trim() || null, customerFacingStatus: "draft", metadata: { mappingAttributes, createdThrough: "owner_supplier_product_mapping" } }).$returningId();
+  if (!created) throw new Error("Master Product could not be created");
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_mapping.master_created", targetType: "master_product", targetId: created.id, summary: `Created draft Master Product ${name}`, metadata: { category: input.category, masterKey } });
+  return { id: created.id, masterKey, name, category: input.category, mappingAttributes };
+}
+
+/** Adds a legacy supplier product as a PENDING REVIEW offer snapshot; no legacy product row is modified. */
+export async function addSupplierOfferToMasterForReview(input: { masterProductId: number; legacyProductId: number; mappingAttributes: Record<string, unknown>; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [masters, legacyProducts, existingOffers] = await Promise.all([
+    db.select().from(masterProducts).where(eq(masterProducts.id, input.masterProductId)).limit(1),
+    db.select().from(products).where(eq(products.id, input.legacyProductId)).limit(1),
+    db.select().from(supplierOffers).where(eq(supplierOffers.legacyProductId, input.legacyProductId)).limit(1),
+  ]);
+  const target = masters[0];
+  const source = legacyProducts[0];
+  if (!target || !source) throw new Error("Master Product or supplier product was not found");
+  if (!isSupplierMappingCategory(target.category) || target.category !== source.category) throw new Error("Supplier products may only be reviewed against a Master Product in the exact same category.");
+  if (!source.supplierKey) throw new Error("Only supplier-normalised products can be added as supplier offers.");
+  if (existingOffers[0]) throw new Error("This supplier product already has a mapping record. Remove it before submitting a new review.");
+  const masterAttributes = mappingAttributesFromMaster(target);
+  const mappingAttributes = normalizeMappingAttributes(target.category, input.mappingAttributes);
+  if (!mappingAttributesMatch(target.category, masterAttributes, mappingAttributes)) throw new Error("The supplied category-specific attributes do not exactly match this Master Product. Product names are not used for mapping.");
+  const [created] = await db.transaction(async (tx) => {
+    const [offer] = await tx.insert(supplierOffers).values({ masterProductId: target.id, mappingStatus: "PENDING REVIEW", legacyProductId: source.id, supplierKey: source.supplierKey!, supplierSku: source.supplierSku, supplierOfferId: source.supplierOfferId, supplierCategory: source.supplierCategory, supplierProductName: source.name, supplierCost: source.supplierPrice, supplierCurrency: source.supplierCurrency, regionLabel: source.regionLabel, supplierAvailability: source.supplierEligible, sourceStatus: source.status, deliveryType: source.deliveryType, inputRequirements: source.inputRequirements, mappingAttributes, metadata: { source: "owner_mapping_review" }, supplierUpdatedAt: source.supplierUpdatedAt }).$returningId();
+    if (!offer) throw new Error("Supplier offer review record could not be created");
+    await tx.insert(supplierOfferMappingReviews).values({ supplierOfferId: offer.id, legacyProductId: source.id, masterProductId: target.id, action: "PENDING REVIEW", previousStatus: "UNMAPPED", nextStatus: "PENDING REVIEW", reviewedByAdminId: input.adminUserId, note: input.note?.trim() || null, mappingAttributes });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier_mapping.offer_submitted", targetType: "supplier_offer", targetId: String(offer.id), summary: `Submitted ${source.name} for mapping review`, metadata: { masterProductId: target.id, legacyProductId: source.id, category: target.category } });
+    return [offer];
+  });
+  return { supplierOfferId: created.id, legacyProductId: source.id, masterProductId: target.id, mappingStatus: "PENDING REVIEW" as const };
+}
+
+export async function approveSupplierOfferMapping(input: { supplierOfferId: number; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [offer] = await db.select().from(supplierOffers).where(eq(supplierOffers.id, input.supplierOfferId)).limit(1);
+  if (!offer || !offer.masterProductId) throw new Error("Pending supplier offer mapping was not found");
+  if (offer.mappingStatus !== "PENDING REVIEW") throw new Error("Only a PENDING REVIEW mapping can be approved");
+  const [masters, legacyProducts] = await Promise.all([
+    db.select().from(masterProducts).where(eq(masterProducts.id, offer.masterProductId)).limit(1),
+    db.select({ category: products.category }).from(products).where(eq(products.id, offer.legacyProductId)).limit(1),
+  ]);
+  const target = masters[0];
+  if (!target || !legacyProducts[0] || !isSupplierMappingCategory(target.category) || target.category !== legacyProducts[0].category) throw new Error("The mapping can no longer be approved because its category is not safe.");
+  if (!mappingAttributesMatch(target.category, mappingAttributesFromMaster(target), mappingAttributesFromOffer(offer, target.category))) throw new Error("The mapping can no longer be approved because its verified attributes do not exactly match.");
+  await db.transaction(async (tx) => {
+    await tx.update(supplierOffers).set({ mappingStatus: "APPROVED" }).where(eq(supplierOffers.id, offer.id));
+    await tx.insert(supplierOfferMappingReviews).values({ supplierOfferId: offer.id, legacyProductId: offer.legacyProductId, masterProductId: target.id, action: "APPROVED", previousStatus: "PENDING REVIEW", nextStatus: "APPROVED", reviewedByAdminId: input.adminUserId, note: input.note?.trim() || null, mappingAttributes: offer.mappingAttributes });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier_mapping.offer_approved", targetType: "supplier_offer", targetId: String(offer.id), summary: `Approved supplier offer mapping for ${offer.supplierProductName}`, metadata: { masterProductId: target.id, legacyProductId: offer.legacyProductId, category: target.category } });
+  });
+  return { supplierOfferId: offer.id, mappingStatus: "APPROVED" as const };
+}
+
+export async function rejectSupplierOfferMapping(input: { supplierOfferId: number; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [offer] = await db.select().from(supplierOffers).where(eq(supplierOffers.id, input.supplierOfferId)).limit(1);
+  if (!offer) throw new Error("Supplier offer mapping was not found");
+  if (offer.mappingStatus !== "PENDING REVIEW") throw new Error("Only a PENDING REVIEW mapping can be rejected");
+  await db.transaction(async (tx) => {
+    await tx.update(supplierOffers).set({ masterProductId: null, mappingStatus: "REJECTED" }).where(eq(supplierOffers.id, offer.id));
+    await tx.insert(supplierOfferMappingReviews).values({ supplierOfferId: offer.id, legacyProductId: offer.legacyProductId, masterProductId: offer.masterProductId, action: "REJECTED", previousStatus: "PENDING REVIEW", nextStatus: "REJECTED", reviewedByAdminId: input.adminUserId, note: input.note?.trim() || null, mappingAttributes: offer.mappingAttributes });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier_mapping.offer_rejected", targetType: "supplier_offer", targetId: String(offer.id), summary: `Rejected supplier offer mapping for ${offer.supplierProductName}`, metadata: { masterProductId: offer.masterProductId, legacyProductId: offer.legacyProductId } });
+  });
+  return { supplierOfferId: offer.id, mappingStatus: "REJECTED" as const };
+}
+
+/** Removes only the additive mapping snapshot. The original supplier product remains untouched in products. */
+export async function removeSupplierOfferMapping(input: { supplierOfferId: number; note?: string | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [offer] = await db.select().from(supplierOffers).where(eq(supplierOffers.id, input.supplierOfferId)).limit(1);
+  if (!offer) throw new Error("Supplier offer mapping was not found");
+  await db.transaction(async (tx) => {
+    await tx.insert(supplierOfferMappingReviews).values({ supplierOfferId: offer.id, legacyProductId: offer.legacyProductId, masterProductId: offer.masterProductId, action: "REMOVED", previousStatus: offer.mappingStatus, nextStatus: "UNMAPPED", reviewedByAdminId: input.adminUserId, note: input.note?.trim() || null, mappingAttributes: offer.mappingAttributes });
+    await tx.delete(supplierOffers).where(eq(supplierOffers.id, offer.id));
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier_mapping.offer_removed", targetType: "supplier_offer", targetId: String(offer.id), summary: `Removed additive mapping record for ${offer.supplierProductName}`, metadata: { legacyProductId: offer.legacyProductId, previousStatus: offer.mappingStatus } });
+  });
+  return { supplierOfferId: offer.id, mappingStatus: "UNMAPPED" as const };
 }
 
 export async function listActiveCatalogProducts() {

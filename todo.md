@@ -647,3 +647,9 @@
 - [x] Limit Step 2 implementation and verification to supplier ID, name, active status, API status, supported categories, priority, and a server-only credential reference; defer health analytics, balance tracking, performance statistics, routing, mapping, pricing, and fulfilment.
 
 - [x] Provide a diagnosis-only report of the VAMNUX database connectivity blocker, including service type, configuration evidence, reachability result, responsible party, and any required secure configuration action, without changing data or application functionality.
+
+- [x] Create additive owner-only Supplier Product Mapping records and controls with UNMAPPED, PENDING REVIEW, APPROVED, and REJECTED statuses, without deleting or changing any existing supplier product, product ID, price, order, API relationship, routing, or storefront behavior.
+- [x] Require category-safe, attribute-aware Admin review for mapping; never match across categories and keep all five Telegram Stars candidate groups separate until explicitly approved by an Admin.
+- [x] Provide Admin mapping actions to view Master Products and Supplier Offers, search supplier products, create a Master Product, add/remove an offer, and approve/reject a mapping with supplier name, source ID, product name, cost, currency, region, and status visible.
+- [x] Preserve every existing catalog row and create no automatic product mapping, supplier routing, price/markup change, fulfilment action, or customer-facing catalog change.
+- [x] Verify mapping counts by status, data preservation, Admin authorization, deterministic tests, and production build; stop after Step 3 for owner approval before Step 4.

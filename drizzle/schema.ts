@@ -378,6 +378,7 @@ export const masterProducts = mysqlTable("master_products", {
 export const supplierOffers = mysqlTable("supplier_offers", {
   id: int("id").autoincrement().primaryKey(),
   masterProductId: int("masterProductId"),
+  mappingStatus: mysqlEnum("mappingStatus", ["UNMAPPED", "PENDING REVIEW", "APPROVED", "REJECTED"]).default("UNMAPPED").notNull(),
   legacyProductId: int("legacyProductId").notNull(),
   commerceIntegrationId: int("commerceIntegrationId"),
   supplierKey: varchar("supplierKey", { length: 80 }).notNull(),
@@ -392,6 +393,7 @@ export const supplierOffers = mysqlTable("supplier_offers", {
   sourceStatus: mysqlEnum("sourceStatus", ["draft", "active", "paused", "archived"]).default("draft").notNull(),
   deliveryType: mysqlEnum("deliveryType", ["instant", "digital_code", "activation_link", "manual_processing", "account_access"]).notNull(),
   inputRequirements: json("inputRequirements"),
+  mappingAttributes: json("mappingAttributes"),
   metadata: json("metadata"),
   supplierUpdatedAt: timestamp("supplierUpdatedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -401,7 +403,30 @@ export const supplierOffers = mysqlTable("supplier_offers", {
   supplierSkuIndex: index("supplier_offers_supplier_sku_idx").on(table.supplierKey, table.supplierSku),
   supplierOfferIndex: index("supplier_offers_supplier_offer_idx").on(table.supplierKey, table.supplierOfferId),
   masterProductIndex: index("supplier_offers_master_product_idx").on(table.masterProductId),
+  mappingStatusIndex: index("supplier_offers_mapping_status_idx").on(table.mappingStatus, table.masterProductId),
   availabilityIndex: index("supplier_offers_availability_idx").on(table.supplierAvailability, table.sourceStatus),
+}));
+
+/**
+ * Append-only owner review history for supplier-offer mapping. This records
+ * decisions without changing the legacy supplier-normalised products table.
+ */
+export const supplierOfferMappingReviews = mysqlTable("supplier_offer_mapping_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierOfferId: int("supplierOfferId").notNull(),
+  legacyProductId: int("legacyProductId").notNull(),
+  masterProductId: int("masterProductId"),
+  action: mysqlEnum("action", ["PENDING REVIEW", "APPROVED", "REJECTED", "REMOVED"]).notNull(),
+  previousStatus: mysqlEnum("previousStatus", ["UNMAPPED", "PENDING REVIEW", "APPROVED", "REJECTED"]).notNull(),
+  nextStatus: mysqlEnum("nextStatus", ["UNMAPPED", "PENDING REVIEW", "APPROVED", "REJECTED"]).notNull(),
+  reviewedByAdminId: int("reviewedByAdminId").notNull(),
+  note: varchar("note", { length: 1000 }),
+  mappingAttributes: json("mappingAttributes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  offerCreatedIndex: index("supplier_offer_mapping_reviews_offer_created_idx").on(table.supplierOfferId, table.createdAt),
+  masterCreatedIndex: index("supplier_offer_mapping_reviews_master_created_idx").on(table.masterProductId, table.createdAt),
+  adminCreatedIndex: index("supplier_offer_mapping_reviews_admin_created_idx").on(table.reviewedByAdminId, table.createdAt),
 }));
 
 /** VAMNUX-managed storefront taxonomy. Supplier data remains independent from the public category configuration. */

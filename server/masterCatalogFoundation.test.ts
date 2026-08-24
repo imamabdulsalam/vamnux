@@ -18,10 +18,12 @@ describe("Master Catalog foundation", () => {
     expect(legacyProductsBlock).not.toContain("masterProductId");
   });
 
-  it("keeps the foundation unmapped and exposes only a protected read-only inspection summary", () => {
+  it("keeps the foundation protected and requires the separate explicit Step 3 mapping workflow", () => {
     expect(dbSource).toContain('mappingMode: "unmapped_foundation" as const');
-    expect(dbSource).not.toContain("db.insert(masterProducts)");
-    expect(dbSource).not.toContain("db.insert(supplierOffers)");
+    expect(dbSource).toContain("createSupplierProductMappingMaster");
+    expect(dbSource).toContain("addSupplierOfferToMasterForReview");
+    expect(dbSource).toContain('mappingStatus: "PENDING REVIEW"');
+    expect(dbSource).not.toContain("automaticSupplierMapping");
     expect(routerSource).toContain("getMasterCatalogFoundation: adminProcedure.query");
   });
 });

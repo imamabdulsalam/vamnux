@@ -204,6 +204,13 @@
       "when": 1787520009373,
       "tag": "0028_true_outlaw_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "5",
+      "when": 1787555347781,
+      "tag": "0029_smiling_power_man",
+      "breakpoints": true
     }
   ]
 }
