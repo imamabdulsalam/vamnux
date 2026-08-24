@@ -21,6 +21,8 @@ import { applyPricingEngineRule, listPricingEngineAudit, listPricingEngineProduc
 import { PRICING_ROUNDING_RULES, PRICING_RULE_SCOPES } from "../shared/pricingEngine";
 import { listCurrencyManagement, listCurrencyRateHistory, listPricingRateSnapshots, previewCurrencyManagement, saveCurrencyConfiguration, saveCurrencyRateVersion } from "./db";
 import { CURRENCY_RATE_SOURCES, CURRENCY_RATE_UPDATE_FREQUENCIES, VAMNUX_SUPPORTED_CURRENCIES } from "../shared/currencyManagement";
+import { getSupplierRoutingEligibility, getSupplierRoutingPolicy, listSupplierRoutingDecisions, listSupplierRoutingMasters, saveSupplierRoutingPolicy, simulateSupplierRouting, updateSupplierRoutingSupplier } from "./db";
+import { SUPPLIER_ROUTING_STRATEGIES } from "../shared/supplierRouting";
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
@@ -61,6 +63,7 @@ const pricingRuleInputSchema = z.object({
 const currencyCodeSchema = z.enum(VAMNUX_SUPPORTED_CURRENCIES);
 const currencyRateSourceSchema = z.enum(CURRENCY_RATE_SOURCES);
 const currencyRateFrequencySchema = z.enum(CURRENCY_RATE_UPDATE_FREQUENCIES);
+const supplierRoutingStrategySchema = z.enum(SUPPLIER_ROUTING_STRATEGIES);
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -215,6 +218,13 @@ export const appRouter = router({
     previewCurrencyManagement: adminProcedure.input(z.object({ supplierCost: z.number().min(0).max(1_000_000), supplierCurrency: currencyCodeSchema, outputCurrency: currencyCodeSchema, percentageMarkup: z.number().min(-100).max(500), fixedMarkup: z.number().min(0).max(1_000_000), fixedFee: z.number().min(0).max(1_000_000), minimumSellingPrice: z.number().min(0).max(1_000_000).nullable().optional(), maximumDiscountPercent: z.number().min(0).max(100).nullable().optional(), roundingRule: pricingRoundingRuleSchema, manualPriceOverride: z.number().min(0).max(1_000_000).nullable().optional(), at: z.date().optional() }))
       .query(({ input }) => previewCurrencyManagement(input)),
     listPricingRateSnapshots: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listPricingRateSnapshots(input?.limit)),
+    getSupplierRoutingPolicy: adminProcedure.query(() => getSupplierRoutingPolicy()),
+    saveSupplierRoutingPolicy: adminProcedure.input(z.object({ strategy: supplierRoutingStrategySchema })).mutation(({ ctx, input }) => saveSupplierRoutingPolicy({ ...input, adminUserId: ctx.user.id })),
+    listSupplierRoutingMasters: adminProcedure.query(() => listSupplierRoutingMasters()),
+    getSupplierRoutingEligibility: adminProcedure.input(z.object({ masterProductId: z.number().int().positive() })).query(({ input }) => getSupplierRoutingEligibility(input.masterProductId)),
+    updateSupplierRoutingSupplier: adminProcedure.input(z.object({ profileId: z.number().int().positive(), isActive: z.boolean(), priority: z.number().int().min(1).max(100_000) })).mutation(({ ctx, input }) => updateSupplierRoutingSupplier({ ...input, adminUserId: ctx.user.id })),
+    simulateSupplierRouting: adminProcedure.input(z.object({ masterProductId: z.number().int().positive(), strategy: supplierRoutingStrategySchema.optional(), manualSupplierOfferId: z.number().int().positive().nullable().optional() })).mutation(({ ctx, input }) => simulateSupplierRouting({ ...input, adminUserId: ctx.user.id })),
+    listSupplierRoutingDecisions: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listSupplierRoutingDecisions(input?.limit)),
     getSystemHealth: adminProcedure.query(() => getSuperAdminSystemHealth()),
     listCustomers: adminProcedure.query(() => listSuperAdminCustomers()),
     getCustomerControlDetail: adminProcedure.input(z.object({ userId: z.number().int().positive() })).query(({ input }) => getSuperAdminCustomerControlDetail(input.userId)),

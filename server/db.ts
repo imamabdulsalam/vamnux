@@ -1,12 +1,13 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
 import { calculatePricingPreview, type PricingRoundingRule, type PricingRuleScope } from "../shared/pricingEngine";
 import { CURRENCY_DEFINITIONS, MATERIAL_RATE_CHANGE_PERCENT, type CurrencyRateSource, type CurrencyRateUpdateFrequency, type VamnuxSupportedCurrency, VAMNUX_SUPPORTED_CURRENCIES } from "../shared/currencyManagement";
+import { LIVE_ROUTING_DISABLED_MESSAGE, selectSimulatedSupplierOffer, type SupplierRoutingStrategy } from "../shared/supplierRouting";
 import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDeliveryMinutesFromMetadata, type ManualDeliveryStatus } from "../shared/manualDelivery";
 import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
@@ -500,6 +501,130 @@ export async function removeSupplierOfferMapping(input: { supplierOfferId: numbe
     await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "supplier_mapping.offer_removed", targetType: "supplier_offer", targetId: String(offer.id), summary: `Removed additive mapping record for ${offer.supplierProductName}`, metadata: { legacyProductId: offer.legacyProductId, previousStatus: offer.mappingStatus } });
   });
   return { supplierOfferId: offer.id, mappingStatus: "UNMAPPED" as const };
+}
+
+type RoutingEligibilityRow = {
+  supplierOfferId: number;
+  supplierKey: string;
+  supplierName: string;
+  supplierProductId: string;
+  priority: number;
+  supplierCost: number | null;
+  supplierCurrency: string | null;
+  outputCurrency: string | null;
+  exchangeRate: number | null;
+  convertedCost: number | null;
+  customerPrice: number | null;
+  expectedMargin: number | null;
+  expectedMarginPercent: number | null;
+  eligible: boolean;
+  reasons: string[];
+  mappingAttributes: Record<string, unknown>;
+};
+
+const sameJson = (left: unknown, right: unknown) => JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+
+/** Returns the simulation-only routing policy. LIVE routing is always false in Step 6. */
+export async function getSupplierRoutingPolicy() {
+  const db = requireDb(await getDb());
+  const [policy] = await db.select().from(supplierRoutingPolicies).where(eq(supplierRoutingPolicies.id, 1)).limit(1);
+  return policy ? { ...policy, liveRoutingEnabled: false, configured: true } : { id: 1, strategy: "lowest_cost_available" as SupplierRoutingStrategy, liveRoutingEnabled: false, configured: false, updatedAt: null };
+}
+
+export async function saveSupplierRoutingPolicy(input: { strategy: SupplierRoutingStrategy; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [previous] = await db.select().from(supplierRoutingPolicies).where(eq(supplierRoutingPolicies.id, 1)).limit(1);
+  await db.insert(supplierRoutingPolicies).values({ id: 1, strategy: input.strategy, liveRoutingEnabled: false, updatedByAdminId: input.adminUserId }).onDuplicateKeyUpdate({ set: { strategy: input.strategy, liveRoutingEnabled: false, updatedByAdminId: input.adminUserId } });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_routing.policy_saved", targetType: "supplier_routing_policy", targetId: "1", summary: `Saved ${input.strategy.replaceAll("_", " ")} supplier routing simulation strategy`, metadata: { previousStrategy: previous?.strategy ?? null, strategy: input.strategy, liveRoutingEnabled: false, simulationOnly: true } });
+  return getSupplierRoutingPolicy();
+}
+
+/** Routing needs a master only when it has at least one approved offer. It never creates mapping rows. */
+export async function listSupplierRoutingMasters() {
+  const db = requireDb(await getDb());
+  const masters = await db.select().from(masterProducts).orderBy(masterProducts.category, masterProducts.name);
+  const approved = await db.select({ masterProductId: supplierOffers.masterProductId, count: sql<number>`count(*)` }).from(supplierOffers).where(eq(supplierOffers.mappingStatus, "APPROVED")).groupBy(supplierOffers.masterProductId);
+  const countByMaster = new Map(approved.map((row) => [row.masterProductId, Number(row.count)]));
+  return masters.map((master) => ({ id: master.id, name: master.name, category: master.category, currency: master.currency, regionLabel: master.regionLabel, denomination: master.denomination, approvedOfferCount: countByMaster.get(master.id) ?? 0 }));
+}
+
+/** Restricts routing candidates to exact category-safe, owner-approved offer snapshots and active supplier profiles. */
+export async function getSupplierRoutingEligibility(masterProductId: number): Promise<{ master: { id: number; name: string; category: SupplierMappingCategory; currency: string | null; regionLabel: string | null; denomination: string | null }; offers: RoutingEligibilityRow[] }> {
+  const db = requireDb(await getDb());
+  const [master] = await db.select().from(masterProducts).where(eq(masterProducts.id, masterProductId)).limit(1);
+  if (!master || !isSupplierMappingCategory(master.category)) throw new Error("A category-safe Master Product is required for routing simulation");
+  const masterAttributes = mappingAttributesFromMaster(master);
+  const rows = await db.select({ offer: supplierOffers, legacy: products, profile: supplierManagementProfiles }).from(supplierOffers)
+    .innerJoin(products, eq(supplierOffers.legacyProductId, products.id))
+    .leftJoin(supplierManagementProfiles, eq(supplierOffers.supplierKey, supplierManagementProfiles.supplierId))
+    .where(eq(supplierOffers.masterProductId, master.id));
+  const settings = await ensureMarketplacePricingSettings(db);
+  const offers: RoutingEligibilityRow[] = [];
+  for (const row of rows) {
+    const reasons: string[] = [];
+    const offer = row.offer; const legacy = row.legacy; const profile = row.profile;
+    const offerAttributes = (() => { try { return mappingAttributesFromOffer(offer, master.category); } catch { return null; } })();
+    if (offer.mappingStatus !== "APPROVED") reasons.push("Offer mapping is not approved");
+    if (legacy.category !== master.category) reasons.push("Legacy supplier product category does not match the Master Product");
+    if (!offerAttributes || !mappingAttributesMatch(master.category, masterAttributes, offerAttributes)) reasons.push("Verified category-specific attributes no longer match exactly");
+    if (!profile) reasons.push("No active Supplier Management profile exists for this offer");
+    if (profile && !profile.isActive) reasons.push("Supplier profile is inactive");
+    const supportedCategories = Array.isArray(profile?.supportedCategories) ? profile.supportedCategories.map(String) : [];
+    if (profile && !supportedCategories.includes(master.category)) reasons.push("Supplier profile does not support the Master Product category");
+    if (!offer.supplierAvailability || !legacy.supplierEligible) reasons.push("Supplier offer is unavailable");
+    if (offer.sourceStatus !== "active" || legacy.status !== "active") reasons.push("Supplier offer or legacy product is not active");
+    if (offer.supplierCategory !== legacy.supplierCategory) reasons.push("Supplier product identity changed since the approved offer snapshot");
+    if (offer.supplierCurrency !== legacy.supplierCurrency) reasons.push("Supplier currency changed since the approved offer snapshot");
+    if (offer.regionLabel !== legacy.regionLabel) reasons.push("Supplier region changed since the approved offer snapshot");
+    if (offer.deliveryType !== legacy.deliveryType || !sameJson(offer.inputRequirements, legacy.inputRequirements)) reasons.push("Required delivery information changed since the approved offer snapshot");
+    const supplierCost = offer.supplierCost === null ? null : Number(offer.supplierCost);
+    const supplierCurrency = offer.supplierCurrency;
+    const outputCurrency = legacy.baseCurrency;
+    let exchangeRate: number | null = null; let convertedCost: number | null = null;
+    if (supplierCost === null || !supplierCurrency || !outputCurrency) reasons.push("Supplier cost or currency is incomplete");
+    else {
+      try { const rate = await resolveVamnuxExchangeRate(db, supplierCurrency, outputCurrency); exchangeRate = rate.rate; convertedCost = supplierCost * rate.rate; }
+      catch (error) { reasons.push(error instanceof Error ? error.message : "No VAMNUX exchange rate is available"); }
+    }
+    const customerPrice = customerPriceForProduct(legacy, settings).customerPrice;
+    const expectedMargin = convertedCost === null ? null : customerPrice - convertedCost;
+    offers.push({ supplierOfferId: offer.id, supplierKey: offer.supplierKey, supplierName: profile?.supplierName || mappingSupplierName(offer.supplierKey), supplierProductId: offer.supplierOfferId || offer.supplierSku || String(offer.legacyProductId), priority: profile?.priority ?? 9999, supplierCost, supplierCurrency, outputCurrency, exchangeRate, convertedCost, customerPrice, expectedMargin, expectedMarginPercent: expectedMargin === null || customerPrice <= 0 ? null : (expectedMargin / customerPrice) * 100, eligible: reasons.length === 0, reasons, mappingAttributes: offer.mappingAttributes && typeof offer.mappingAttributes === "object" && !Array.isArray(offer.mappingAttributes) ? offer.mappingAttributes as Record<string, unknown> : {} });
+  }
+  return { master: { id: master.id, name: master.name, category: master.category, currency: master.currency, regionLabel: master.regionLabel, denomination: master.denomination }, offers };
+}
+
+export async function updateSupplierRoutingSupplier(input: { profileId: number; isActive: boolean; priority: number; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  if (!Number.isInteger(input.priority) || input.priority < 1 || input.priority > 100_000) throw new Error("Supplier priority must be an integer between 1 and 100,000");
+  const [profile] = await db.select().from(supplierManagementProfiles).where(eq(supplierManagementProfiles.id, input.profileId)).limit(1);
+  if (!profile) throw new Error("Supplier Management profile was not found");
+  await db.update(supplierManagementProfiles).set({ isActive: input.isActive, priority: input.priority }).where(eq(supplierManagementProfiles.id, profile.id));
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_routing.supplier_state_updated", targetType: "supplier_profile", targetId: String(profile.id), summary: `Updated routing state for ${profile.supplierName}`, metadata: { supplierId: profile.supplierId, isActive: input.isActive, priority: input.priority, simulationOnly: true } });
+  return { id: profile.id, supplierId: profile.supplierId, isActive: input.isActive, priority: input.priority };
+}
+
+export async function simulateSupplierRouting(input: { masterProductId: number; strategy?: SupplierRoutingStrategy; manualSupplierOfferId?: number | null; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const policy = await getSupplierRoutingPolicy();
+  const strategy = input.strategy ?? policy.strategy;
+  const eligibility = await getSupplierRoutingEligibility(input.masterProductId);
+  const eligible = eligibility.offers.filter((offer) => offer.eligible && offer.convertedCost !== null && offer.supplierCost !== null && offer.supplierCurrency && offer.outputCurrency && offer.exchangeRate !== null && offer.customerPrice !== null);
+  const selected = selectSimulatedSupplierOffer(strategy, eligible.map((offer) => ({ supplierOfferId: offer.supplierOfferId, supplierKey: offer.supplierKey, supplierName: offer.supplierName, priority: offer.priority, convertedCost: offer.convertedCost!, supplierCost: offer.supplierCost!, supplierCurrency: offer.supplierCurrency! })), input.manualSupplierOfferId);
+  const selectedRow = selected ? eligible.find((offer) => offer.supplierOfferId === selected.supplierOfferId) ?? null : null;
+  const manualRequested = strategy === "manual_selection" && input.manualSupplierOfferId;
+  const outcome = selectedRow ? "selected" as const : manualRequested ? "manual_offer_ineligible" as const : "no_eligible_offer" as const;
+  const fallbackSupplierOfferIds = selectedRow ? eligible.filter((offer) => offer.supplierOfferId !== selectedRow.supplierOfferId).sort((a, b) => a.convertedCost! - b.convertedCost! || a.priority - b.priority).map((offer) => offer.supplierOfferId) : [];
+  const detail = selectedRow ? `${LIVE_ROUTING_DISABLED_MESSAGE} Recommended ${selectedRow.supplierName} using ${strategy.replaceAll("_", " ")}; ${fallbackSupplierOfferIds.length} eligible fallback offer(s) identified.` : `${LIVE_ROUTING_DISABLED_MESSAGE} No eligible supplier offer was selected.`;
+  const [created] = await db.insert(supplierRoutingDecisions).values({ masterProductId: eligibility.master.id, selectedSupplierOfferId: selectedRow?.supplierOfferId ?? null, selectedSupplierKey: selectedRow?.supplierKey ?? null, selectedSupplierProductId: selectedRow?.supplierProductId ?? null, strategy, outcome, simulationMode: true, liveRoutingEnabled: false, supplierCost: selectedRow?.supplierCost === null || selectedRow?.supplierCost === undefined ? null : selectedRow.supplierCost.toFixed(2), supplierCurrency: selectedRow?.supplierCurrency ?? null, outputCurrency: selectedRow?.outputCurrency ?? null, exchangeRate: selectedRow?.exchangeRate === null || selectedRow?.exchangeRate === undefined ? null : selectedRow.exchangeRate.toFixed(6), convertedCost: selectedRow?.convertedCost === null || selectedRow?.convertedCost === undefined ? null : selectedRow.convertedCost.toFixed(2), customerPrice: selectedRow?.customerPrice === null || selectedRow?.customerPrice === undefined ? null : selectedRow.customerPrice.toFixed(2), expectedMargin: selectedRow?.expectedMargin === null || selectedRow?.expectedMargin === undefined ? null : selectedRow.expectedMargin.toFixed(2), expectedMarginPercent: selectedRow?.expectedMarginPercent === null || selectedRow?.expectedMarginPercent === undefined ? null : selectedRow.expectedMarginPercent.toFixed(2), fallbackSupplierOfferIds, eligibilitySnapshot: eligibility.offers.map((offer) => ({ supplierOfferId: offer.supplierOfferId, supplierKey: offer.supplierKey, eligible: offer.eligible, reasons: offer.reasons, priority: offer.priority, convertedCost: offer.convertedCost })), detail, simulatedByAdminId: input.adminUserId }).$returningId();
+  if (!created) throw new Error("Routing simulation record could not be stored");
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_routing.simulated", targetType: "supplier_routing_decision", targetId: String(created.id), summary: `Simulated ${strategy.replaceAll("_", " ")} routing for ${eligibility.master.name}`, metadata: { masterProductId: eligibility.master.id, selectedSupplierOfferId: selectedRow?.supplierOfferId ?? null, outcome, simulationOnly: true, liveRoutingEnabled: false } });
+  return { decisionId: created.id, strategy, outcome, liveRoutingEnabled: false, master: eligibility.master, selectedOffer: selectedRow, eligibleOffers: eligible, fallbackSupplierOfferIds, offers: eligibility.offers, detail };
+}
+
+export async function listSupplierRoutingDecisions(limit = 100) {
+  const db = requireDb(await getDb());
+  const rows = await db.select({ id: supplierRoutingDecisions.id, masterProductId: supplierRoutingDecisions.masterProductId, masterName: masterProducts.name, strategy: supplierRoutingDecisions.strategy, outcome: supplierRoutingDecisions.outcome, simulationMode: supplierRoutingDecisions.simulationMode, liveRoutingEnabled: supplierRoutingDecisions.liveRoutingEnabled, selectedSupplierKey: supplierRoutingDecisions.selectedSupplierKey, selectedSupplierProductId: supplierRoutingDecisions.selectedSupplierProductId, supplierCost: supplierRoutingDecisions.supplierCost, supplierCurrency: supplierRoutingDecisions.supplierCurrency, outputCurrency: supplierRoutingDecisions.outputCurrency, exchangeRate: supplierRoutingDecisions.exchangeRate, convertedCost: supplierRoutingDecisions.convertedCost, customerPrice: supplierRoutingDecisions.customerPrice, expectedMargin: supplierRoutingDecisions.expectedMargin, expectedMarginPercent: supplierRoutingDecisions.expectedMarginPercent, fallbackSupplierOfferIds: supplierRoutingDecisions.fallbackSupplierOfferIds, detail: supplierRoutingDecisions.detail, adminName: users.name, createdAt: supplierRoutingDecisions.createdAt }).from(supplierRoutingDecisions).leftJoin(masterProducts, eq(supplierRoutingDecisions.masterProductId, masterProducts.id)).leftJoin(users, eq(supplierRoutingDecisions.simulatedByAdminId, users.id)).orderBy(desc(supplierRoutingDecisions.createdAt)).limit(Math.min(250, Math.max(1, limit)));
+  return rows.map((row) => ({ ...row, liveRoutingEnabled: false, supplierCost: row.supplierCost === null ? null : Number(row.supplierCost), exchangeRate: row.exchangeRate === null ? null : Number(row.exchangeRate), convertedCost: row.convertedCost === null ? null : Number(row.convertedCost), customerPrice: row.customerPrice === null ? null : Number(row.customerPrice), expectedMargin: row.expectedMargin === null ? null : Number(row.expectedMargin), expectedMarginPercent: row.expectedMarginPercent === null ? null : Number(row.expectedMarginPercent) }));
 }
 
 export async function listActiveCatalogProducts() {

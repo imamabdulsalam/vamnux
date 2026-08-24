@@ -831,6 +831,46 @@ export const supplierHealthChecks = mysqlTable("supplier_health_checks", {
   statusCreatedIndex: index("supplier_health_checks_status_created_idx").on(table.status, table.createdAt),
 }));
 
+/** Owner-managed simulation-only supplier-routing policy. liveRoutingEnabled remains false in this stage. */
+export const supplierRoutingPolicies = mysqlTable("supplier_routing_policies", {
+  id: int("id").primaryKey(),
+  strategy: mysqlEnum("strategy", ["lowest_cost", "highest_priority", "manual_selection", "availability_first", "lowest_cost_available"]).default("lowest_cost_available").notNull(),
+  liveRoutingEnabled: boolean("liveRoutingEnabled").default(false).notNull(),
+  updatedByAdminId: int("updatedByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+/** Append-only owner simulation routing records. These never submit a supplier order or modify an existing order. */
+export const supplierRoutingDecisions = mysqlTable("supplier_routing_decisions", {
+  id: int("id").autoincrement().primaryKey(),
+  masterProductId: int("masterProductId").notNull(),
+  selectedSupplierOfferId: int("selectedSupplierOfferId"),
+  selectedSupplierKey: varchar("selectedSupplierKey", { length: 80 }),
+  selectedSupplierProductId: varchar("selectedSupplierProductId", { length: 180 }),
+  strategy: mysqlEnum("strategy", ["lowest_cost", "highest_priority", "manual_selection", "availability_first", "lowest_cost_available"]).notNull(),
+  outcome: mysqlEnum("outcome", ["selected", "no_eligible_offer", "manual_offer_ineligible", "validation_failed"]).notNull(),
+  simulationMode: boolean("simulationMode").default(true).notNull(),
+  liveRoutingEnabled: boolean("liveRoutingEnabled").default(false).notNull(),
+  supplierCost: decimal("supplierCost", { precision: 12, scale: 2 }),
+  supplierCurrency: varchar("supplierCurrency", { length: 3 }),
+  outputCurrency: varchar("outputCurrency", { length: 3 }),
+  exchangeRate: decimal("exchangeRate", { precision: 16, scale: 6 }),
+  convertedCost: decimal("convertedCost", { precision: 12, scale: 2 }),
+  customerPrice: decimal("customerPrice", { precision: 12, scale: 2 }),
+  expectedMargin: decimal("expectedMargin", { precision: 12, scale: 2 }),
+  expectedMarginPercent: decimal("expectedMarginPercent", { precision: 7, scale: 2 }),
+  fallbackSupplierOfferIds: json("fallbackSupplierOfferIds"),
+  eligibilitySnapshot: json("eligibilitySnapshot"),
+  detail: varchar("detail", { length: 1000 }).notNull(),
+  simulatedByAdminId: int("simulatedByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  masterCreatedIndex: index("supplier_routing_decisions_master_created_idx").on(table.masterProductId, table.createdAt),
+  outcomeCreatedIndex: index("supplier_routing_decisions_outcome_created_idx").on(table.outcome, table.createdAt),
+  adminCreatedIndex: index("supplier_routing_decisions_admin_created_idx").on(table.simulatedByAdminId, table.createdAt),
+}));
+
 /** Explicit supplier wallet observations only. This table never stores credentials, raw supplier responses, or payment data. */
 export const supplierBalanceObservations = mysqlTable("supplier_balance_observations", {
   id: int("id").autoincrement().primaryKey(),
