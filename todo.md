@@ -773,3 +773,6 @@
 - [x] Audit the current Admin product and category query limits, list rendering, and detail controls to identify why only 100 products are visible.
 - [x] Restore complete Admin product browsing with responsive search/filter navigation and ensure category detail views show every product’s correct category without changing product records.
 - [x] Validate full Admin product/catalog visibility, category details, responsive behavior, tests/build, checkpoint, and GitHub push.
+- [x] Audit existing catalogue routes, catalog-related button destinations, and the customer-safe product data contract without changing the existing home catalog section.
+- [x] Create a separate responsive full-catalog page with product showcase, category controls, search, and normal scrolling for the complete selected result set.
+- [x] Redirect catalogue-related actions to the new page while preserving the home catalog section unchanged, then validate desktop/mobile browsing, tests/build, checkpoint, and GitHub push.

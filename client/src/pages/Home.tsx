@@ -354,6 +354,10 @@ export default function Home() {
     const requestedCategory = routeParams.get("category");
     const legacyCategory = requestedCategory === "Steam" ? "Games" : requestedCategory === "Voucher" ? "Gift cards" : requestedCategory;
     if (legacyCategory !== "All" && !isProductCategory(legacyCategory)) return;
+    if (requestedCategory) {
+      setLocation(legacyCategory === "All" ? "/catalog" : `/catalog?category=${encodeURIComponent(legacyCategory)}`, { replace: true });
+      return;
+    }
     const nextCategory = legacyCategory === "All" ? "All" : legacyCategory;
     setActiveCategory(nextCategory);
     setQuery("");
@@ -428,11 +432,7 @@ export default function Home() {
   };
 
   const chooseCategory = (category: ProductCategory) => {
-    setActiveCategory(category);
-    setActiveGamesPlatform("all");
-    setQuery("");
-    setOpenMegaCategory(null);
-    window.requestAnimationFrame(() => revealCatalog(true));
+    setLocation(`/catalog?category=${encodeURIComponent(category)}`);
   };
 
   const chooseGamesPlatform = (platform: GamesPlatformFilter) => {
@@ -442,10 +442,7 @@ export default function Home() {
   };
 
   const chooseQuickLink = (category: ProductCategory, label: string) => {
-    setActiveCategory(category);
-    setQuery(label);
-    setOpenMegaCategory(null);
-    window.requestAnimationFrame(() => revealCatalog(true));
+    setLocation(`/catalog?category=${encodeURIComponent(category)}&q=${encodeURIComponent(label)}`);
   };
 
   const openCompactProduct = (product: Product) => {
@@ -552,7 +549,7 @@ export default function Home() {
               </div>
             </div>;
           })}
-          <button className="compact-all-categories" type="button" onClick={() => { setActiveCategory("All"); setQuery(""); setOpenMegaCategory(null); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><Search size={17} /> All catalog</button>
+          <button className="compact-all-categories" type="button" onClick={() => setLocation("/catalog")}><Search size={17} /> All catalog</button>
           <span className="scope-status"><ShieldCheck size={16} /> Product availability updates</span>
         </nav>
         <section className="mobile-category-menu" aria-label="Mobile marketplace category menu">
@@ -562,7 +559,7 @@ export default function Home() {
             <ChevronDown size={17} className={mobileCategoryMenuOpen ? "mobile-category-chevron open" : "mobile-category-chevron"} />
           </button>
           <div id="mobile-category-drawer" className="mobile-category-drawer" data-open={mobileCategoryMenuOpen}>
-            <button type="button" className="mobile-category-all" onClick={() => { setActiveCategory("All"); setQuery(""); setMobileCategoryMenuOpen(false); document.getElementById("products")?.scrollIntoView({ behavior: "smooth", block: "start" }); }}><Search size={16} /> All active products <ArrowRight size={15} /></button>
+            <button type="button" className="mobile-category-all" onClick={() => setLocation("/catalog")}><Search size={16} /> All active products <ArrowRight size={15} /></button>
             <div className="mobile-category-list">
               {visibleCategories.map(({ label, icon: Icon, filter }) => {
                 const links = catalogQuickLinks.get(filter) ?? [];
@@ -649,7 +646,7 @@ export default function Home() {
           </div>
           <div className="section-heading-right">
             <p>Search or use a category menu to go straight to available VAMNUX products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
-            <button className="all-products-button" onClick={() => { setActiveCategory("All"); setQuery(""); window.requestAnimationFrame(() => revealCatalog(true)); }}>Browse VAMNUX products <ArrowRight size={17} /></button>
+            <button className="all-products-button" onClick={() => setLocation("/catalog")}>Browse VAMNUX products <ArrowRight size={17} /></button>
           </div>
         </div>
 

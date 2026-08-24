@@ -16,6 +16,7 @@ const SuperAdmin = lazy(() => import("./pages/SuperAdmin"));
 const PolicyPage = lazy(() => import("./pages/PolicyPage"));
 const CustomerAuth = lazy(() => import("./pages/CustomerAuth"));
 const PublicInformationPage = lazy(() => import("./pages/PublicInformationPage"));
+const CatalogPage = lazy(() => import("./pages/CatalogPage"));
 
 function RouteLoadingFallback() {
   return <main className="route-loading-fallback" role="status" aria-live="polite"><span /><div><strong>Opening VAMNUX</strong><small>Loading this page…</small></div></main>;
@@ -44,6 +45,7 @@ function Router() {
         <Route path="/ai-tools" component={PublicInformationPage} />
         <Route path="/deals" component={PublicInformationPage} />
         <Route path="/products" component={CatalogRedirect} />
+        <Route path="/catalog" component={CatalogPage} />
         <Route path="/help" component={PublicInformationPage} />
         <Route path="/faq" component={PublicInformationPage} />
         <Route path="/support/ticket" component={PublicInformationPage} />
@@ -88,7 +90,7 @@ function CatalogRedirect() {
   const [, setLocation] = useLocation();
 
   useLayoutEffect(() => {
-    setLocation("/?category=All#products", { replace: true });
+    setLocation("/catalog", { replace: true });
   }, [setLocation]);
 
   return null;

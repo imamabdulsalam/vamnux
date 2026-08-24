@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 
 type CatalogCategory = "top_up" | "gift_card" | "game_key" | "subscription" | "software" | "ai_tool" | "steam" | "telegram_stars";
-const CATALOG_HREF = "/?category=All#products";
+const CATALOG_HREF = "/catalog";
 
 type PageDefinition = {
   title: string;

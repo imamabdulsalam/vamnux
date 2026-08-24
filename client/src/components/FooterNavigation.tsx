@@ -2,15 +2,15 @@ import { ArrowUpRight, ShieldCheck } from "lucide-react";
 import { Link } from "wouter";
 
 const productLinks = [
-  ["Game Top-Up", "/?category=Top-up#products"],
-  ["Gift Cards", "/?category=Gift%20cards#products"],
-  ["Games", "/?category=Games#products"],
-  ["Steam Top-Up", "/?category=Steam%20Top-Up#products"],
-  ["Game Keys", "/?category=Games#products"],
-  ["Subscriptions", "/?category=Subscription#products"],
-  ["AI Tools", "/?category=AI%20tools#products"],
-  ["Deals", "/?category=All#products"],
-  ["Others", "/?category=All#products"],
+  ["Game Top-Up", "/catalog?category=Top-up"],
+  ["Gift Cards", "/catalog?category=Gift%20cards"],
+  ["Games", "/catalog?category=Games"],
+  ["Steam Top-Up", "/catalog?category=Steam%20Top-Up"],
+  ["Game Keys", "/catalog?category=Games"],
+  ["Subscriptions", "/catalog?category=Subscription"],
+  ["AI Tools", "/catalog?category=AI%20tools"],
+  ["Deals", "/catalog"],
+  ["Others", "/catalog"],
 ] as const;
 
 const supportLinks = [
@@ -39,14 +39,7 @@ function FooterList({ title, links }: { title: string; links: readonly (readonly
       window.dispatchEvent(new Event("vamnux:why-us"));
       return;
     }
-    if (title !== "Products" || window.location.pathname !== "/") return;
-    const category = new URL(href, window.location.origin).searchParams.get("category");
-    if (!category) return;
-    event.preventDefault();
-    const catalogPath = new URL(href, window.location.origin);
-    window.history.replaceState(null, "", `${catalogPath.pathname}${catalogPath.search}`);
-    window.location.hash = "products";
-    window.dispatchEvent(new CustomEvent("vamnux:catalog-filter", { detail: { category, focusSearch: true } }));
+    if (title !== "Products") return;
   };
   return <section className="site-footer-column"><h2>{title}</h2>{links.map(([label, href]) => label === "Why Us" ? <a key={`${title}-${label}`} href={href} onClick={(event) => activateDestinationInPlace(event, label, href)}>{label}</a> : <Link key={`${title}-${label}`} href={href} onClick={(event) => activateDestinationInPlace(event, label, href)}>{label}</Link>)}</section>;
 }
