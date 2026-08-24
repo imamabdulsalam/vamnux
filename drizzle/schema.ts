@@ -657,6 +657,47 @@ export const commerceIntegrations = mysqlTable("commerce_integrations", {
   typeStatusIndex: index("commerce_integrations_type_status_idx").on(table.integrationType, table.syncStatus),
 }));
 
+/**
+ * Owner-managed supplier metadata. This table intentionally stores no credential
+ * values and does not alter catalog-product links, routing, prices, or orders.
+ */
+export const supplierManagementProfiles = mysqlTable("supplier_management_profiles", {
+  id: int("id").autoincrement().primaryKey(),
+  integrationId: int("integrationId"),
+  supplierId: varchar("supplierId", { length: 80 }).notNull(),
+  supplierName: varchar("supplierName", { length: 120 }).notNull(),
+  websiteUrl: text("websiteUrl"),
+  supportedCategories: json("supportedCategories"),
+  supportedCurrencies: json("supportedCurrencies"),
+  isActive: boolean("isActive").default(true).notNull(),
+  priority: int("priority").default(100).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  supplierIdUnique: uniqueIndex("supplier_management_profiles_supplier_id_unique").on(table.supplierId),
+  integrationUnique: uniqueIndex("supplier_management_profiles_integration_unique").on(table.integrationId),
+  activePriorityIndex: index("supplier_management_profiles_active_priority_idx").on(table.isActive, table.priority),
+}));
+
+/**
+ * Safe, server-side supplier configuration health records. They never store raw
+ * credentials, request bodies, response payloads, orders, or fulfilment data.
+ */
+export const supplierHealthChecks = mysqlTable("supplier_health_checks", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierProfileId: int("supplierProfileId").notNull(),
+  integrationId: int("integrationId"),
+  checkType: mysqlEnum("checkType", ["configuration", "manual_probe"]).default("configuration").notNull(),
+  status: mysqlEnum("status", ["passed", "attention", "failed"]).notNull(),
+  responseMs: int("responseMs"),
+  detail: varchar("detail", { length: 500 }).notNull(),
+  performedByAdminId: int("performedByAdminId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  profileCreatedIndex: index("supplier_health_checks_profile_created_idx").on(table.supplierProfileId, table.createdAt),
+  statusCreatedIndex: index("supplier_health_checks_status_created_idx").on(table.status, table.createdAt),
+}));
+
 /** Explicit supplier wallet observations only. This table never stores credentials, raw supplier responses, or payment data. */
 export const supplierBalanceObservations = mysqlTable("supplier_balance_observations", {
   id: int("id").autoincrement().primaryKey(),

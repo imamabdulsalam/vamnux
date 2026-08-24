@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierHealthChecks, supplierManagementProfiles, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -915,6 +915,88 @@ export async function listCommerceIntegrations() {
     lastError: commerceIntegrations.lastError,
     updatedAt: commerceIntegrations.updatedAt,
   }).from(commerceIntegrations).orderBy(desc(commerceIntegrations.updatedAt));
+}
+
+function safeStringList(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0, 40) : [];
+}
+
+function managementSupplierId(providerName: string) {
+  return providerName.toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 80);
+}
+
+async function supplierCategories(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, supplierId: string) {
+  const rows = await db.select({ category: products.category }).from(products).where(eq(products.supplierKey, supplierId)).groupBy(products.category);
+  return rows.map((row) => row.category);
+}
+
+/** Ensures additive profiles exist for current supplier integrations without changing integrations, products, routing, prices, or credentials. */
+export async function ensureSupplierManagementProfiles() {
+  const db = requireDb(await getDb());
+  const integrations = await db.select({ id: commerceIntegrations.id, providerName: commerceIntegrations.providerName, apiBaseUrl: commerceIntegrations.apiBaseUrl, supportedCurrencies: commerceIntegrations.supportedCurrencies, syncStatus: commerceIntegrations.syncStatus })
+    .from(commerceIntegrations).where(eq(commerceIntegrations.integrationType, "supplier"));
+  for (const integration of integrations) {
+    const supplierId = managementSupplierId(integration.providerName);
+    await db.insert(supplierManagementProfiles).values({ integrationId: integration.id, supplierId, supplierName: integration.providerName, websiteUrl: integration.apiBaseUrl, supportedCategories: await supplierCategories(db, supplierId), supportedCurrencies: safeStringList(integration.supportedCurrencies), isActive: integration.syncStatus !== "paused", priority: 100 })
+      .onDuplicateKeyUpdate({ set: { integrationId: integration.id } });
+  }
+}
+
+export async function listSupplierManagement() {
+  const db = requireDb(await getDb());
+  await ensureSupplierManagementProfiles();
+  const profiles = await db.select().from(supplierManagementProfiles).orderBy(supplierManagementProfiles.priority, supplierManagementProfiles.supplierName);
+  return Promise.all(profiles.map(async (profile) => {
+    const [integration] = profile.integrationId ? await db.select({ apiBaseUrl: commerceIntegrations.apiBaseUrl, credentialReference: commerceIntegrations.credentialReference, supportedCurrencies: commerceIntegrations.supportedCurrencies, syncStatus: commerceIntegrations.syncStatus })
+      .from(commerceIntegrations).where(eq(commerceIntegrations.id, profile.integrationId)).limit(1) : [];
+    const [performance] = await db.select({ total: sql<number>`count(*)`, successes: sql<number>`sum(case when ${apiRequestLogs.success} = true then 1 else 0 end)`, failures: sql<number>`sum(case when ${apiRequestLogs.success} = false then 1 else 0 end)`, averageResponseMs: sql<number | null>`avg(${apiRequestLogs.responseMs})` })
+      .from(apiRequestLogs).where(eq(apiRequestLogs.supplierKey, profile.supplierId));
+    const [lastSuccess] = await db.select({ createdAt: apiRequestLogs.createdAt }).from(apiRequestLogs).where(and(eq(apiRequestLogs.supplierKey, profile.supplierId), eq(apiRequestLogs.success, true))).orderBy(desc(apiRequestLogs.createdAt)).limit(1);
+    const [lastFailure] = await db.select({ createdAt: apiRequestLogs.createdAt, errorCode: apiRequestLogs.errorCode }).from(apiRequestLogs).where(and(eq(apiRequestLogs.supplierKey, profile.supplierId), eq(apiRequestLogs.success, false))).orderBy(desc(apiRequestLogs.createdAt)).limit(1);
+    const [latestBalance] = profile.integrationId ? await db.select({ balance: supplierBalanceObservations.balance, currency: supplierBalanceObservations.currency, observedAt: supplierBalanceObservations.observedAt }).from(supplierBalanceObservations).where(eq(supplierBalanceObservations.integrationId, profile.integrationId)).orderBy(desc(supplierBalanceObservations.observedAt)).limit(1) : [];
+    const [latestHealth] = await db.select({ status: supplierHealthChecks.status, detail: supplierHealthChecks.detail, createdAt: supplierHealthChecks.createdAt, responseMs: supplierHealthChecks.responseMs }).from(supplierHealthChecks).where(eq(supplierHealthChecks.supplierProfileId, profile.id)).orderBy(desc(supplierHealthChecks.createdAt)).limit(1);
+    const total = Number(performance?.total ?? 0);
+    const successes = Number(performance?.successes ?? 0);
+    const failures = Number(performance?.failures ?? 0);
+    return { id: profile.id, integrationId: profile.integrationId, supplierId: profile.supplierId, supplierName: profile.supplierName, websiteUrl: profile.websiteUrl || integration?.apiBaseUrl || null, supportedCategories: safeStringList(profile.supportedCategories).length ? safeStringList(profile.supportedCategories) : await supplierCategories(db, profile.supplierId), supportedCurrencies: safeStringList(profile.supportedCurrencies).length ? safeStringList(profile.supportedCurrencies) : safeStringList(integration?.supportedCurrencies), isActive: profile.isActive, priority: profile.priority, apiStatus: integration?.syncStatus ?? "not_configured", connectionStatus: latestHealth?.status ?? "not_checked", credentialConfigured: Boolean(integration?.credentialReference), lastSuccessfulRequest: lastSuccess?.createdAt ?? null, lastFailedRequest: lastFailure?.createdAt ?? null, lastFailureCode: lastFailure?.errorCode ?? null, successRate: total ? Math.round((successes / total) * 10_000) / 100 : null, failureRate: total ? Math.round((failures / total) * 10_000) / 100 : null, averageResponseMs: performance?.averageResponseMs == null ? null : Math.round(Number(performance.averageResponseMs)), supplierBalance: latestBalance ? numericValue(latestBalance.balance) : null, supplierBalanceCurrency: latestBalance?.currency ?? null, supplierBalanceObservedAt: latestBalance?.observedAt ?? null, lastHealthCheck: latestHealth ?? null, createdAt: profile.createdAt, updatedAt: profile.updatedAt };
+  }));
+}
+
+export async function createSupplierManagementProfile(input: { supplierId: string; supplierName: string; websiteUrl?: string | null; supportedCategories: string[]; supportedCurrencies: string[]; isActive: boolean; priority: number; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const supplierId = input.supplierId.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  const supplierName = input.supplierName.trim().slice(0, 120);
+  if (!supplierId || !supplierName) throw new Error("Supplier ID and supplier name are required");
+  const [created] = await db.insert(supplierManagementProfiles).values({ supplierId, supplierName, websiteUrl: input.websiteUrl?.trim() || null, supportedCategories: input.supportedCategories.map((value) => value.trim()).filter(Boolean).slice(0, 40), supportedCurrencies: input.supportedCurrencies.map((value) => value.trim().toUpperCase()).filter((value) => /^[A-Z]{3}$/.test(value)).slice(0, 20), isActive: input.isActive, priority: input.priority }).$returningId();
+  if (!created) throw new Error("Supplier management profile could not be created");
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_management.profile_created", targetType: "supplier_profile", targetId: created.id, summary: `Created supplier management profile for ${supplierName}`, metadata: { supplierId, isActive: input.isActive, priority: input.priority } });
+  return { id: created.id, supplierId, supplierName };
+}
+
+export async function updateSupplierManagementProfile(input: { id: number; supplierName: string; websiteUrl?: string | null; supportedCategories: string[]; supportedCurrencies: string[]; isActive: boolean; priority: number; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [profile] = await db.select({ supplierId: supplierManagementProfiles.supplierId }).from(supplierManagementProfiles).where(eq(supplierManagementProfiles.id, input.id)).limit(1);
+  if (!profile) throw new Error("Supplier management profile was not found");
+  const supplierName = input.supplierName.trim().slice(0, 120);
+  if (!supplierName) throw new Error("Supplier name is required");
+  await db.update(supplierManagementProfiles).set({ supplierName, websiteUrl: input.websiteUrl?.trim() || null, supportedCategories: input.supportedCategories.map((value) => value.trim()).filter(Boolean).slice(0, 40), supportedCurrencies: input.supportedCurrencies.map((value) => value.trim().toUpperCase()).filter((value) => /^[A-Z]{3}$/.test(value)).slice(0, 20), isActive: input.isActive, priority: input.priority }).where(eq(supplierManagementProfiles.id, input.id));
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_management.profile_updated", targetType: "supplier_profile", targetId: input.id, summary: `Updated supplier management profile for ${supplierName}`, metadata: { supplierId: profile.supplierId, isActive: input.isActive, priority: input.priority } });
+  return { id: input.id, supplierId: profile.supplierId, supplierName };
+}
+
+/** Records a server-side configuration readiness test only; it never calls supplier order, balance, payment, fulfilment, or credential endpoints. */
+export async function testSupplierManagementConnection(input: { id: number; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [profile] = await db.select().from(supplierManagementProfiles).where(eq(supplierManagementProfiles.id, input.id)).limit(1);
+  if (!profile) throw new Error("Supplier management profile was not found");
+  const [integration] = profile.integrationId ? await db.select().from(commerceIntegrations).where(eq(commerceIntegrations.id, profile.integrationId)).limit(1) : [];
+  const hasEndpoint = Boolean(integration?.apiBaseUrl);
+  const hasCredentialReference = Boolean(integration?.credentialReference);
+  const status = hasEndpoint && hasCredentialReference && integration?.syncStatus !== "not_configured" ? "passed" as const : "attention" as const;
+  const detail = status === "passed" ? "Server-only configuration readiness check passed. No live supplier request or commercial operation was made." : "Supplier configuration needs review. Confirm the protected endpoint and credential reference before any separate live health check.";
+  await db.insert(supplierHealthChecks).values({ supplierProfileId: profile.id, integrationId: profile.integrationId, checkType: "configuration", status, responseMs: 0, detail, performedByAdminId: input.adminUserId });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "supplier_management.configuration_test", targetType: "supplier_profile", targetId: profile.id, summary: `Ran safe configuration test for ${profile.supplierName}`, metadata: { supplierId: profile.supplierId, result: status } });
+  return { supplierProfileId: profile.id, status, detail };
 }
 
 export async function listSuperAdminSupplierBalances() {

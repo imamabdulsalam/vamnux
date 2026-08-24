@@ -623,3 +623,27 @@
 - [x] Do not map, migrate, merge, reprice, route, hide, or otherwise alter the existing 3,423 products, the five Telegram Stars review groups, orders, payment records, or storefront behavior.
 - [x] Add protected read-only Admin inspection procedures and deterministic coverage proving the new structure is additive and existing catalog, order, and payment rows remain unchanged.
 - [x] Validate schema migration, preservation counts, untouched customer-facing behavior, deterministic tests, and production build; stop after reporting the Step 1 foundation for approval.
+
+- [x] Create additive owner-only minimal Supplier Management data and Admin controls for supplier name/ID, API status, supported categories, active status, priority, and server-only credential readiness, while deferring advanced metrics, balances, and performance reporting.
+- [x] Keep supplier credentials server-only, never render or log live API keys/secrets, and expose only credential references or safe configuration status in Admin workflows.
+- [x] Support adding/editing minimal supplier metadata, activation/deactivation, priority updates, and a safe configuration-test control without changing supplier products, routing, prices, orders, payments, or credentials.
+- [x] Do not disconnect, map, merge, rename, reprice, route, hide, or modify existing products, supplier offers, API relationships, orders, payment records, or customer-facing catalog behavior.
+- [x] Validate supplier data preservation, Admin authorization, credential non-exposure, safe minimal controls, deterministic tests, and production build; stop for owner approval before Step 3.
+
+- [x] Do not retry the unavailable database repeatedly; resume Step 2 only when database access is available, first verify the additive tables, then verify protected Supplier Management controls and all legacy catalog/order/payment/API preservation before publishing.
+
+- [x] Before publishing Step 2, verify the Supplier Management tables, Admin Supplier Management controls, all 3,423 products, supplier-product relationships, orders, payments, prices, API relationships, and server-only credential boundary remain intact.
+
+- [x] Issue the requested Step 2 completion report only after those checks are actually verified and the Supplier Management release is successfully published.
+
+- [x] Do not publish or synchronize Step 2 to GitHub until database connectivity is restored and every required minimal Supplier Management and preservation check passes.
+
+- [x] Resume Step 2 from a single lightweight read-only database connectivity check, then continue only if database access is confirmed and all minimal Supplier Management and preservation checks can be verified.
+
+- [x] Diagnose database connection configuration, reachability, timeout behavior, and connection-pool state without modifying VAMNUX product, pricing, order, payment, credential, routing, or customer-facing data.
+- [x] Confirm no safe application-side database configuration correction was needed after database reachability recovered.
+- [x] After connectivity recovery, run a lightweight read-only check before verifying the Step 2 Supplier Management migration, Admin controls, and all preservation requirements.
+
+- [x] Limit Step 2 implementation and verification to supplier ID, name, active status, API status, supported categories, priority, and a server-only credential reference; defer health analytics, balance tracking, performance statistics, routing, mapping, pricing, and fulfilment.
+
+- [x] Provide a diagnosis-only report of the VAMNUX database connectivity blocker, including service type, configuration evidence, reachability result, responsible party, and any required secure configuration action, without changing data or application functionality.
