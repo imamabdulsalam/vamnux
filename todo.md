@@ -744,3 +744,7 @@
 - [x] Inspect all customer-facing View Details entry points, product-list selectors, and product detail presentation styles without changing products, prices, categories, supplier information, cart behavior, colors, dashboards, or Admin views.
 - [x] Refine only the View Details product-list/detail visual hierarchy and typography to use moderate readable sizing and a clearer responsive presentation for every product category, while preserving all data and interactions.
 - [x] Verify desktop and mobile product list/detail views, add focused presentation coverage, run TypeScript/tests/build, and publish the presentation-only update.
+
+- [x] Locate every customer-facing product-list and View Details style that forces product names, denominations, prices, or related product copy to ALL CAPS, without changing product data or non-product UI text.
+- [x] Remove only the forced uppercase transformation from customer product presentation so original product text displays in readable title or normal case, while preserving typography size, prices, colors, layout, cart behavior, and all other functionality.
+- [x] Verify desktop and mobile customer product presentation, add focused casing coverage, run TypeScript/tests/build, and publish the text-casing-only update.

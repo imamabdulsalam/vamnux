@@ -20,4 +20,12 @@ describe("customer product detail presentation", () => {
     expect(browser).toContain('onAddToCart(selectedProduct)');
     expect(styles).toContain('.selected-preview-actions button { min-height:42px; font-size:11px; }');
   });
+
+  it("does not force customer product names and denominations into all caps", () => {
+    expect(styles).toContain('/* Customer product text casing: retain supplier/product wording instead of forcing ALL CAPS. */');
+    expect(styles).toContain('.family-detail-summary h1,');
+    expect(styles).toContain('.family-denomination-card>span,');
+    expect(styles).toContain('.compact-product-offer,');
+    expect(styles).toContain('text-transform:none;');
+  });
 });
