@@ -6,6 +6,7 @@ import { DEFAULT_MARKETPLACE_CATEGORIES } from "./db";
 const homeSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/pages/Home.tsx"), "utf8");
 const dashboardSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/pages/UserDashboard.tsx"), "utf8");
 const adminSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/components/ManualDeliveryProductSetup.tsx"), "utf8");
+const superAdminSource = fs.readFileSync(path.resolve(process.cwd(), "client/src/pages/SuperAdmin.tsx"), "utf8");
 
 describe("VAMNUX Games and Steam Top-Up taxonomy", () => {
   it("uses Games and Steam Top-Up across the shared storefront, dashboard, and Admin category surfaces", () => {
@@ -24,5 +25,12 @@ describe("VAMNUX Games and Steam Top-Up taxonomy", () => {
   it("does not keep Voucher as an active storefront category choice", () => {
     expect(homeSource).not.toContain('"Voucher" as ProductCategory');
     expect(homeSource).toContain('requestedCategory === "Voucher" ? "Gift cards"');
+  });
+
+  it("shows legacy steam inventory under Games and omits the duplicate Steam row only in Admin category operations", () => {
+    expect(superAdminSource).toContain('category.slug !== "steam"');
+    expect(superAdminSource).toContain('if (slug === "games") return "steam"');
+    expect(superAdminSource).toContain('games: "steam"');
+    expect(homeSource).toContain('label: "Games"');
   });
 });

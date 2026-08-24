@@ -728,3 +728,8 @@
 - [x] Retrieve the current FlashTopUp product catalogue using the existing secure server-side integration, then compare supplier product IDs and normalized supplier attributes against existing VAMNUX records without deleting, modifying, or duplicating existing products.
 - [x] Insert only verified new FlashTopUp products into the existing top_up category with unique supplier source keys, preserved supplier cost/currency/attributes, existing VAMNUX pricing-policy compatibility, and no automatic customer-price, mapping, routing, fulfilment, order, wallet, transaction, or storefront change.
 - [x] Verify duplicate prevention, category organization, supplier traceability, pricing isolation, tests/build, and preservation counts; publish and push the verified reconciliation report.
+
+- [x] Inspect the Admin Categories records and establish the exact product count currently assigned to the duplicate Steam category before moving only those records into Games.
+- [x] Reassign the duplicate Steam-admin category products to Games with an audit record, then retire Steam from the Admin Categories workspace while preserving all prices, supplier links, mappings, orders, wallets, and unrelated category behavior.
+- [x] Confirm the Admin Categories workspace shows the moved products under Games and no separate Steam category, without changing storefront category labels, layout, routes, pricing, supplier data, or any other website area.
+- [x] Verify the Admin-only correction with database checks, focused tests, production build, and visual review; publish and push the verified update.
