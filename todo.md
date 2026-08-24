@@ -776,3 +776,6 @@
 - [x] Audit existing catalogue routes, catalog-related button destinations, and the customer-safe product data contract without changing the existing home catalog section.
 - [x] Create a separate responsive full-catalog page with product showcase, category controls, search, and normal scrolling for the complete selected result set.
 - [x] Redirect catalogue-related actions to the new page while preserving the home catalog section unchanged, then validate desktop/mobile browsing, tests/build, checkpoint, and GitHub push.
+- [x] Audit every storefront and User Dashboard catalogue-entry action, category-specific destination, and legacy category URL that can still open the home-page catalog section.
+- [x] Route all customer-facing catalogue actions to the dedicated /catalog page with the correct category or search query, without changing the retained home catalog content.
+- [x] Validate complete catalog routing across storefront, footer, information pages, and User Dashboard links; run regression tests/build; checkpoint; and push the correction to GitHub.

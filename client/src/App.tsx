@@ -2,7 +2,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { lazy, Suspense, useLayoutEffect } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -96,6 +96,35 @@ function CatalogRedirect() {
   return null;
 }
 
+function CatalogLinkRedirector() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const redirectCatalogLink = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const target = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      if (!(target instanceof HTMLAnchorElement) || target.target || target.hasAttribute("download")) return;
+      const destination = new URL(target.href, window.location.origin);
+      if (destination.origin !== window.location.origin) return;
+      const category = destination.searchParams.get("category");
+      const legacyCatalogTarget = destination.pathname === "/products" || (destination.pathname === "/" && (Boolean(category) || destination.hash === "#products"));
+      const label = target.textContent?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
+      const namedCatalogTarget = destination.pathname === "/" && /browse (catalog|marketplace|products)|explore (catalog|products)|view all products|all catalog/.test(label);
+      const button = event.target instanceof Element ? event.target.closest("button") : null;
+      const buttonLabel = button?.textContent?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
+      const namedCatalogAction = button instanceof HTMLButtonElement && /browse (catalog|categories|products|live inventory|active products)|reset catalog/.test(buttonLabel);
+      if (!legacyCatalogTarget && !namedCatalogTarget && !namedCatalogAction) return;
+      event.preventDefault();
+      const normalizedCategory = category === "Steam" ? "Games" : category === "Voucher" ? "Gift cards" : category;
+      setLocation(normalizedCategory && normalizedCategory !== "All" ? `/catalog?category=${encodeURIComponent(normalizedCategory)}` : "/catalog");
+    };
+    document.addEventListener("click", redirectCatalogLink, true);
+    return () => document.removeEventListener("click", redirectCatalogLink, true);
+  }, [setLocation]);
+
+  return null;
+}
+
 function AdminEntryRedirect() {
   const [, setLocation] = useLocation();
 
@@ -113,6 +142,7 @@ function App() {
         <TooltipProvider>
           <Toaster richColors position="top-right" />
           <RoutePositionReset />
+          <CatalogLinkRedirector />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
