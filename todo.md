@@ -798,3 +798,6 @@
 - [x] Validate control visibility and behavior across public pages, User Dashboard, Admin Panel, and mobile/desktop layouts; run regressions/build, checkpoint, and push the update to GitHub.
 - [x] Revert only the added persistent top-right theme, currency, and cart control group, restoring the prior header layout without changing any other website behavior.
 - [x] Verify the restored header on desktop/mobile, run regression tests/build, checkpoint, and report the targeted revert.
+- [x] Audit the Admin Products data contract and current full-list rendering to identify the supplier-cost field and any remaining large-inventory blocking work.
+- [x] Add Admin-only supplier cost/currency to existing product details and rows, and ensure complete authorized inventory browsing remains scalable without changing other presentation or customer-visible data.
+- [x] Validate complete Admin inventory access, supplier-cost isolation, tests/build, checkpoint, and report the targeted enhancement.
