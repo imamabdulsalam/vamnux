@@ -831,3 +831,8 @@
 - [x] Inspect the configured project remote, GitHub CLI authentication, repository linkage, and managed checkpoint synchronization boundary without changing application or catalog data.
 - [x] Apply only a verified safe GitHub remote/linkage correction if an authenticated GitHub repository is available; do not alter website files, database records, or checkpoint history.
 - [x] Verify push access using the latest verified checkpoint state and report the exact GitHub synchronization result or the remaining connection action required.
+- [x] Verify the authoritative GamesDrop Games → Nintendo supplier scope, exact source identities, Nintendo-platform evidence, exact official artwork availability, pricing configuration, and current catalog/commercial preservation baseline without modifying records.
+- [x] Implement and test a transaction-batched GamesDrop Nintendo-only importer that inserts only new exact source identities and records exact official artwork only when source identity attributes match.
+- [x] Import only genuinely new verified GamesDrop Nintendo offers into the existing Games → Nintendo presentation, preserving supplier cost, currency, source attributes, and pricing-policy compatibility.
+- [x] Verify Nintendo-only source scope, exact artwork accuracy, duplicate prevention, Nintendo visibility, active catalog totals, fast customer catalog loading, and preservation of all unrelated categories and commerce records; checkpoint and report the result.
+- [x] Confirm the initial Games Nintendo platform query resolves to newly imported verified metadata without changing records, layout, pricing, or any other category; the first transient zero count cleared on the completed customer response, so no predicate change was needed.
