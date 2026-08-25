@@ -1,6 +1,6 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, Laptop, Search, Send, ShieldCheck, Sparkles, Tv, X } from "lucide-react";
+import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, ImageIcon, Laptop, Search, Send, ShieldCheck, Sparkles, Tv, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { GAMES_PLATFORM_SUBCATEGORIES, gamesPlatformCatalogPath, type GamesPlatformCode } from "@shared/gamesPlatformCategories";
@@ -11,6 +11,7 @@ import "./catalogGamesPlatformBrowser.css";
 import "./fullCatalogMobileOverride.css";
 import "./catalogVirtualGrid.css";
 import "./catalogSearchSuggestions.css";
+import "./catalogArtworkFallback.css";
 
 type CatalogFilter = "All" | ProductCategory;
 type SortMode = "featured" | "price-low" | "price-high" | "name";
@@ -36,8 +37,9 @@ function productPath(product: LiveCatalogProduct) {
 }
 
 function ProductArtwork({ product }: { product: LiveCatalogProduct }) {
-  if (product.image) return <img src={product.image} alt="" loading="lazy" />;
-  return <span className={`catalog-product-fallback tone-${product.tone}`}>{product.name.slice(0, 1)}</span>;
+  const [imageFailed, setImageFailed] = useState(false);
+  if (product.image && !imageFailed) return <img src={product.image} alt={`${product.name} product artwork`} loading="lazy" onError={() => setImageFailed(true)} />;
+  return <span className={`catalog-product-fallback tone-${product.tone}`} aria-label={`${product.name} digital product`}><ImageIcon size={31} aria-hidden="true" /></span>;
 }
 
 function VirtualCatalogGrid({ products }: { products: LiveCatalogProduct[] }) {

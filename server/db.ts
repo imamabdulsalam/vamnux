@@ -1110,6 +1110,15 @@ export async function listActiveCatalogSearchSuggestions(input: PublicCatalogSug
   }).slice(0, 8);
 }
 
+const CUSTOMER_CATALOG_SUPPLIER_ARTWORK: Partial<Record<string, string>> = {
+  gamesdrop: "https://gamesdrop.io/gamesdrop.svg",
+  foxreload: "https://foxreload.com/images/wholesale/logo/logo_foxreload.png",
+};
+
+function customerCatalogArtworkUrl(imageUrl: string | null, supplierKey: string | null) {
+  return imageUrl?.trim() || (supplierKey ? CUSTOMER_CATALOG_SUPPLIER_ARTWORK[supplierKey] : undefined) || null;
+}
+
 export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {
   const db = await getDb();
   const page = Math.max(1, Math.floor(input.page ?? 1));
@@ -1147,6 +1156,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
     name: products.name,
     description: products.description,
     imageUrl: products.imageUrl,
+    supplierKey: products.supplierKey,
     basePrice: products.basePrice,
     baseCurrency: products.baseCurrency,
     markupPercentOverride: products.markupPercentOverride,
@@ -1172,7 +1182,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
   const categoryCounts = metadata ? Object.fromEntries(metadata[1].map((row) => [row.category, Number(row.count)])) as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> : {};
   const total = metadata ? Number(metadata[0][0]?.count ?? 0) : undefined;
   return {
-    items: rows.map(({ basePrice, markupPercentOverride, displayPriceOverride, ...product }) => ({ ...product, ...customerPriceForProduct({ basePrice, markupPercentOverride, displayPriceOverride }, settings) })),
+    items: rows.map(({ basePrice, markupPercentOverride, displayPriceOverride, supplierKey, imageUrl, ...product }) => ({ ...product, imageUrl: customerCatalogArtworkUrl(imageUrl, supplierKey), ...customerPriceForProduct({ basePrice, markupPercentOverride, displayPriceOverride }, settings) })),
     page,
     pageSize,
     total,

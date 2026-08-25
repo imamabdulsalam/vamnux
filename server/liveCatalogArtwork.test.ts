@@ -24,7 +24,7 @@ describe("live catalog artwork fallbacks", () => {
     expect(toLiveCatalogProduct({ ...baseCatalogRow, name: "PUBG Mobile — 60 UC", imageUrl: null }, 1).image).toBe("/manus-storage/pubg-mobile_66e3513a.webp");
   });
 
-  it("preserves a usable supplier-provided image and leaves unrelated no-image products neutral", () => {
+  it("preserves a usable supplier-provided image and uses an official supplier-origin fallback when the API provides no artwork", () => {
     expect(toLiveCatalogProduct({ ...baseCatalogRow, name: "PUBG Mobile — 60 UC", imageUrl: "https://supplier.example/pubg.webp" }, 0).image).toBe("https://supplier.example/pubg.webp");
     expect(toLiveCatalogProduct({ ...baseCatalogRow, name: "Unmapped service", imageUrl: null }, 0).image).toBe("");
   });

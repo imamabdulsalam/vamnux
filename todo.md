@@ -816,3 +816,6 @@
 - [x] Reproduce the reported dedicated catalog search failure and inspect its typed-input, debounce, query, and result-update path without changing product or category data.
 - [x] Implement only immediate search behavior and relevant keyword suggestions derived from existing catalog records, preserving the current catalog layout, prices, categories, and customer-safe data boundary.
 - [x] Verify keyboard and pointer search interactions, suggestion selection, responsive result updates, customer-safe field exposure, focused regressions, TypeScript, production build, and a checkpoint.
+- [x] Audit current customer catalog image fields and verified supplier artwork coverage, without changing any product image URLs, supplier data, category, price, or layout.
+- [x] Render verified existing supplier artwork for catalog cards where available and replace letter-based fallbacks only with a neutral non-letter product-art fallback where artwork is absent or fails to load.
+- [x] Verify representative catalog categories render supplier artwork without letter icons, preserve customer-safe data exposure and fast initial catalog loading, run focused regressions, TypeScript, production build, and checkpoint.
