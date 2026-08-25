@@ -226,16 +226,6 @@ export default function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("cart") === "open") setCartOpen(true);
-    const receiveCurrency = (event: Event) => {
-      const next = (event as CustomEvent<string>).detail;
-      if (["USD", "EUR", "GBP", "NGN"].includes(next)) setCurrency(next as CurrencyCode);
-    };
-    window.addEventListener("vamnux:display-currency", receiveCurrency);
-    return () => window.removeEventListener("vamnux:display-currency", receiveCurrency);
-  }, []);
-  useEffect(() => {
     const timer = window.setTimeout(() => setCatalogSearchTerm(query.trim()), 180);
     return () => window.clearTimeout(timer);
   }, [query]);

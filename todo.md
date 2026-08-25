@@ -796,3 +796,5 @@
 - [x] Audit shared public, User Dashboard, and Admin layouts plus existing theme, currency, and cart controls before adding a persistent top-right control group.
 - [x] Add a persistent responsive top-right Dark/Light, currency, and cart control group across all VAMNUX pages without removing existing header actions.
 - [x] Validate control visibility and behavior across public pages, User Dashboard, Admin Panel, and mobile/desktop layouts; run regressions/build, checkpoint, and push the update to GitHub.
+- [x] Revert only the added persistent top-right theme, currency, and cart control group, restoring the prior header layout without changing any other website behavior.
+- [x] Verify the restored header on desktop/mobile, run regression tests/build, checkpoint, and report the targeted revert.
