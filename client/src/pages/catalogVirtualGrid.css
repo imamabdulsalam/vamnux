@@ -1,0 +1,20 @@
+.full-catalog-virtualized {
+  position: relative;
+}
+
+.full-catalog-grid-window {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  grid-auto-rows: 322px;
+}
+
+.full-catalog-grid-window .full-catalog-card {
+  height: 100%;
+}
+
+@media (max-width: 760px) {
+  .full-catalog-grid-window {
+    grid-auto-rows: 300px;
+  }
+}

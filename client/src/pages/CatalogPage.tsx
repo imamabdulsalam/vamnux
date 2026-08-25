@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, Laptop, Search, Send, ShieldCheck, Sparkles, Tv, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -9,6 +9,7 @@ import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } f
 import "./fullCatalogPage.css";
 import "./catalogGamesPlatformBrowser.css";
 import "./fullCatalogMobileOverride.css";
+import "./catalogVirtualGrid.css";
 
 type CatalogFilter = "All" | ProductCategory;
 type SortMode = "featured" | "price-low" | "price-high" | "name";
@@ -34,6 +35,44 @@ function productPath(product: LiveCatalogProduct) {
 function ProductArtwork({ product }: { product: LiveCatalogProduct }) {
   if (product.image) return <img src={product.image} alt="" loading="lazy" />;
   return <span className={`catalog-product-fallback tone-${product.tone}`}>{product.name.slice(0, 1)}</span>;
+}
+
+function VirtualCatalogGrid({ products }: { products: LiveCatalogProduct[] }) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ width: typeof window === "undefined" ? 1280 : window.innerWidth, scrollY: typeof window === "undefined" ? 0 : window.scrollY, height: typeof window === "undefined" ? 720 : window.innerHeight });
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setViewport({ width: window.innerWidth, scrollY: window.scrollY, height: window.innerHeight }));
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  const columns = viewport.width <= 390 ? 1 : viewport.width <= 760 ? 2 : viewport.width <= 1050 ? 4 : 5;
+  const rowHeight = viewport.width <= 760 ? 300 : 322;
+  const totalRows = Math.ceil(products.length / columns);
+  const top = gridRef.current ? Math.max(0, viewport.scrollY - (gridRef.current.getBoundingClientRect().top + viewport.scrollY)) : 0;
+  const startRow = Math.max(0, Math.floor(top / rowHeight) - 2);
+  const endRow = Math.min(totalRows, Math.ceil((top + viewport.height) / rowHeight) + 3);
+  const visibleProducts = products.slice(startRow * columns, endRow * columns);
+
+  return <div ref={gridRef} className="full-catalog-virtualized" style={{ height: totalRows * rowHeight }}>
+    <div className="full-catalog-grid full-catalog-grid-window" style={{ top: startRow * rowHeight }}>
+      {visibleProducts.map((product) => <article key={product.id} className="full-catalog-card">
+        <Link href={productPath(product)} className="full-catalog-art"><ProductArtwork product={product} /></Link>
+        <div className="full-catalog-card-copy"><span>{product.badge}</span><h2>{product.name}</h2><p>{product.product}</p></div>
+        <div className="full-catalog-card-bottom"><strong>${product.price.toFixed(2)}</strong><small>{product.region}</small><Link href={productPath(product)}>View details <ArrowRight size={14} /></Link></div>
+      </article>)}
+    </div>
+  </div>;
 }
 
 export default function CatalogPage() {
@@ -161,13 +200,7 @@ export default function CatalogPage() {
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>
       </div>
       <div className="full-catalog-summary"><span>{products.length.toLocaleString()} products in this view</span><span><CircleDollarSign size={15} />Prices shown in USD</span></div>
-      {catalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <div className="full-catalog-grid">
-        {products.map((product) => <article key={product.id} className="full-catalog-card">
-          <Link href={productPath(product)} className="full-catalog-art"><ProductArtwork product={product} /></Link>
-          <div className="full-catalog-card-copy"><span>{product.badge}</span><h2>{product.name}</h2><p>{product.product}</p></div>
-          <div className="full-catalog-card-bottom"><strong>${product.price.toFixed(2)}</strong><small>{product.region}</small><Link href={productPath(product)}>View details <ArrowRight size={14} /></Link></div>
-        </article>)}
-      </div> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
+      {catalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <VirtualCatalogGrid products={products} /> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
     </section>
   </main>;
 }

@@ -790,3 +790,6 @@
 - [x] Diagnose catalog category and subcategory filter latency and the incorrect zero-result state without changing product data.
 - [x] Optimize catalog category/subcategory interaction and make the Home breadcrumb link navigate to the homepage on desktop and mobile.
 - [x] Validate fast correct category results, stable interactions, and Home breadcrumb navigation; run regression tests/build; checkpoint; and push the update to GitHub.
+- [x] Profile the category/subcategory switch delay for large result sets and identify the blocking request, rendering, or transformation work without changing catalog data.
+- [x] Implement non-blocking category result rendering so each category/subcategory control responds immediately and matching products are usable within one second.
+- [x] Measure repeated category/subcategory changes, run regression tests/build, checkpoint, and push the verified interaction-latency fix to GitHub.

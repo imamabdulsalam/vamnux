@@ -5,6 +5,7 @@ const dbSource = readFileSync("/home/ubuntu/naijaplay-store/server/db.ts", "utf8
 const routerSource = readFileSync("/home/ubuntu/naijaplay-store/server/routers.ts", "utf8");
 const homeSource = readFileSync("/home/ubuntu/naijaplay-store/client/src/pages/Home.tsx", "utf8");
 const adminSource = readFileSync("/home/ubuntu/naijaplay-store/client/src/pages/SuperAdmin.tsx", "utf8");
+const catalogPageSource = readFileSync("/home/ubuntu/naijaplay-store/client/src/pages/CatalogPage.tsx", "utf8");
 
 describe("catalog and admin loading performance", () => {
   it("supports one complete selected-result catalog response while retaining a customer-safe payload", () => {
@@ -29,6 +30,12 @@ describe("catalog and admin loading performance", () => {
     expect(homeSource).toContain('scope: "primary" as const');
     expect(homeSource).not.toContain("catalogLoadMoreRef");
     expect(homeSource).not.toContain("IntersectionObserver");
+  });
+
+  it("windows large complete catalog categories so a switch does not mount every product card", () => {
+    expect(catalogPageSource).toContain("function VirtualCatalogGrid");
+    expect(catalogPageSource).toContain("visibleProducts = products.slice");
+    expect(catalogPageSource).toContain("full-catalog-grid-window");
   });
 
   it("defers non-visible Admin workspace requests until their tab is selected", () => {
