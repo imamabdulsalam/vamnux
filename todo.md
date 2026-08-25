@@ -793,3 +793,6 @@
 - [x] Profile the category/subcategory switch delay for large result sets and identify the blocking request, rendering, or transformation work without changing catalog data.
 - [x] Implement non-blocking category result rendering so each category/subcategory control responds immediately and matching products are usable within one second.
 - [x] Measure repeated category/subcategory changes, run regression tests/build, checkpoint, and push the verified interaction-latency fix to GitHub.
+- [x] Audit shared public, User Dashboard, and Admin layouts plus existing theme, currency, and cart controls before adding a persistent top-right control group.
+- [x] Add a persistent responsive top-right Dark/Light, currency, and cart control group across all VAMNUX pages without removing existing header actions.
+- [x] Validate control visibility and behavior across public pages, User Dashboard, Admin Panel, and mobile/desktop layouts; run regressions/build, checkpoint, and push the update to GitHub.
