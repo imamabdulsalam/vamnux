@@ -801,3 +801,8 @@
 - [x] Audit the Admin Products data contract and current full-list rendering to identify the supplier-cost field and any remaining large-inventory blocking work.
 - [x] Add Admin-only supplier cost/currency to existing product details and rows, and ensure complete authorized inventory browsing remains scalable without changing other presentation or customer-visible data.
 - [x] Validate complete Admin inventory access, supplier-cost isolation, tests/build, checkpoint, and report the targeted enhancement.
+- [x] Verify the current GamesDrop Gift Cards supplier scope, existing exact source identities, pricing configuration, and catalog/commercial preservation baseline without reading or modifying other supplier categories.
+- [x] Implement and test a transaction-batched, insert-only GamesDrop Gift Cards importer that skips existing source identities and never updates retained product or Supplier Offer records.
+- [x] Import only genuinely new verified GamesDrop Gift Cards into the Gift Cards category, preserving supplier cost/currency/attributes and existing pricing-policy compatibility.
+- [x] Verify duplicate prevention, Gift Cards-only category assignment, supplier traceability, pricing isolation, and preserved catalog/orders/wallets/routing/fulfilment; checkpoint and report the import.
+- [x] Correct the existing primary-catalog filter composition only as needed for the Gift Cards category to display the newly imported active listings without exposing supplier cost or changing layout, pricing, or any other catalog data.

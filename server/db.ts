@@ -1079,7 +1079,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
   const conditions = [
     eq(products.status, "active"),
     inArray(products.category, visibleProductCategories),
-    input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
+    input.scope === "primary" && !input.category ? publicPrimaryCatalogCondition() : undefined,
     hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
     input.category ? eq(products.category, input.category) : undefined,
     input.gamePlatform ? publicGamesPlatformCondition(input.gamePlatform) : undefined,
