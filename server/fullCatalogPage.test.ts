@@ -12,7 +12,7 @@ describe("dedicated full catalog page", () => {
   });
 
   it("loads the complete selected customer-safe result set once and renders normal product cards", () => {
-    expect(catalogSource).toContain("pageSize: 10_000");
+    expect(catalogSource).toContain("pageSize: 50_000");
     expect(catalogSource).toContain('scope: "all" as const');
     expect(catalogSource).toContain('scope: "all",');
     expect(catalogSource).toContain("full-catalog-grid");

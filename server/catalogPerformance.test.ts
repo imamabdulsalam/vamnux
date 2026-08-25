@@ -9,14 +9,14 @@ const catalogPageSource = readFileSync("/home/ubuntu/naijaplay-store/client/src/
 
 describe("catalog and admin loading performance", () => {
   it("supports one complete selected-result catalog response while retaining a customer-safe payload", () => {
-    expect(dbSource).toContain("const pageSize = Math.min(10_000, Math.max(12");
+    expect(dbSource).toContain("const pageSize = Math.min(50_000, Math.max(12");
     expect(dbSource).toContain(".limit(pageSize + 1).offset((page - 1) * pageSize)");
     expect(dbSource).toContain("customerPriceForProduct(product, settings)");
     expect(dbSource).toContain("input.scope === \"primary\"");
   });
 
   it("allows one complete selected-result catalog request through the public router", () => {
-    expect(routerSource).toContain("pageSize: z.number().int().min(12).max(10_000)");
+    expect(routerSource).toContain("pageSize: z.number().int().min(12).max(50_000)");
     expect(routerSource).toContain('scope: z.enum(["primary", "all"])');
     expect(routerSource).toContain("includeMetadata: z.boolean().default(false)");
     expect(routerSource).toContain('gamePlatform: z.enum(["steam", "xbox", "playstation", "nintendo", "battlenet", "ea", "ubisoft", "mobile", "quest"])');

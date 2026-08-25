@@ -105,7 +105,7 @@ export default function CatalogPage() {
   const selectedCategory = categoryOptions.find((option) => option.value === category) ?? categoryOptions[0];
   const catalogInput = useMemo(() => ({
     page: 1,
-    pageSize: 10_000,
+    pageSize: 50_000,
     scope: "all" as const,
     category: selectedCategory.api,
     gamePlatform: category === "Games" && gamesPlatform !== "all" ? gamesPlatform : undefined,
@@ -159,7 +159,7 @@ export default function CatalogPage() {
     const option = categoryOptions.find((entry) => entry.value === nextCategory) ?? categoryOptions[0];
     void utils.marketplace.catalog.prefetch({
       page: 1,
-      pageSize: 10_000,
+      pageSize: 50_000,
       scope: "all",
       category: option.api,
       gamePlatform: nextCategory === "Games" && nextPlatform !== "all" ? nextPlatform : undefined,

@@ -1067,7 +1067,7 @@ function publicCatalogCategoryCondition(category: NonNullable<PublicCatalogPageI
 export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {
   const db = await getDb();
   const page = Math.max(1, Math.floor(input.page ?? 1));
-  const pageSize = Math.min(10_000, Math.max(12, Math.floor(input.pageSize ?? 48)));
+  const pageSize = Math.min(50_000, Math.max(12, Math.floor(input.pageSize ?? 48)));
   const empty = { items: [], page, pageSize, total: undefined, hasMore: false, categoryCounts: {} as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> };
   if (!db) return empty;
   await ensureDefaultMarketplaceCategories(db);

@@ -804,3 +804,8 @@
 - [x] Reconcile the Admin inventory totals and category assignments with public catalog eligibility and filters for Gift Cards, Subscriptions, Software, AI Tools, and every other enabled customer category without modifying records.
 - [x] Correct only the public catalog category visibility/count logic that excludes active existing products from customer browsing, retaining all data, pricing, supplier, and layout behavior.
 - [x] Verify each enabled category’s public count against its active inventory, confirm no product/category/price/supplier changes, run focused tests, TypeScript, production build, and checkpoint the correction.
+- [x] Verify the authoritative GamesDrop Games → Steam supplier scope, exact source identities, Steam-platform evidence, pricing configuration, and current catalog/commercial preservation baseline without reading or modifying any other import scope.
+- [x] Implement and test a transaction-batched GamesDrop Steam-only importer that inserts only new exact source identities and cannot update existing product or Supplier Offer records.
+- [x] Import only genuinely new verified GamesDrop Steam offers into the existing Games → Steam presentation, preserving supplier cost, currency, and source attributes while retaining existing pricing-policy compatibility.
+- [x] Verify Steam-only source scope, duplicate prevention, Steam visibility, pricing isolation, active catalog totals, and preservation of all unrelated categories and commerce records; checkpoint and report the result.
+- [x] Raise only the customer-safe complete selected-result limit required for the imported Steam category so all active Steam listings can be browsed, while retaining virtualized rendering and avoiding any layout or data change.
