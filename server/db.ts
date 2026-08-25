@@ -1079,7 +1079,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
   const conditions = [
     eq(products.status, "active"),
     inArray(products.category, visibleProductCategories),
-    input.scope === "primary" && !input.category ? publicPrimaryCatalogCondition() : undefined,
+    input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
     hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
     input.category ? eq(products.category, input.category) : undefined,
     input.gamePlatform ? publicGamesPlatformCondition(input.gamePlatform) : undefined,
@@ -1667,12 +1667,12 @@ export async function upsertExchangeRate(input: { baseCurrency: string; quoteCur
 }
 
 /** Storefront presentation settings are additive to supplier catalog records and never replace supplier source data. */
-export async function listAdminProductOperations(limit = 100_000) {
+export async function listAdminProductOperations(limit = 10_000) {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
   const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
     .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
-    .orderBy(desc(products.updatedAt)).limit(Math.min(100_000, Math.max(1, limit)));
+    .orderBy(desc(products.updatedAt)).limit(Math.min(10_000, Math.max(1, limit)));
   return rows.map(({ product, attributes }) => {
     const price = customerPriceForProduct(product, settings);
     const metadata = product.metadata && typeof product.metadata === "object" ? product.metadata as Record<string, unknown> : null;
@@ -1692,7 +1692,7 @@ export async function listAdminProductOperations(limit = 100_000) {
       basePrice: Number(product.basePrice),
       baseCurrency: product.baseCurrency,
       displayPrice: price.customerPrice,
-      priceRule: `${price.priceRule} · Supplier cost: ${Number(product.basePrice).toFixed(2)} ${product.baseCurrency}`,
+      priceRule: price.priceRule,
       storefrontStatus: attributes?.storefrontStatus ?? "visible",
       featured: attributes?.featured ?? false,
       trending: attributes?.trending ?? false,

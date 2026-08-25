@@ -798,11 +798,6 @@
 - [x] Validate control visibility and behavior across public pages, User Dashboard, Admin Panel, and mobile/desktop layouts; run regressions/build, checkpoint, and push the update to GitHub.
 - [x] Revert only the added persistent top-right theme, currency, and cart control group, restoring the prior header layout without changing any other website behavior.
 - [x] Verify the restored header on desktop/mobile, run regression tests/build, checkpoint, and report the targeted revert.
-- [x] Audit the Admin Products data contract and current full-list rendering to identify the supplier-cost field and any remaining large-inventory blocking work.
-- [x] Add Admin-only supplier cost/currency to existing product details and rows, and ensure complete authorized inventory browsing remains scalable without changing other presentation or customer-visible data.
-- [x] Validate complete Admin inventory access, supplier-cost isolation, tests/build, checkpoint, and report the targeted enhancement.
-- [x] Verify the current GamesDrop Gift Cards supplier scope, existing exact source identities, pricing configuration, and catalog/commercial preservation baseline without reading or modifying other supplier categories.
-- [x] Implement and test a transaction-batched, insert-only GamesDrop Gift Cards importer that skips existing source identities and never updates retained product or Supplier Offer records.
-- [x] Import only genuinely new verified GamesDrop Gift Cards into the Gift Cards category, preserving supplier cost/currency/attributes and existing pricing-policy compatibility.
-- [x] Verify duplicate prevention, Gift Cards-only category assignment, supplier traceability, pricing isolation, and preserved catalog/orders/wallets/routing/fulfilment; checkpoint and report the import.
-- [x] Correct the existing primary-catalog filter composition only as needed for the Gift Cards category to display the newly imported active listings without exposing supplier cost or changing layout, pricing, or any other catalog data.
+- [x] Reproduce the reported slow customer View Details transition and incorrect “not synchronised” product state across representative catalog categories without modifying catalog data.
+- [x] Identify and correct only the detail-route lookup, prefetch, loading, or availability-state defect responsible for the delay and false unavailable result.
+- [x] Verify responsive customer product-detail navigation across categories, catalog data preservation, focused regressions, TypeScript, production build, and a checkpoint.
