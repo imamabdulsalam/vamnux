@@ -1110,13 +1110,9 @@ export async function listActiveCatalogSearchSuggestions(input: PublicCatalogSug
   }).slice(0, 8);
 }
 
-const CUSTOMER_CATALOG_SUPPLIER_ARTWORK: Partial<Record<string, string>> = {
-  gamesdrop: "https://gamesdrop.io/gamesdrop.svg",
-  foxreload: "https://foxreload.com/images/wholesale/logo/logo_foxreload.png",
-};
-
 function customerCatalogArtworkUrl(imageUrl: string | null, supplierKey: string | null) {
-  return imageUrl?.trim() || (supplierKey ? CUSTOMER_CATALOG_SUPPLIER_ARTWORK[supplierKey] : undefined) || null;
+  void supplierKey;
+  return imageUrl?.trim() || null;
 }
 
 export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {

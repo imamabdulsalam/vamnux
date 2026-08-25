@@ -7,9 +7,9 @@ const dbSource = fs.readFileSync(path.join(root, "server/db.ts"), "utf8");
 const catalogSource = fs.readFileSync(path.join(root, "client/src/pages/CatalogPage.tsx"), "utf8");
 
 describe("customer catalog artwork fallbacks", () => {
-  it("resolves only verified official supplier artwork fallbacks on the server", () => {
-    expect(dbSource).toContain('gamesdrop: "https://gamesdrop.io/gamesdrop.svg"');
-    expect(dbSource).toContain('foxreload: "https://foxreload.com/images/wholesale/logo/logo_foxreload.png"');
+  it("retains only exact stored supplier artwork on the server and never repeats a generic supplier logo", () => {
+    expect(dbSource).not.toContain('gamesdrop: "https://gamesdrop.io/gamesdrop.svg"');
+    expect(dbSource).not.toContain('foxreload: "https://foxreload.com/images/wholesale/logo/logo_foxreload.png"');
     expect(dbSource).toContain("customerCatalogArtworkUrl(imageUrl, supplierKey)");
     expect(dbSource).not.toContain("supplierKey, ...customerPriceForProduct");
   });
