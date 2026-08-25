@@ -27,6 +27,8 @@ const categoryOptions: Array<{ label: string; value: CatalogFilter; api?: "top_u
 ];
 
 const categoryValues = new Set(categoryOptions.map((option) => option.value));
+const QUICK_CATALOG_PAGE_SIZE = 100;
+const COMPLETE_CATALOG_PAGE_SIZE = 50_000;
 
 function productPath(product: LiveCatalogProduct) {
   return product.category === "Top-up" ? gameFamilyPath(product.name) : digitalProductPath(product.slug);
@@ -105,23 +107,29 @@ export default function CatalogPage() {
   const selectedCategory = categoryOptions.find((option) => option.value === category) ?? categoryOptions[0];
   const catalogInput = useMemo(() => ({
     page: 1,
-    pageSize: 50_000,
+    pageSize: COMPLETE_CATALOG_PAGE_SIZE,
     scope: "all" as const,
     category: selectedCategory.api,
     gamePlatform: category === "Games" && gamesPlatform !== "all" ? gamesPlatform : undefined,
     topUpMode: category === "Top-up" && topUpMode !== "all" ? topUpMode : undefined,
     search: deferredQuery || undefined,
   }), [category, deferredQuery, gamesPlatform, selectedCategory.api, topUpMode]);
-  const catalog = trpc.marketplace.catalog.useQuery(catalogInput, {
+  const quickCatalogInput = useMemo(() => ({ ...catalogInput, pageSize: QUICK_CATALOG_PAGE_SIZE }), [catalogInput]);
+  const catalogQueryOptions = {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-  });
-  const [visibleItems, setVisibleItems] = useState<NonNullable<typeof catalog.data>["items"]>([]);
+  } as const;
+  const quickCatalog = trpc.marketplace.catalog.useQuery(quickCatalogInput, catalogQueryOptions);
+  const completeCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { ...catalogQueryOptions, enabled: Boolean(quickCatalog.data) });
+  const [visibleItems, setVisibleItems] = useState<NonNullable<typeof quickCatalog.data>["items"]>([]);
   useEffect(() => {
-    if (catalog.data) setVisibleItems(catalog.data.items);
-  }, [catalog.data]);
+    if (quickCatalog.data) setVisibleItems(quickCatalog.data.items);
+  }, [quickCatalog.data]);
+  useEffect(() => {
+    if (completeCatalog.data) setVisibleItems(completeCatalog.data.items);
+  }, [completeCatalog.data]);
 
   const products = useMemo(() => {
     const mapped = visibleItems.map(toLiveCatalogProduct);
@@ -159,7 +167,7 @@ export default function CatalogPage() {
     const option = categoryOptions.find((entry) => entry.value === nextCategory) ?? categoryOptions[0];
     void utils.marketplace.catalog.prefetch({
       page: 1,
-      pageSize: 50_000,
+      pageSize: QUICK_CATALOG_PAGE_SIZE,
       scope: "all",
       category: option.api,
       gamePlatform: nextCategory === "Games" && nextPlatform !== "all" ? nextPlatform : undefined,
@@ -176,6 +184,8 @@ export default function CatalogPage() {
     setLocation(params.size ? `/catalog?${params.toString()}` : "/catalog", { replace: true });
   };
 
+  const catalogTotal = completeCatalog.data?.total ?? quickCatalog.data?.total ?? products.length;
+
   return <main className="full-catalog-page">
     <header className="full-catalog-header">
       <Link href="/" className="full-catalog-brand"><span>V</span>VAM<em>NUX</em></Link>
@@ -185,7 +195,7 @@ export default function CatalogPage() {
 
     <section className="full-catalog-hero">
       <div className="full-catalog-hero-grid" aria-hidden="true" />
-      <div><p>VAMNUX / CATALOGUE</p><span><Link href="/">Home</Link> <i>›</i> All Products</span><h1>{category === "All" ? "All Products" : category}</h1><small>{products.length.toLocaleString()} products available</small></div>
+      <div><p>VAMNUX / CATALOGUE</p><span><Link href="/">Home</Link> <i>›</i> All Products</span><h1>{category === "All" ? "All Products" : category}</h1><small>{catalogTotal.toLocaleString()} products available</small></div>
       <aside><ShieldCheck size={20} /><strong>Browse with clarity</strong><span>Search, compare details, and open an eligible product inside VAMNUX.</span></aside>
     </section>
 
@@ -199,8 +209,8 @@ export default function CatalogPage() {
         <label className="full-catalog-search"><Search size={20} /><input value={query} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search products, games, services, regions…" aria-label="Search all products" />{query && <button type="button" onClick={() => onSearchChange("")} aria-label="Clear product search"><X size={17} /></button>}</label>
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>
       </div>
-      <div className="full-catalog-summary"><span>{products.length.toLocaleString()} products in this view</span><span><CircleDollarSign size={15} />Prices shown in USD</span></div>
-      {catalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <VirtualCatalogGrid products={products} /> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
+      <div className="full-catalog-summary"><span>{catalogTotal.toLocaleString()} products in this view</span><span><CircleDollarSign size={15} />Prices shown in USD</span></div>
+      {quickCatalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <VirtualCatalogGrid products={products} /> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
     </section>
   </main>;
 }

@@ -11,8 +11,10 @@ describe("dedicated full catalog page", () => {
     expect(appSource).toContain('setLocation("/catalog", { replace: true })');
   });
 
-  it("loads the complete selected customer-safe result set once and renders normal product cards", () => {
-    expect(catalogSource).toContain("pageSize: 50_000");
+  it("starts with fast customer-safe results and expands to the complete selected result set", () => {
+    expect(catalogSource).toContain("const COMPLETE_CATALOG_PAGE_SIZE = 50_000");
+    expect(catalogSource).toContain("pageSize: COMPLETE_CATALOG_PAGE_SIZE");
+    expect(catalogSource).toContain("pageSize: QUICK_CATALOG_PAGE_SIZE");
     expect(catalogSource).toContain('scope: "all" as const');
     expect(catalogSource).toContain('scope: "all",');
     expect(catalogSource).toContain("full-catalog-grid");

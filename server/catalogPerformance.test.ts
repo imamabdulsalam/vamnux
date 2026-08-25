@@ -38,6 +38,15 @@ describe("catalog and admin loading performance", () => {
     expect(catalogPageSource).toContain("full-catalog-grid-window");
   });
 
+  it("shows the first customer-safe catalog results before expanding the virtualized complete result set", () => {
+    expect(catalogPageSource).toContain("const QUICK_CATALOG_PAGE_SIZE = 100");
+    expect(catalogPageSource).toContain("const COMPLETE_CATALOG_PAGE_SIZE = 50_000");
+    expect(catalogPageSource).toContain("const quickCatalog = trpc.marketplace.catalog.useQuery");
+    expect(catalogPageSource).toContain("const completeCatalog = trpc.marketplace.catalog.useQuery");
+    expect(catalogPageSource).toContain("enabled: Boolean(quickCatalog.data)");
+    expect(catalogPageSource).toContain("const catalogTotal = completeCatalog.data?.total ?? quickCatalog.data?.total ?? products.length");
+  });
+
   it("defers non-visible Admin workspace requests until their tab is selected", () => {
     expect(adminSource).toContain("const tabIs = (...tabs: AdminTab[])");
     expect(adminSource).toContain('enabled: tabIs("pricing", "products")');
