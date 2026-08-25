@@ -1016,6 +1016,10 @@ export type PublicCatalogPageInput = {
   includeMetadata?: boolean;
 };
 
+export type PublicCatalogSuggestionInput = Pick<PublicCatalogPageInput, "category" | "gamePlatform" | "topUpMode" | "scope"> & {
+  query: string;
+};
+
 const PUBLIC_PRIMARY_TOP_UP_PREFIXES = ["arena breakout", "bigo live diamonds", "free fire global", "mobile legends global", "pubg mobile", "ragnarok origin"];
 const PUBLIC_GLOBAL_REGION_LABELS = ["global", "glb", "worldwide", "ww"];
 const PUBLIC_CATALOG_CATEGORIES: NonNullable<PublicCatalogPageInput["category"]>[] = ["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"];
@@ -1062,6 +1066,48 @@ function publicCatalogSearchCondition(search: string) {
 /** The customer catalog has one Gift Cards tab for stored Gift Cards and Game Keys; source categories remain unchanged. */
 function publicCatalogCategoryCondition(category: NonNullable<PublicCatalogPageInput["category"]>) {
   return category === "gift_card" ? inArray(products.category, ["gift_card", "game_key"]) : eq(products.category, category);
+}
+
+/** Customer-safe type-ahead suggestions only expose existing public product names and regions. */
+export async function listActiveCatalogSearchSuggestions(input: PublicCatalogSuggestionInput) {
+  const query = input.query.trim();
+  if (query.length < 2) return [];
+  const db = await getDb();
+  if (!db) return [];
+
+  await ensureDefaultMarketplaceCategories(db);
+  const [visibleCategoryRows, hiddenRows] = await Promise.all([
+    db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true))),
+    db.select({ productId: productAdminAttributes.productId }).from(productAdminAttributes).where(eq(productAdminAttributes.storefrontStatus, "hidden")),
+  ]);
+  const visibleCategorySlugs = new Set(visibleCategoryRows.map((category) => category.slug));
+  const visibleProductCategories = PUBLIC_CATALOG_CATEGORIES.filter((category) => visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(category)));
+  if (!visibleProductCategories.length) return [];
+
+  const hiddenIds = hiddenRows.map((row) => row.productId);
+  const conditions = [
+    eq(products.status, "active"),
+    inArray(products.category, visibleProductCategories),
+    input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
+    hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
+    input.category ? publicCatalogCategoryCondition(input.category) : undefined,
+    input.gamePlatform ? publicGamesPlatformCondition(input.gamePlatform) : undefined,
+    input.topUpMode ? publicTopUpModeCondition(input.topUpMode) : undefined,
+    publicCatalogSearchCondition(query),
+  ].filter((condition): condition is NonNullable<typeof condition> => Boolean(condition));
+  const rows = await db.select({ name: products.name, regionLabel: products.regionLabel })
+    .from(products)
+    .where(and(...conditions))
+    .orderBy(desc(products.createdAt), desc(products.id))
+    .limit(32);
+  const seen = new Set<string>();
+  return rows.flatMap((row) => {
+    const name = row.name.trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) return [];
+    seen.add(key);
+    return [{ name, region: row.regionLabel ?? "Global" }];
+  }).slice(0, 8);
 }
 
 export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {

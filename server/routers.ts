@@ -1,5 +1,6 @@
 import { ADMIN_MFA_CHALLENGE_COOKIE, ADMIN_MFA_VERIFIED_COOKIE, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSuperAdminOverview } from "./db";
+import { listActiveCatalogSearchSuggestions } from "./db";
 import { parse as parseCookieHeader } from "cookie";
 import { z } from "zod";
 import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSchema } from "../shared/adminCatalog";
@@ -120,6 +121,13 @@ export const appRouter = router({
       scope: z.enum(["primary", "all"]).default("primary"),
       includeMetadata: z.boolean().default(false),
     }).optional()).query(({ input }) => listActiveCatalogProducts(input)),
+    catalogSuggestions: publicProcedure.input(z.object({
+      query: z.string().trim().min(2).max(100),
+      category: z.enum(["top_up", "gift_card", "game_key", "subscription", "software", "ai_tool", "steam", "steam_top_up", "telegram_stars"]).optional(),
+      gamePlatform: z.enum(["steam", "xbox", "playstation", "nintendo", "battlenet", "ea", "ubisoft", "mobile", "quest"]).optional(),
+      topUpMode: z.enum(["direct", "activation"]).optional(),
+      scope: z.enum(["primary", "all"]).default("all"),
+    })).query(({ input }) => listActiveCatalogSearchSuggestions(input)),
     categories: publicProcedure.query(() => listMarketplaceCategories()),
     siteContentBlocks: publicProcedure.query(() => listPublishedSiteContentBlocks()),
     subscribeNewsletter: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), consent: z.literal(true) }))

@@ -813,3 +813,6 @@
 - [x] Implement and test a transaction-batched GamesDrop Xbox-only importer that inserts only new exact source identities and a narrow catalogue-loading completion optimization that preserves existing layout and data behavior.
 - [x] Import only genuinely new verified GamesDrop Xbox offers into the existing Games → Xbox presentation, preserving supplier cost, currency, and source attributes while retaining pricing-policy compatibility.
 - [x] Verify Xbox-only source scope, duplicate prevention, Xbox visibility, customer-safe catalogue loading, active catalog totals, and preservation of all unrelated categories and commerce records; checkpoint and report the result.
+- [x] Reproduce the reported dedicated catalog search failure and inspect its typed-input, debounce, query, and result-update path without changing product or category data.
+- [x] Implement only immediate search behavior and relevant keyword suggestions derived from existing catalog records, preserving the current catalog layout, prices, categories, and customer-safe data boundary.
+- [x] Verify keyboard and pointer search interactions, suggestion selection, responsive result updates, customer-safe field exposure, focused regressions, TypeScript, production build, and a checkpoint.

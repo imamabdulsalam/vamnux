@@ -10,6 +10,7 @@ import "./fullCatalogPage.css";
 import "./catalogGamesPlatformBrowser.css";
 import "./fullCatalogMobileOverride.css";
 import "./catalogVirtualGrid.css";
+import "./catalogSearchSuggestions.css";
 
 type CatalogFilter = "All" | ProductCategory;
 type SortMode = "featured" | "price-low" | "price-high" | "name";
@@ -89,6 +90,8 @@ export default function CatalogPage() {
   const [topUpMode, setTopUpMode] = useState<TopUpSubcategoryCode>(TOP_UP_SUBCATEGORIES.some((option) => option.code === initialTopUpMode) ? initialTopUpMode! : "all");
   const [query, setQuery] = useState(initialParams.get("q") ?? "");
   const [sort, setSort] = useState<SortMode>("featured");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const deferredQuery = useDeferredValue(query.trim());
 
   useEffect(() => {
@@ -115,6 +118,13 @@ export default function CatalogPage() {
     search: deferredQuery || undefined,
   }), [category, deferredQuery, gamesPlatform, selectedCategory.api, topUpMode]);
   const quickCatalogInput = useMemo(() => ({ ...catalogInput, pageSize: QUICK_CATALOG_PAGE_SIZE }), [catalogInput]);
+  const suggestionInput = useMemo(() => ({
+    query: deferredQuery,
+    scope: "all" as const,
+    category: selectedCategory.api,
+    gamePlatform: category === "Games" && gamesPlatform !== "all" ? gamesPlatform : undefined,
+    topUpMode: category === "Top-up" && topUpMode !== "all" ? topUpMode : undefined,
+  }), [category, deferredQuery, gamesPlatform, selectedCategory.api, topUpMode]);
   const catalogQueryOptions = {
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
@@ -123,6 +133,7 @@ export default function CatalogPage() {
   } as const;
   const quickCatalog = trpc.marketplace.catalog.useQuery(quickCatalogInput, catalogQueryOptions);
   const completeCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { ...catalogQueryOptions, enabled: Boolean(quickCatalog.data) });
+  const suggestionsQuery = trpc.marketplace.catalogSuggestions.useQuery(suggestionInput, { ...catalogQueryOptions, enabled: searchFocused && deferredQuery.length >= 2 });
   const [visibleItems, setVisibleItems] = useState<NonNullable<typeof quickCatalog.data>["items"]>([]);
   useEffect(() => {
     if (quickCatalog.data) setVisibleItems(quickCatalog.data.items);
@@ -138,6 +149,7 @@ export default function CatalogPage() {
     if (sort === "name") return mapped.sort((left, right) => left.name.localeCompare(right.name) || left.product.localeCompare(right.product));
     return mapped;
   }, [sort, visibleItems]);
+  const suggestions = deferredQuery.length >= 2 ? suggestionsQuery.data ?? [] : [];
 
   const selectCategory = (next: CatalogFilter) => {
     setCategory(next);
@@ -177,11 +189,35 @@ export default function CatalogPage() {
 
   const onSearchChange = (value: string) => {
     setQuery(value);
+    setActiveSuggestionIndex(-1);
     const params = new URLSearchParams();
     if (category !== "All") params.set("category", category);
+    if (category === "Games" && gamesPlatform !== "all") params.set("platform", gamesPlatform);
     if (category === "Top-up" && topUpMode !== "all") params.set("topUpMode", topUpMode);
     if (value.trim()) params.set("q", value.trim());
     setLocation(params.size ? `/catalog?${params.toString()}` : "/catalog", { replace: true });
+  };
+
+  const selectSearchSuggestion = (value: string) => {
+    onSearchChange(value);
+    setSearchFocused(false);
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!suggestions.length) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSuggestionIndex((index) => (index + 1) % suggestions.length);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSuggestionIndex((index) => (index <= 0 ? suggestions.length - 1 : index - 1));
+    } else if (event.key === "Enter" && activeSuggestionIndex >= 0) {
+      event.preventDefault();
+      selectSearchSuggestion(suggestions[activeSuggestionIndex].name);
+    } else if (event.key === "Escape") {
+      setSearchFocused(false);
+      setActiveSuggestionIndex(-1);
+    }
   };
 
   const catalogTotal = completeCatalog.data?.total ?? quickCatalog.data?.total ?? products.length;
@@ -206,7 +242,7 @@ export default function CatalogPage() {
       {category === "Games" && <section className="full-catalog-games-platforms" aria-label="Games platform subcategories"><div><span>Games</span><strong>Browse by platform</strong></div><div>{GAMES_PLATFORM_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={gamesPlatform === option.code ? "active" : ""} onPointerEnter={() => prefetchCatalog("Games", option.code)} onFocus={() => prefetchCatalog("Games", option.code)} onClick={() => selectGamesPlatform(option.code)}><i>{option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>All keeps every existing Games product visible.</p></section>}
       {category === "Top-up" && <section className="full-catalog-games-platforms" aria-label="Top-up subcategories"><div><span>Top-up</span><strong>Choose a fulfillment type</strong></div><div>{TOP_UP_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={topUpMode === option.code ? "active" : ""} onPointerEnter={() => prefetchCatalog("Top-up", "all", option.code)} onFocus={() => prefetchCatalog("Top-up", "all", option.code)} onClick={() => selectTopUpMode(option.code)}><i>{option.code === "all" ? "•" : option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>{topUpMode === "all" ? "All keeps every existing Top-up product visible." : topUpMode === "direct" ? "Direct Top Up uses verified customer account or player input." : "Activation Codes appears when explicit supplier code-delivery metadata is available."}</p></section>}
       <div className="full-catalog-controls">
-        <label className="full-catalog-search"><Search size={20} /><input value={query} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search products, games, services, regions…" aria-label="Search all products" />{query && <button type="button" onClick={() => onSearchChange("")} aria-label="Clear product search"><X size={17} /></button>}</label>
+        <div className="full-catalog-search-shell"><label className="full-catalog-search"><Search size={20} /><input value={query} onChange={(event) => onSearchChange(event.target.value)} onFocus={() => setSearchFocused(true)} onBlur={() => window.setTimeout(() => setSearchFocused(false), 120)} onKeyDown={handleSearchKeyDown} placeholder="Search products, games, services, regions…" aria-label="Search all products" aria-autocomplete="list" aria-controls="catalog-search-suggestions" aria-expanded={searchFocused && suggestions.length > 0} />{query && <button type="button" onClick={() => onSearchChange("")} aria-label="Clear product search"><X size={17} /></button>}</label>{searchFocused && suggestions.length > 0 && <div id="catalog-search-suggestions" className="full-catalog-search-suggestions" role="listbox" aria-label="Matching product suggestions">{suggestions.map((suggestion, index) => <button key={`${suggestion.name}-${suggestion.region}`} type="button" role="option" aria-selected={activeSuggestionIndex === index} className={activeSuggestionIndex === index ? "active" : ""} onMouseDown={(event) => event.preventDefault()} onClick={() => selectSearchSuggestion(suggestion.name)}><strong>{suggestion.name}</strong><span>{suggestion.region}</span></button>)}</div>}</div>
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>
       </div>
       <div className="full-catalog-summary"><span>{catalogTotal.toLocaleString()} products in this view</span><span><CircleDollarSign size={15} />Prices shown in USD</span></div>
