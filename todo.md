@@ -828,3 +828,6 @@
 - [x] Implement and test a transaction-batched GamesDrop PlayStation-only importer that inserts only new exact source identities and records exact official artwork only when source identity attributes match.
 - [x] Import only genuinely new verified GamesDrop PlayStation offers into the existing Games → PlayStation presentation, preserving supplier cost, currency, source attributes, and pricing-policy compatibility.
 - [x] Verify PlayStation-only source scope, exact artwork accuracy, duplicate prevention, PlayStation visibility, active catalog totals, fast customer catalog loading, and preservation of all unrelated categories and commerce records; checkpoint and report the result.
+- [x] Inspect the configured project remote, GitHub CLI authentication, repository linkage, and managed checkpoint synchronization boundary without changing application or catalog data.
+- [x] Apply only a verified safe GitHub remote/linkage correction if an authenticated GitHub repository is available; do not alter website files, database records, or checkpoint history.
+- [x] Verify push access using the latest verified checkpoint state and report the exact GitHub synchronization result or the remaining connection action required.
