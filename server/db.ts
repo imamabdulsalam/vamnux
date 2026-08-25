@@ -1059,6 +1059,11 @@ function publicCatalogSearchCondition(search: string) {
   );
 }
 
+/** The customer catalog has one Gift Cards tab for stored Gift Cards and Game Keys; source categories remain unchanged. */
+function publicCatalogCategoryCondition(category: NonNullable<PublicCatalogPageInput["category"]>) {
+  return category === "gift_card" ? inArray(products.category, ["gift_card", "game_key"]) : eq(products.category, category);
+}
+
 export async function listActiveCatalogProducts(input: PublicCatalogPageInput = {}) {
   const db = await getDb();
   const page = Math.max(1, Math.floor(input.page ?? 1));
@@ -1081,7 +1086,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
     inArray(products.category, visibleProductCategories),
     input.scope === "primary" ? publicPrimaryCatalogCondition() : undefined,
     hiddenIds.length ? notInArray(products.id, hiddenIds) : undefined,
-    input.category ? eq(products.category, input.category) : undefined,
+    input.category ? publicCatalogCategoryCondition(input.category) : undefined,
     input.gamePlatform ? publicGamesPlatformCondition(input.gamePlatform) : undefined,
     input.topUpMode ? publicTopUpModeCondition(input.topUpMode) : undefined,
     input.slug ? eq(products.slug, input.slug) : undefined,

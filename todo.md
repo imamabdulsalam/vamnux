@@ -801,3 +801,6 @@
 - [x] Reproduce the reported slow customer View Details transition and incorrect “not synchronised” product state across representative catalog categories without modifying catalog data.
 - [x] Identify and correct only the detail-route lookup, prefetch, loading, or availability-state defect responsible for the delay and false unavailable result.
 - [x] Verify responsive customer product-detail navigation across categories, catalog data preservation, focused regressions, TypeScript, production build, and a checkpoint.
+- [x] Reconcile the Admin inventory totals and category assignments with public catalog eligibility and filters for Gift Cards, Subscriptions, Software, AI Tools, and every other enabled customer category without modifying records.
+- [x] Correct only the public catalog category visibility/count logic that excludes active existing products from customer browsing, retaining all data, pricing, supplier, and layout behavior.
+- [x] Verify each enabled category’s public count against its active inventory, confirm no product/category/price/supplier changes, run focused tests, TypeScript, production build, and checkpoint the correction.

@@ -106,7 +106,7 @@ export default function CatalogPage() {
   const catalogInput = useMemo(() => ({
     page: 1,
     pageSize: 10_000,
-    scope: "primary" as const,
+    scope: "all" as const,
     category: selectedCategory.api,
     gamePlatform: category === "Games" && gamesPlatform !== "all" ? gamesPlatform : undefined,
     topUpMode: category === "Top-up" && topUpMode !== "all" ? topUpMode : undefined,
@@ -160,7 +160,7 @@ export default function CatalogPage() {
     void utils.marketplace.catalog.prefetch({
       page: 1,
       pageSize: 10_000,
-      scope: "primary",
+      scope: "all",
       category: option.api,
       gamePlatform: nextCategory === "Games" && nextPlatform !== "all" ? nextPlatform : undefined,
       topUpMode: nextCategory === "Top-up" && nextTopUpMode !== "all" ? nextTopUpMode : undefined,
