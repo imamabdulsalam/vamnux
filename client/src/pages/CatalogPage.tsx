@@ -38,6 +38,7 @@ function ProductArtwork({ product }: { product: LiveCatalogProduct }) {
 
 export default function CatalogPage() {
   const [location, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const initialParams = new URLSearchParams(window.location.search);
   const initialCategory = initialParams.get("category") as CatalogFilter | null;
   const [category, setCategory] = useState<CatalogFilter>(initialCategory && categoryValues.has(initialCategory) ? initialCategory : "All");
@@ -100,15 +101,31 @@ export default function CatalogPage() {
   };
 
   const selectGamesPlatform = (nextPlatform: GamesPlatformCode) => {
+    setCategory("Games");
     setGamesPlatform(nextPlatform);
+    setTopUpMode("all");
     setQuery("");
     setLocation(gamesPlatformCatalogPath(nextPlatform));
   };
 
   const selectTopUpMode = (nextMode: TopUpSubcategoryCode) => {
+    setCategory("Top-up");
+    setGamesPlatform("all");
     setTopUpMode(nextMode);
     setQuery("");
     setLocation(topUpCatalogPath(nextMode));
+  };
+
+  const prefetchCatalog = (nextCategory: CatalogFilter, nextPlatform: GamesPlatformCode = "all", nextTopUpMode: TopUpSubcategoryCode = "all") => {
+    const option = categoryOptions.find((entry) => entry.value === nextCategory) ?? categoryOptions[0];
+    void utils.marketplace.catalog.prefetch({
+      page: 1,
+      pageSize: 10_000,
+      scope: "primary",
+      category: option.api,
+      gamePlatform: nextCategory === "Games" && nextPlatform !== "all" ? nextPlatform : undefined,
+      topUpMode: nextCategory === "Top-up" && nextTopUpMode !== "all" ? nextTopUpMode : undefined,
+    });
   };
 
   const onSearchChange = (value: string) => {
@@ -129,16 +146,16 @@ export default function CatalogPage() {
 
     <section className="full-catalog-hero">
       <div className="full-catalog-hero-grid" aria-hidden="true" />
-      <div><p>VAMNUX / CATALOGUE</p><span>Home <i>›</i> All Products</span><h1>{category === "All" ? "All Products" : category}</h1><small>{products.length.toLocaleString()} products available</small></div>
+      <div><p>VAMNUX / CATALOGUE</p><span><Link href="/">Home</Link> <i>›</i> All Products</span><h1>{category === "All" ? "All Products" : category}</h1><small>{products.length.toLocaleString()} products available</small></div>
       <aside><ShieldCheck size={20} /><strong>Browse with clarity</strong><span>Search, compare details, and open an eligible product inside VAMNUX.</span></aside>
     </section>
 
     <section className="full-catalog-content" aria-label="All VAMNUX products">
       <div className="full-catalog-category-row" role="tablist" aria-label="Product categories">
-        {categoryOptions.map((option) => <button key={option.value} type="button" role="tab" aria-selected={category === option.value} className={category === option.value ? "active" : ""} onClick={() => selectCategory(option.value)}><option.icon size={15} />{option.label}</button>)}
+        {categoryOptions.map((option) => <button key={option.value} type="button" role="tab" aria-selected={category === option.value} className={category === option.value ? "active" : ""} onPointerEnter={() => prefetchCatalog(option.value)} onFocus={() => prefetchCatalog(option.value)} onClick={() => selectCategory(option.value)}><option.icon size={15} />{option.label}</button>)}
       </div>
-      {category === "Games" && <section className="full-catalog-games-platforms" aria-label="Games platform subcategories"><div><span>Games</span><strong>Browse by platform</strong></div><div>{GAMES_PLATFORM_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={gamesPlatform === option.code ? "active" : ""} onClick={() => selectGamesPlatform(option.code)}><i>{option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>All keeps every existing Games product visible.</p></section>}
-      {category === "Top-up" && <section className="full-catalog-games-platforms" aria-label="Top-up subcategories"><div><span>Top-up</span><strong>Choose a fulfillment type</strong></div><div>{TOP_UP_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={topUpMode === option.code ? "active" : ""} onClick={() => selectTopUpMode(option.code)}><i>{option.code === "all" ? "•" : option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>{topUpMode === "all" ? "All keeps every existing Top-up product visible." : topUpMode === "direct" ? "Direct Top Up uses verified customer account or player input." : "Activation Codes appears when explicit supplier code-delivery metadata is available."}</p></section>}
+      {category === "Games" && <section className="full-catalog-games-platforms" aria-label="Games platform subcategories"><div><span>Games</span><strong>Browse by platform</strong></div><div>{GAMES_PLATFORM_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={gamesPlatform === option.code ? "active" : ""} onPointerEnter={() => prefetchCatalog("Games", option.code)} onFocus={() => prefetchCatalog("Games", option.code)} onClick={() => selectGamesPlatform(option.code)}><i>{option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>All keeps every existing Games product visible.</p></section>}
+      {category === "Top-up" && <section className="full-catalog-games-platforms" aria-label="Top-up subcategories"><div><span>Top-up</span><strong>Choose a fulfillment type</strong></div><div>{TOP_UP_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={topUpMode === option.code ? "active" : ""} onPointerEnter={() => prefetchCatalog("Top-up", "all", option.code)} onFocus={() => prefetchCatalog("Top-up", "all", option.code)} onClick={() => selectTopUpMode(option.code)}><i>{option.code === "all" ? "•" : option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>{topUpMode === "all" ? "All keeps every existing Top-up product visible." : topUpMode === "direct" ? "Direct Top Up uses verified customer account or player input." : "Activation Codes appears when explicit supplier code-delivery metadata is available."}</p></section>}
       <div className="full-catalog-controls">
         <label className="full-catalog-search"><Search size={20} /><input value={query} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search products, games, services, regions…" aria-label="Search all products" />{query && <button type="button" onClick={() => onSearchChange("")} aria-label="Clear product search"><X size={17} /></button>}</label>
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>

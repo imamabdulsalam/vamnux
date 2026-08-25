@@ -787,3 +787,6 @@
 - [x] Validate Top-up All/subcategory browsing across catalog, User Dashboard, and Admin Panel; run regression tests/build; checkpoint; and push the update to GitHub.
 - [x] Remove the Games and Top-up subcategory sections only from the User Dashboard, without changing website catalog or Admin Panel subcategory displays.
 - [x] Verify the User Dashboard no longer shows the subcategory sections while catalog and Admin views retain them; run regression tests/build, checkpoint, and push the targeted correction.
+- [x] Diagnose catalog category and subcategory filter latency and the incorrect zero-result state without changing product data.
+- [x] Optimize catalog category/subcategory interaction and make the Home breadcrumb link navigate to the homepage on desktop and mobile.
+- [x] Validate fast correct category results, stable interactions, and Home breadcrumb navigation; run regression tests/build; checkpoint; and push the update to GitHub.

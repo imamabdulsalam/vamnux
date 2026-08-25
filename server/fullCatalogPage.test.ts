@@ -19,6 +19,12 @@ describe("dedicated full catalog page", () => {
     expect(catalogSource).not.toContain("Show more products");
   });
 
+  it("prefetches category selections and makes the Home breadcrumb navigable", () => {
+    expect(catalogSource).toContain("utils.marketplace.catalog.prefetch");
+    expect(catalogSource).toContain('onPointerEnter={() => prefetchCatalog(option.value)}');
+    expect(catalogSource).toContain('<Link href="/">Home</Link>');
+  });
+
   it("routes footer product destinations to the standalone catalogue", () => {
     expect(footerSource).toContain('"/catalog?category=Top-up"');
     expect(footerSource).toContain('"/catalog?category=Games"');
