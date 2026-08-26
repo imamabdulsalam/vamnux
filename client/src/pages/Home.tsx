@@ -245,6 +245,22 @@ export default function Home() {
   const catalogSummary = trpc.marketplace.catalog.useQuery({ page: 1, pageSize: 12, scope: "primary" as const, includeMetadata: true }, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const categoryNavigationVisibility = trpc.marketplace.categoryNavigationVisibility.useQuery(undefined, { staleTime: 30_000, refetchInterval: 30_000, refetchOnWindowFocus: true });
   const isCategoryNavigationVisible = categoryNavigationVisibility.data?.visible !== false;
+  useEffect(() => {
+    const refreshCategoryState = () => {
+      void publicCategories.refetch();
+      void supplierCatalog.refetch();
+      void catalogSummary.refetch();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "vamnux:marketplace-category-revision") refreshCategoryState();
+    };
+    window.addEventListener("vamnux:marketplace-category-state", refreshCategoryState);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("vamnux:marketplace-category-state", refreshCategoryState);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [catalogSummary.refetch, publicCategories.refetch, supplierCatalog.refetch]);
   const [loadedCatalogItems, setLoadedCatalogItems] = useState<NonNullable<typeof supplierCatalog.data>["items"]>([]);
   const revealCatalog = (focusSearch = false) => {
     const catalog = document.getElementById("products");
@@ -321,13 +337,19 @@ export default function Home() {
     setLoadedCatalogItems(supplierCatalog.data.items);
   }, [supplierCatalog.data]);
   const publicProducts = useMemo<Product[]>(() => loadedCatalogItems.map(toLiveCatalogProduct), [loadedCatalogItems]);
-  const filteredProducts = publicProducts;
 
   const visibleCategories = useMemo(() => {
     if (!publicCategories.data) return [];
-    const visibleSlugs = new Set(publicCategories.data.map((category) => category.slug));
-    return categories.filter((category) => visibleSlugs.has(category.slug));
+    const categoryBySlug = new Map(categories.map((category) => [category.slug, category]));
+    return publicCategories.data.flatMap((category) => {
+      const match = categoryBySlug.get(category.slug);
+      return match ? [match] : [];
+    });
   }, [publicCategories.data]);
+  const filteredProducts = useMemo(() => {
+    const visibleFilters = new Set(visibleCategories.map((category) => category.filter));
+    return publicProducts.filter((product) => visibleFilters.has(product.category));
+  }, [publicProducts, visibleCategories]);
   const selectedCategory = visibleCategories.find((category) => category.filter === activeCategory);
 
   useEffect(() => {

@@ -930,3 +930,6 @@
 - [x] Inspect the website category-navigation strip, Admin Categories workspace, and existing persistent setting patterns before adding a scope-limited visibility control.
 - [x] Add one owner-only Categories setting at the bottom of the Admin Categories feature to show or hide only the website category-navigation strip, preserving every individual category and all catalog data.
 - [x] Validate the isolated navigation-strip visibility toggle, category preservation, responsive website layout, Admin authorization, focused tests, build, default-state visual checks, checkpoint, and GitHub push.
+- [x] Inspect the Admin Categories hide/show/archive/restore mutations and every dedicated catalog category visibility filter to identify the state mismatch without modifying products or categories.
+- [x] Make the dedicated customer catalog use the same persisted Admin category visible/status state for hide, show, archive, and restore actions, without changing individual category definitions or product data.
+- [x] Validate hide, show, archive, and restore synchronization between Admin Categories and customer catalog views; confirm unaffected categories, products, prices, orders, wallets, and supplier data; then test, build, checkpoint, and push.

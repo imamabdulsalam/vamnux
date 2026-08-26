@@ -19,16 +19,16 @@ import "./catalogArtworkFallback.css";
 type CatalogFilter = "All" | ProductCategory;
 type SortMode = "featured" | "price-low" | "price-high" | "name";
 
-const categoryOptions: Array<{ label: string; value: CatalogFilter; api?: "top_up" | "gift_card" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars"; icon: typeof Grid2X2 }> = [
+const categoryOptions: Array<{ label: string; value: CatalogFilter; slug?: string; api?: "top_up" | "gift_card" | "subscription" | "software" | "ai_tool" | "steam" | "steam_top_up" | "telegram_stars"; icon: typeof Grid2X2 }> = [
   { label: "All picks", value: "All", icon: Grid2X2 },
-  { label: "Top-up", value: "Top-up", api: "top_up", icon: Gamepad2 },
-  { label: "Gift cards", value: "Gift cards", api: "gift_card", icon: Gift },
-  { label: "Subscription", value: "Subscription", api: "subscription", icon: Tv },
-  { label: "Software", value: "Software", api: "software", icon: Laptop },
-  { label: "AI tools", value: "AI tools", api: "ai_tool", icon: Sparkles },
-  { label: "Games", value: "Games", api: "steam", icon: Gamepad2 },
-  { label: "Steam Top-Up", value: "Steam Top-Up", api: "steam_top_up", icon: Gamepad2 },
-  { label: "Telegram Stars", value: "Telegram Stars", api: "telegram_stars", icon: Send },
+  { label: "Top-up", value: "Top-up", slug: "game-top-up", api: "top_up", icon: Gamepad2 },
+  { label: "Gift cards", value: "Gift cards", slug: "gift-cards", api: "gift_card", icon: Gift },
+  { label: "Subscription", value: "Subscription", slug: "subscriptions", api: "subscription", icon: Tv },
+  { label: "Software", value: "Software", slug: "software", api: "software", icon: Laptop },
+  { label: "AI tools", value: "AI tools", slug: "ai-tools", api: "ai_tool", icon: Sparkles },
+  { label: "Games", value: "Games", slug: "games", api: "steam", icon: Gamepad2 },
+  { label: "Steam Top-Up", value: "Steam Top-Up", slug: "steam-top-up", api: "steam_top_up", icon: Gamepad2 },
+  { label: "Telegram Stars", value: "Telegram Stars", slug: "telegram-stars", api: "telegram_stars", icon: Send },
 ];
 
 const categoryValues = new Set(categoryOptions.map((option) => option.value));
@@ -112,6 +112,15 @@ export default function CatalogPage() {
   const [favoriteOverrides, setFavoriteOverrides] = useState<Record<number, boolean>>({});
   const [favoritePendingProductId, setFavoritePendingProductId] = useState<number | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
+  const publicCategories = trpc.marketplace.categories.useQuery(undefined, { refetchInterval: 15_000, refetchOnWindowFocus: true });
+  const visibleCategoryOptions = useMemo(() => {
+    if (!publicCategories.data) return categoryOptions;
+    const optionBySlug = new Map(categoryOptions.filter((option) => option.slug).map((option) => [option.slug!, option]));
+    return [categoryOptions[0], ...publicCategories.data.flatMap((category) => {
+      const match = optionBySlug.get(category.slug);
+      return match ? [match] : [];
+    })];
+  }, [publicCategories.data]);
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated, staleTime: 5 * 60_000, refetchOnWindowFocus: false });
   const toggleSavedProduct = trpc.marketplace.toggleSavedProduct.useMutation({
     onMutate: ({ productId }) => {
@@ -148,6 +157,32 @@ export default function CatalogPage() {
   useEffect(() => {
     if (category === "Steam Top-Up") setLocation("/steam-top-up");
   }, [category, setLocation]);
+
+  useEffect(() => {
+    if (category !== "All" && !visibleCategoryOptions.some((option) => option.value === category)) {
+      setCategory("All");
+      setGamesPlatform("all");
+      setTopUpMode("all");
+      setLocation("/catalog", { replace: true });
+    }
+  }, [category, setLocation, visibleCategoryOptions]);
+
+  useEffect(() => {
+    const refreshCategoryState = () => {
+      void publicCategories.refetch();
+      void utils.marketplace.catalog.invalidate();
+      void utils.marketplace.catalogSuggestions.invalidate();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === "vamnux:marketplace-category-revision") refreshCategoryState();
+    };
+    window.addEventListener("vamnux:marketplace-category-state", refreshCategoryState);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("vamnux:marketplace-category-state", refreshCategoryState);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [publicCategories.refetch, utils]);
 
   const selectedCategory = categoryOptions.find((option) => option.value === category) ?? categoryOptions[0];
   const catalogInput = useMemo(() => ({
@@ -301,7 +336,7 @@ export default function CatalogPage() {
 
     <section className="full-catalog-content" aria-label="All VAMNUX products">
       <div className="full-catalog-category-row" role="tablist" aria-label="Product categories">
-        {categoryOptions.map((option) => <button key={option.value} type="button" role="tab" aria-selected={category === option.value} className={category === option.value ? "active" : ""} onPointerEnter={() => prefetchCatalog(option.value)} onFocus={() => prefetchCatalog(option.value)} onClick={() => selectCategory(option.value)}><option.icon size={15} />{option.label}</button>)}
+        {visibleCategoryOptions.map((option) => <button key={option.value} type="button" role="tab" aria-selected={category === option.value} className={category === option.value ? "active" : ""} onPointerEnter={() => prefetchCatalog(option.value)} onFocus={() => prefetchCatalog(option.value)} onClick={() => selectCategory(option.value)}><option.icon size={15} />{option.label}</button>)}
       </div>
       {category === "Games" && <section className="full-catalog-games-platforms" aria-label="Games platform subcategories"><div><span>Games</span><strong>Browse by platform</strong></div><div>{GAMES_PLATFORM_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={gamesPlatform === option.code ? "active" : ""} onPointerEnter={() => prefetchCatalog("Games", option.code)} onFocus={() => prefetchCatalog("Games", option.code)} onClick={() => selectGamesPlatform(option.code)}><i>{option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>All keeps every existing Games product visible.</p></section>}
       {category === "Top-up" && <section className="full-catalog-games-platforms" aria-label="Top-up subcategories"><div><span>Top-up</span><strong>Choose a fulfillment type</strong></div><div>{TOP_UP_SUBCATEGORIES.map((option) => <button key={option.code} type="button" className={topUpMode === option.code ? "active" : ""} onPointerEnter={() => prefetchCatalog("Top-up", "all", option.code)} onFocus={() => prefetchCatalog("Top-up", "all", option.code)} onClick={() => selectTopUpMode(option.code)}><i>{option.code === "all" ? "•" : option.label.slice(0, 1)}</i>{option.label}</button>)}</div><p>{topUpMode === "all" ? "All keeps every existing Top-up product visible." : topUpMode === "direct" ? "Direct Top Up uses verified customer account or player input." : "Activation Codes appears when explicit supplier code-delivery metadata is available."}</p></section>}
