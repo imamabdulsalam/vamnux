@@ -64,6 +64,10 @@ export class FoxReloadClient {
 
   profile() { return this.request<unknown>("/api/access/me"); }
 
+  product(productIdOrSlug: string) {
+    return this.request<FoxReloadProduct>(`/api/products/${encodeURIComponent(productIdOrSlug)}`);
+  }
+
   categories(input: { cursor?: string; limit?: number; withStockOnly?: boolean } = {}) {
     return this.request<FoxReloadCategoryPage>("/api/categories/", {
       cursor: input.cursor,

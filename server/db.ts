@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, like, lte, notInArray, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productTrackingEvents, productTrackingObservations, productTrackingRuns, productTrackingSchedules, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productTrackingEvents, productTrackingObservations, productTrackingRuns, productTrackingSchedules, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, steamTopUpCheckoutSessions, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -13,6 +13,7 @@ import { calculateFinancialSnapshot, financialAlertsForSnapshot, type FinancialA
 import { formatManualDeliveryWindow, isManualDeliveryTransitionAllowed, manualDeliveryMinutesFromMetadata, type ManualDeliveryStatus } from "../shared/manualDelivery";
 import { fundingMinimumForCurrency } from "../shared/walletFunding";
 import type { SupplierCatalogRow } from "./catalogTypes";
+import { getFoxReloadClient } from "./integrations/foxreload";
 import { ENV } from './_core/env';
 import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzle/schema";
 import { customerProductRequests } from "../drizzle/schema";
@@ -3661,6 +3662,110 @@ export async function createMarketplaceOrder(input: {
   if (createdFinancialSnapshots.length) await db.insert(financialOrderEvents).values(createdFinancialSnapshots.map((snapshot) => ({ financialSnapshotId: snapshot.id, eventType: "snapshot_created" as const, amount: "0.00", currency: input.currency, orderStatus: "PENDING PAYMENT" as const, simulationMode: false, note: "Immutable financial snapshot created at order creation. Payment fee remains unconfigured until a provider is approved." })));
 
   return { orderCode, status: "draft" as const, total: total.toFixed(2), currency: input.currency };
+}
+
+const FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID = "product_01kjp6vtmjf8rbbxw88719wz3b";
+const FOXRELOAD_USD_STEAM_TOP_UP_SKU = "steam-steam-balance-top-up-steam-top-up-1";
+
+function normalizedSteamLogin(value: string) {
+  const login = value.trim();
+  if (login.length < 2 || login.length > 160 || /[\r\n\t]/.test(login)) throw new Error("Enter a valid Steam account login.");
+  return login;
+}
+
+export async function getUsdSteamTopUpQuote() {
+  const db = requireDb(await getDb());
+  const [product] = await db.select({
+    id: products.id,
+    name: products.name,
+    supplierOfferId: products.supplierOfferId,
+    supplierSku: products.supplierSku,
+    supplierEligible: products.supplierEligible,
+    status: products.status,
+    basePrice: products.basePrice,
+    baseCurrency: products.baseCurrency,
+    supplierCurrency: products.supplierCurrency,
+    markupPercentOverride: products.markupPercentOverride,
+    displayPriceOverride: products.displayPriceOverride,
+  }).from(products).where(and(
+    eq(products.supplierKey, FOXRELOAD_SUPPLIER_KEY),
+    eq(products.supplierSku, FOXRELOAD_USD_STEAM_TOP_UP_SKU),
+    eq(products.category, "steam_top_up"),
+    eq(products.baseCurrency, "USD"),
+    eq(products.supplierCurrency, "USD"),
+    eq(products.status, "active"),
+    eq(products.supplierEligible, true),
+  )).limit(1);
+  if (!product || product.supplierOfferId !== FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID) throw new Error("The verified USD Steam Top-Up source is not currently available.");
+
+  const source = await getFoxReloadClient().product(FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID);
+  const sourceCurrency = source.currency?.toLowerCase();
+  const sourceAmount = Number((source.attributes ?? {}).amount);
+  const minQuantity = Number(source.orderMinQuantity ?? 0);
+  const maxQuantity = Number(source.orderMaxQuantity ?? 0);
+  if (source.id !== FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID || sourceCurrency !== "usd" || sourceAmount !== 1 || !source.requiredNoteFields?.includes("login") || minQuantity !== 1 || maxQuantity < 1 || Number(source.quantity ?? 0) < 1) {
+    throw new Error("FoxReload’s verified USD Steam Top-Up source changed or is unavailable. No order can be prepared.");
+  }
+  const settings = await ensureMarketplacePricingSettings(db);
+  const display = customerPriceForProduct(product, settings);
+  return {
+    productId: product.id,
+    productName: product.name,
+    currency: "USD" as const,
+    minAmount: minQuantity,
+    maxAmount: Math.min(300, maxQuantity),
+    vamnuxUnitPrice: Number(display.customerPrice.toFixed(2)),
+    priceRule: display.priceRule,
+    sourceQuotedAt: new Date(),
+  };
+}
+
+export async function prepareUsdSteamTopUpWalletOrder(input: { userId: number; amountUsd: number; steamLogin: string; idempotencyKey: string }) {
+  const amountUsd = Math.floor(input.amountUsd);
+  const idempotencyKey = input.idempotencyKey.trim();
+  if (!Number.isInteger(amountUsd) || amountUsd < 1 || amountUsd > 300) throw new Error("Choose a USD Steam Top-Up amount from $1 to $300.");
+  if (idempotencyKey.length < 12 || idempotencyKey.length > 120) throw new Error("The secure checkout reference is invalid. Refresh and try again.");
+  const steamLogin = normalizedSteamLogin(input.steamLogin);
+  const db = requireDb(await getDb());
+  const [existing] = await db.select({ orderCode: orders.orderCode, status: steamTopUpCheckoutSessions.status, customerTotal: steamTopUpCheckoutSessions.customerTotal })
+    .from(steamTopUpCheckoutSessions)
+    .innerJoin(orders, eq(orders.id, steamTopUpCheckoutSessions.orderId))
+    .where(and(eq(steamTopUpCheckoutSessions.userId, input.userId), eq(steamTopUpCheckoutSessions.idempotencyKey, idempotencyKey)))
+    .limit(1);
+  if (existing) return { orderCode: existing.orderCode, status: existing.status, total: Number(existing.customerTotal), reused: true };
+
+  const quote = await getUsdSteamTopUpQuote();
+  if (amountUsd < quote.minAmount || amountUsd > quote.maxAmount) throw new Error(`Choose an amount from $${quote.minAmount} to $${quote.maxAmount}.`);
+  const total = Number((quote.vamnuxUnitPrice * amountUsd).toFixed(2));
+  const [wallet] = await db.select({ availableBalance: wallets.availableBalance, currency: wallets.currency, status: wallets.status }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
+  if (!walletCanCoverOrder({ walletStatus: wallet?.status, walletCurrency: wallet?.currency, orderCurrency: "USD", availableBalance: wallet?.availableBalance, total })) {
+    throw new Error(`A settled USD VAMNUX wallet balance of $${total.toFixed(2)} is required before this Steam Top-Up can be prepared.`);
+  }
+  const fulfillmentDetails = { [createFulfillmentFieldKey(quote.productId, "login")]: steamLogin };
+  const prepared = await createMarketplaceOrder({ userId: input.userId, currency: "USD", items: [{ productId: quote.productId, quantity: amountUsd }], fulfillmentDetails });
+  const [order] = await db.select({ id: orders.id, total: orders.total }).from(orders).where(eq(orders.orderCode, prepared.orderCode)).limit(1);
+  if (!order) throw new Error("The Steam Top-Up preparation record could not be located.");
+  const source = await getFoxReloadClient().product(FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID);
+  const sourceUnitPrice = Number(source.price);
+  if (source.id !== FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID || source.currency?.toLowerCase() !== "usd" || !Number.isFinite(sourceUnitPrice) || sourceUnitPrice <= 0) {
+    throw new Error("FoxReload’s USD Steam Top-Up source changed before the wallet preparation completed. No supplier order was sent.");
+  }
+  await db.insert(steamTopUpCheckoutSessions).values({
+    orderId: order.id,
+    userId: input.userId,
+    productId: quote.productId,
+    supplierProductId: FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID,
+    steamLogin,
+    amountUsd,
+    sourceUnitPrice: sourceUnitPrice.toFixed(4),
+    sourceTotal: (sourceUnitPrice * amountUsd).toFixed(2),
+    customerUnitPrice: quote.vamnuxUnitPrice.toFixed(4),
+    customerTotal: Number(order.total).toFixed(2),
+    currency: "USD",
+    idempotencyKey,
+    status: "prepared",
+  });
+  return { orderCode: prepared.orderCode, status: "prepared" as const, total: Number(order.total), reused: false };
 }
 
 function numeric(value: unknown) { return Number(value ?? 0); }

@@ -1074,6 +1074,41 @@ export const orders = mysqlTable("orders", {
   supplierOrderIndex: index("orders_supplier_order_idx").on(table.supplierIntegrationId, table.supplierOrderId),
 }));
 
+/**
+ * One protected, idempotent Steam Top-Up checkout session. A session snapshots
+ * the USD FoxReload source quote and VAMNUX customer price before any wallet
+ * debit or supplier call. Supplier submission stays disabled until separately
+ * approved after a paid-wallet and controlled-order verification.
+ */
+export const steamTopUpCheckoutSessions = mysqlTable("steam_top_up_checkout_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  userId: int("userId").notNull(),
+  productId: int("productId").notNull(),
+  supplierProductId: varchar("supplierProductId", { length: 180 }).notNull(),
+  steamLogin: varchar("steamLogin", { length: 160 }).notNull(),
+  amountUsd: int("amountUsd").notNull(),
+  sourceUnitPrice: decimal("sourceUnitPrice", { precision: 12, scale: 4 }).notNull(),
+  sourceTotal: decimal("sourceTotal", { precision: 12, scale: 2 }).notNull(),
+  customerUnitPrice: decimal("customerUnitPrice", { precision: 12, scale: 4 }).notNull(),
+  customerTotal: decimal("customerTotal", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).default("USD").notNull(),
+  walletEntryId: int("walletEntryId"),
+  supplierOrderId: varchar("supplierOrderId", { length: 120 }),
+  idempotencyKey: varchar("idempotencyKey", { length: 120 }).notNull(),
+  status: mysqlEnum("status", ["prepared", "wallet_paid", "supplier_submission_disabled", "queued", "processing", "completed", "failed", "cancelled", "refunded"]).default("prepared").notNull(),
+  supplierErrorCode: varchar("supplierErrorCode", { length: 120 }),
+  sourceQuotedAt: timestamp("sourceQuotedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  orderUnique: uniqueIndex("steam_top_up_checkout_sessions_order_unique").on(table.orderId),
+  idempotencyUnique: uniqueIndex("steam_top_up_checkout_sessions_idempotency_unique").on(table.idempotencyKey),
+  userCreatedIndex: index("steam_top_up_checkout_sessions_user_created_idx").on(table.userId, table.createdAt),
+  statusCreatedIndex: index("steam_top_up_checkout_sessions_status_created_idx").on(table.status, table.createdAt),
+  supplierOrderIndex: index("steam_top_up_checkout_sessions_supplier_order_idx").on(table.supplierOrderId),
+}));
+
 /** Additive test-only order and commercial snapshot. It never replaces or changes the existing orders table. */
 export const supplierFulfillmentSimulationOrders = mysqlTable("supplier_fulfillment_simulation_orders", {
   id: int("id").autoincrement().primaryKey(),

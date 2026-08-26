@@ -36,6 +36,7 @@ const QUICK_CATALOG_PAGE_SIZE = 100;
 const COMPLETE_CATALOG_PAGE_SIZE = 50_000;
 
 function productPath(product: LiveCatalogProduct) {
+  if (product.id === 390015) return "/steam-top-up";
   return product.category === "Top-up" ? gameFamilyPath(product.name) : digitalProductPath(product.slug);
 }
 

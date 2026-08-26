@@ -15,6 +15,7 @@ import { listAdminPolicyPages, updateAdminPolicyPage } from "./db";
 import { getSuperAdminNotificationDetail, listSuperAdminNotificationInbox, markAllSuperAdminNotificationsRead, markSuperAdminNotificationsRead } from "./db";
 import { replyToSuperAdminNotification } from "./db";
 import { getSuperAdminTrafficAnalytics } from "./db";
+import { getUsdSteamTopUpQuote, prepareUsdSteamTopUpWalletOrder } from "./db";
 import { getSafeSupplierApiAccessStatus } from "./apiAccessControl";
 import { getMasterCatalogFoundationSummary } from "./db";
 import { addSupplierOfferToMasterForReview, approveSupplierOfferMapping, createSupplierProductMappingMaster, getSupplierProductMappingMaster, getSupplierProductMappingSummary, listSupplierProductMappingMasters, rejectSupplierOfferMapping, removeSupplierOfferMapping, searchSupplierProductsForMapping } from "./db";
@@ -208,6 +209,12 @@ export const appRouter = router({
       items: input.items,
       fulfillmentDetails: input.fulfillmentDetails,
     })),
+    steamTopUpQuote: customerProcedure.query(() => getUsdSteamTopUpQuote()),
+    prepareSteamTopUpWalletOrder: customerProcedure.input(z.object({
+      amountUsd: z.number().int().min(1).max(300),
+      steamLogin: z.string().trim().min(2).max(160),
+      idempotencyKey: z.string().trim().min(12).max(120),
+    })).mutation(({ ctx, input }) => prepareUsdSteamTopUpWalletOrder({ userId: ctx.user.id, ...input })),
   }),
   admin: router({
     mfaStatus: adminProcedure.query(({ ctx }) => getAdminMfaStatus(ctx.user.id)),
