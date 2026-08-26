@@ -27,7 +27,9 @@ type SupplierSyncResult = {
 async function runAuthorizedSupplierCatalogSync(supplierKey: ProductTrackingSupplierKey): Promise<SupplierSyncResult> {
   if (supplierKey === "flashtopup") {
     const syncStatus = await getSupplierSyncStatus("FlashTopUp");
-    if (!canRunSupplierCatalogSync(syncStatus)) throw new Error("FlashTopUp catalog sync is paused by its supplier integration policy.");
+    if (!canRunSupplierCatalogSync(syncStatus)) {
+      return { productCount: 0, failures: [], summary: "FlashTopUp catalog availability check was safely skipped because its supplier integration is paused." };
+    }
     const result = await syncFlashTopUpCatalog({ page: 1, perPage: 10 });
     return { productCount: result.productCount, failures: result.failures, summary: `Authorized FlashTopUp catalog page 1 checked ${result.productCount} supplier records across ${result.serviceCount} services.` };
   }
