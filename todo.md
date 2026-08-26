@@ -927,3 +927,6 @@
 - [x] Add a visible downward dropdown arrow to the shared USD selector without changing its currency behavior or styling beyond the requested affordance.
 - [x] Ensure only the USD selector and cart remain consistently reachable at the top-right of VAMNUX website, catalog, help, customer dashboard, and Admin layouts on desktop and mobile, without fixed-position overlap or changes to other header controls.
 - [x] Validate shared-header USD/cart visibility, responsive non-overlap, page-content access, focused tests, build, visual checks, checkpoint, and GitHub push.
+- [x] Inspect the website category-navigation strip, Admin Categories workspace, and existing persistent setting patterns before adding a scope-limited visibility control.
+- [x] Add one owner-only Categories setting at the bottom of the Admin Categories feature to show or hide only the website category-navigation strip, preserving every individual category and all catalog data.
+- [x] Validate the isolated navigation-strip visibility toggle, category preservation, responsive website layout, Admin authorization, focused tests, build, default-state visual checks, checkpoint, and GitHub push.

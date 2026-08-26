@@ -1,5 +1,6 @@
 import { ADMIN_MFA_CHALLENGE_COOKIE, ADMIN_MFA_VERIFIED_COOKIE, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSuperAdminOverview } from "./db";
+import { getCategoryNavigationVisibility } from "./db";
 import { listActiveCatalogSearchSuggestions } from "./db";
 import { parse as parseCookieHeader } from "cookie";
 import { z } from "zod";
@@ -121,6 +122,7 @@ export const appRouter = router({
     }),
   }),
   marketplace: router({
+    categoryNavigationVisibility: publicProcedure.query(() => getCategoryNavigationVisibility()),
     catalog: publicProcedure.input(z.object({
       page: z.number().int().min(1).default(1),
       pageSize: z.number().int().min(12).max(50_000).default(48),

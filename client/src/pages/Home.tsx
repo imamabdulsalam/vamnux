@@ -243,6 +243,8 @@ export default function Home() {
   }), [activeCategory, activeGamesPlatform, activeTopUpMode, catalogSearchTerm]);
   const supplierCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { staleTime: 5 * 60_000, refetchOnWindowFocus: false, refetchOnReconnect: false, refetchOnMount: false });
   const catalogSummary = trpc.marketplace.catalog.useQuery({ page: 1, pageSize: 12, scope: "primary" as const, includeMetadata: true }, { staleTime: 5 * 60_000, refetchOnWindowFocus: false });
+  const categoryNavigationVisibility = trpc.marketplace.categoryNavigationVisibility.useQuery(undefined, { staleTime: 30_000, refetchInterval: 30_000, refetchOnWindowFocus: true });
+  const isCategoryNavigationVisible = categoryNavigationVisibility.data?.visible !== false;
   const [loadedCatalogItems, setLoadedCatalogItems] = useState<NonNullable<typeof supplierCatalog.data>["items"]>([]);
   const revealCatalog = (focusSearch = false) => {
     const catalog = document.getElementById("products");
@@ -535,7 +537,7 @@ export default function Home() {
             <button className="header-cart" onClick={openCart} aria-label="Open cart"><ShoppingBag size={21} /><span>Cart</span>{cart.length > 0 && <b>{cart.length}</b>}</button>
           </div>
         </div>
-        <nav className="commerce-categories compact-category-nav" aria-label="Marketplace categories">
+        {isCategoryNavigationVisible && <nav className="commerce-categories compact-category-nav" aria-label="Marketplace categories">
           {visibleCategories.map(({ label, icon: Icon, filter }) => {
             const links = catalogQuickLinks.get(filter) ?? [];
             const isOpen = openMegaCategory === filter;
@@ -549,8 +551,8 @@ export default function Home() {
           })}
           <button className="compact-all-categories" type="button" onClick={() => setLocation("/catalog")}><Search size={17} /> All catalog</button>
           <span className="scope-status"><ShieldCheck size={16} /> Product availability updates</span>
-        </nav>
-        <section className="mobile-category-menu" aria-label="Mobile marketplace category menu">
+        </nav>}
+        {isCategoryNavigationVisible && <section className="mobile-category-menu" aria-label="Mobile marketplace category menu">
           <button type="button" className="mobile-category-trigger" aria-expanded={mobileCategoryMenuOpen} aria-controls="mobile-category-drawer" onClick={() => setMobileCategoryMenuOpen((open) => !open)}>
             <span className="mobile-category-lines" aria-hidden="true"><i /><i /><i /></span>
             <span>Browse categories</span>
@@ -572,7 +574,7 @@ export default function Home() {
             </div>
             <span className="mobile-category-status"><ShieldCheck size={14} /> Categories update with Admin visibility settings.</span>
           </div>
-        </section>
+        </section>}
       </header>
 
       <section className="commerce-carousel" aria-label="VAMNUX marketplace highlights">

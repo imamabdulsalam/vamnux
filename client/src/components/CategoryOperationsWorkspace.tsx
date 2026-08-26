@@ -1,7 +1,9 @@
-import { Archive, CheckSquare, Eye, FolderOpen, GripVertical, Pencil, RotateCcw, Square, X } from "lucide-react";
+import { Archive, CheckSquare, Eye, EyeOff, FolderOpen, GripVertical, Pencil, RotateCcw, Square, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { GAMES_PLATFORM_SUBCATEGORIES } from "@shared/gamesPlatformCategories";
 import { TOP_UP_SUBCATEGORIES } from "@shared/topUpSubcategories";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 import "./adminGamesSubcategories.css";
 
 export type CategoryOperationCategory = {
@@ -37,6 +39,18 @@ export function CategoryOperationsWorkspace({
   onEditProduct: (productId: number) => void;
   onReorder: (ids: number[]) => void;
 }) {
+  const utilities = trpc.useUtils();
+  const siteSettings = trpc.admin.listSiteSettings.useQuery();
+  const navigationSetting = siteSettings.data?.find((setting) => setting.settingKey === "storefront.category-navigation-strip");
+  const navigationValue = navigationSetting?.value as { visible?: unknown } | undefined;
+  const categoryNavigationVisible = navigationValue?.visible !== false;
+  const updateCategoryNavigation = trpc.admin.upsertSiteSetting.useMutation({
+    onSuccess: async () => {
+      await Promise.all([siteSettings.refetch(), utilities.marketplace.categoryNavigationVisibility.invalidate()]);
+      toast.success("Website category navigation setting saved.");
+    },
+    onError: (error) => toast.error(error.message || "Could not save the category navigation setting."),
+  });
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [quickViewId, setQuickViewId] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
@@ -93,6 +107,10 @@ export function CategoryOperationsWorkspace({
         </article>;
       })}
     </div>
+    <section className="admin-category-navigation-setting">
+      <div><p className="admin-form-kicker">WEBSITE CATEGORY NAVIGATION</p><h3>{categoryNavigationVisible ? "Category navigation is shown" : "Category navigation is hidden"}</h3><p>This controls only the website strip with Game top-up, Gift cards, Subscriptions, AI tools, Games, Steam Top-Up, Telegram Stars, and All catalog. It does not change any individual category, product, or catalog data.</p></div>
+      <button type="button" className={categoryNavigationVisible ? "admin-secondary-action" : "admin-primary-action"} disabled={updateCategoryNavigation.isPending} onClick={() => updateCategoryNavigation.mutate({ settingKey: "storefront.category-navigation-strip", category: "general", value: { visible: !categoryNavigationVisible } })}>{categoryNavigationVisible ? <EyeOff size={14} /> : <Eye size={14} />}{categoryNavigationVisible ? "Hide website category navigation" : "Show website category navigation"}</button>
+    </section>
     {quickView && <div className="admin-category-quickview" role="dialog" aria-modal="true" aria-label={`${quickView.name} quick view`}><div className="admin-category-quickview-card"><button type="button" className="admin-category-quickview-close" onClick={() => setQuickViewId(null)} aria-label="Close quick view"><X size={18} /></button><p className="admin-form-kicker">CATEGORY QUICK VIEW</p><h3>{quickView.name}</h3><p>{quickView.description || "No category description has been saved."}</p><div className="admin-category-state"><span className={quickView.status === "archived" ? "admin-status danger" : "admin-status active"}>{quickView.status}</span><span className={quickView.visible && quickView.status === "active" ? "admin-status active" : "admin-status muted"}>{quickView.visible && quickView.status === "active" ? "shown" : "hidden"}</span></div><h4>Mapped products ({productsForCategory(quickView).length})</h4>{productsForCategory(quickView).length ? <div className="admin-category-quickview-products">{productsForCategory(quickView).map((product) => <button type="button" key={product.id} onClick={() => onEditProduct(product.id)}><strong>{product.name}</strong><span>{product.supplierKey || "Admin managed"} · {product.baseCurrency} {product.displayPrice.toFixed(2)} · {label(product.storefrontStatus)}</span></button>)}</div> : <p className="admin-category-empty">No stored VAMNUX product currently maps to this category.</p>}</div></div>}
   </section>;
 }

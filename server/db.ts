@@ -3903,6 +3903,14 @@ export async function listSiteSettings() {
   return db.select().from(siteSettings).orderBy(siteSettings.category, siteSettings.settingKey);
 }
 
+export async function getCategoryNavigationVisibility() {
+  const db = requireDb(await getDb());
+  const [setting] = await db.select({ value: siteSettings.value }).from(siteSettings)
+    .where(eq(siteSettings.settingKey, "storefront.category-navigation-strip")).limit(1);
+  const value = setting?.value as { visible?: unknown } | undefined;
+  return { visible: value?.visible !== false };
+}
+
 export async function upsertSiteSetting(input: { settingKey: string; category: "general" | "currency" | "payments" | "email" | "notifications" | "orders" | "security"; value: Record<string, unknown>; adminUserId: number }) {
   const settingKey = input.settingKey.trim().toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "");
   if (!settingKey || settingKey.length > 120) throw new Error("Setting key must contain 1–120 letters, numbers, dots, underscores, or hyphens");
