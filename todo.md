@@ -923,3 +923,4 @@
 - [x] Verify Steam Top-Up routes only to the fixed USD direct-top-up system, no non-USD Steam product card remains, other catalog counts and commerce data are unchanged, and all direct-top-up safeguards continue to pass; Steam Top-Up now contains zero catalog product records and is served solely by the USD direct system.
 - [x] Remove only customer-facing FoxReload references from the Steam Top-Up category and direct USD top-up page, retaining all server-only supplier integration identifiers and behavior.
 - [x] Verify the customer Steam Top-Up page exposes no supplier identity or source cost while retaining the current dynamic VAMNUX markup and settled-wallet-only order gate.
+- [x] Change only the Steam Top-Up back button so it returns to the complete catalog with all categories instead of the Steam Top-Up category URL, then validate and push the targeted fix.

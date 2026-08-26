@@ -36,7 +36,7 @@ export default function SteamTopUp() {
   return <main className="steam-top-up-page">
     <header className="steam-top-up-header">
       <button type="button" className="steam-top-up-brand" onClick={() => setLocation("/")}><span>V</span> VAMNUX</button>
-      <button type="button" className="steam-top-up-back" onClick={() => setLocation("/catalog?category=Steam%20Top-Up")}><ArrowLeft size={16} /> Steam Top-Up catalog</button>
+      <button type="button" className="steam-top-up-back" onClick={() => setLocation("/catalog")}><ArrowLeft size={16} /> All product catalogs</button>
     </header>
     <section className="steam-top-up-hero">
       <div><p>USD ONLY</p><h1>STEAM<br /><em>TOP-UP.</em></h1><span><ShieldCheck size={16} /> Direct wallet credit request for an eligible Steam account</span></div>

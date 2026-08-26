@@ -65,6 +65,8 @@ describe("USD Steam Top-Up safety boundaries", () => {
     expect(pageSource).toContain("TOP-UP AMOUNT");
     expect(pageSource).not.toContain("FoxReload");
     expect(pageSource).not.toContain("FOXRELOAD");
+    expect(pageSource).toContain('setLocation("/catalog")');
+    expect(pageSource).toContain("All product catalogs");
     expect(catalogSource).toContain('if (next === "Steam Top-Up")');
     expect(catalogSource).toContain('setLocation("/steam-top-up")');
     expect(catalogSource).toContain('if (category === "Steam Top-Up") setLocation("/steam-top-up")');
