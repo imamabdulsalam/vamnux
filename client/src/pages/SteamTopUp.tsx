@@ -39,7 +39,7 @@ export default function SteamTopUp() {
       <button type="button" className="steam-top-up-back" onClick={() => setLocation("/catalog?category=Steam%20Top-Up")}><ArrowLeft size={16} /> Steam Top-Up catalog</button>
     </header>
     <section className="steam-top-up-hero">
-      <div><p>FOXRELOAD · USD ONLY</p><h1>STEAM<br /><em>TOP-UP.</em></h1><span><ShieldCheck size={16} /> Direct wallet credit request for an eligible Steam account</span></div>
+      <div><p>USD ONLY</p><h1>STEAM<br /><em>TOP-UP.</em></h1><span><ShieldCheck size={16} /> Direct wallet credit request for an eligible Steam account</span></div>
       <aside><LockKeyhole size={22} /><strong>Protected wallet route</strong><small>Supplier payment and Steam delivery remain blocked until the wallet-funded fulfillment safeguards are approved.</small></aside>
     </section>
     {!isAuthenticated ? <section className="steam-top-up-auth"><WalletCards size={26} /><h2>Sign in to use your VAMNUX wallet</h2><p>USD Steam Top-Up uses a settled USD VAMNUX wallet balance. Supplier costs and credentials remain private.</p><button type="button" onClick={startLogin}>Sign in securely</button></section> : <section className="steam-top-up-grid">
@@ -64,7 +64,7 @@ export default function SteamTopUp() {
         <dl><div><dt>Steam balance</dt><dd>${amountUsd.toFixed(2)} USD</dd></div><div><dt>VAMNUX price</dt><dd>{quote.isLoading ? "Loading…" : quote.data ? `$${total.toFixed(2)} USD` : "Unavailable"}</dd></div><div><dt>Wallet balance</dt><dd>{wallet ? `${wallet.currency} ${Number(wallet.availableBalance).toFixed(2)}` : "Loading…"}</dd></div></dl>
         <p className={hasBalance ? "steam-wallet-ok" : "steam-wallet-short"}>{quote.error ? "The verified USD Steam Top-Up source is temporarily unavailable. Please try again later." : hasBalance ? "Your settled USD wallet balance can cover this amount." : "A sufficient settled USD VAMNUX wallet balance is required."}</p>
         <button type="button" className="steam-top-up-submit" onClick={prepareOrder} disabled={prepare.isPending || quote.isLoading || !quote.data || !steamLogin.trim() || !hasBalance}>{prepare.isPending ? "Checking wallet…" : "Prepare wallet order"} <CircleDollarSign size={18} /></button>
-        <small className="steam-safety-note">Preparing an order checks the source, the required Steam login, and your wallet eligibility. It does not debit your wallet, pay FoxReload, or deliver a Steam top-up.</small>
+        <small className="steam-safety-note">Preparing an order checks the required Steam login and your wallet eligibility. It does not debit your wallet or deliver a Steam top-up.</small>
       </aside>
     </section>}
   </main>;
