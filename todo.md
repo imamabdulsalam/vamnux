@@ -876,3 +876,8 @@
 - [ ] Reclassify only the existing exact GamesDrop Game Top Ups records requiring a player ID or server ID into Top-up → Activation Codes, preserving every source identity, cost, currency, checkout field, artwork URL, status, and pricing configuration unchanged.
 - [x] Use the owner-approved exact supplier rule for Activation Codes: accept only Game Top Ups offers requiring a player ID or server ID, preserving those required checkout fields unchanged.
 - [x] Reclassify only the existing exact GamesDrop Game Top Ups records requiring a player ID or server ID into Top-up → Activation Codes, preserving every source identity, cost, currency, checkout field, artwork URL, status, and pricing configuration unchanged.
+- [ ] Accept only exact Meta Quest source offers requiring a player ID or server ID, preserving those supplier checkout fields unchanged for customer resale.
+- [x] Capture full catalog totals, exact supplier-source duplicate groups, category/subcategory counts, pricing configuration, commerce counts, and customer catalog loading baseline without modifying records.
+- [x] Reconcile supplier-backed category and subcategory evidence for all catalog records, identifying only provable presentation corrections and leaving uncertain products unchanged.
+- [x] Apply only approved non-destructive category or subcategory presentation corrections; no supplier-evidenced correction was required, so no product data changed.
+- [x] Verify zero exact supplier-source duplicates, correct customer category visibility, preserved catalog totals/pricing/commerce data, fast catalog and image-preview loading, then checkpoint and report the results.
