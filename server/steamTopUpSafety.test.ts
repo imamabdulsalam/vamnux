@@ -40,6 +40,10 @@ describe("USD Steam Top-Up safety boundaries", () => {
     expect(dbSource).toContain('eq(products.baseCurrency, "USD")');
     expect(dbSource).toContain('eq(products.supplierCurrency, "USD")');
     expect(dbSource).toContain('createFulfillmentFieldKey(quote.productId, "login")');
+    expect(dbSource).toContain('if (login.length < 2 || login.length > 160 || /[\\r\\n\\t]/.test(login))');
+    expect(dbSource).toContain('eq(steamTopUpCheckoutSessions.idempotencyKey, idempotencyKey)');
+    expect(dbSource).toContain('if (existing) return { orderCode: existing.orderCode');
+    expect(dbSource).toContain('walletCanCoverOrder');
     expect(dbSource).toContain('status: "prepared"');
     expect(dbSource).not.toContain('"/api/orders/"');
     expect(dbSource).not.toContain('"/api/orders/{order_id}/pay"');
