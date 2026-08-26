@@ -61,6 +61,10 @@ describe("USD Steam Top-Up safety boundaries", () => {
     expect(routerSource).toContain("prepareSteamTopUpWalletOrder");
     expect(pageSource).toContain("Steam account login");
     expect(pageSource).toContain("No wallet debit, supplier payment, or Steam top-up has been submitted");
+    expect(pageSource).toContain('<strong>USD</strong>');
+    expect(pageSource).toContain("[5, 10, 25, 50, 100]");
+    expect(pageSource).toContain('placeholder="account_name"');
+    expect(pageSource).toContain("TOP-UP AMOUNT");
     expect(catalogSource).toContain('if (product.id === 390015) return "/steam-top-up"');
   });
 });

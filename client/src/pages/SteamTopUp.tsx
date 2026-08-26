@@ -10,7 +10,7 @@ import "./steamTopUp.css";
 export default function SteamTopUp() {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
-  const [amountUsd, setAmountUsd] = useState(1);
+  const [amountUsd, setAmountUsd] = useState(10);
   const [steamLogin, setSteamLogin] = useState("");
   const checkoutKey = useRef(typeof crypto === "undefined" ? `steam-${Date.now()}-checkout` : crypto.randomUUID());
   const quote = trpc.marketplace.steamTopUpQuote.useQuery(undefined, { enabled: isAuthenticated, staleTime: 30_000, retry: false });
@@ -44,11 +44,19 @@ export default function SteamTopUp() {
     </section>
     {!isAuthenticated ? <section className="steam-top-up-auth"><WalletCards size={26} /><h2>Sign in to use your VAMNUX wallet</h2><p>USD Steam Top-Up uses a settled USD VAMNUX wallet balance. Supplier costs and credentials remain private.</p><button type="button" onClick={startLogin}>Sign in securely</button></section> : <section className="steam-top-up-grid">
       <article className="steam-top-up-form">
-        <div className="steam-section-label">USD STEAM BALANCE</div>
-        <h2>Choose the amount</h2>
-        <p>Only USD Steam Top-Up is available here. The available range is ${quote.data?.minAmount ?? 1} to ${quote.data?.maxAmount ?? 300}.</p>
-        <div className="steam-amount-control"><button type="button" onClick={() => setAmountUsd((value) => Math.max(quote.data?.minAmount ?? 1, value - 1))} aria-label="Decrease amount">−</button><label><span>USD amount</span><input type="number" min={quote.data?.minAmount ?? 1} max={quote.data?.maxAmount ?? 300} value={amountUsd} onChange={(event) => setAmountUsd(Math.max(quote.data?.minAmount ?? 1, Math.min(quote.data?.maxAmount ?? 300, Number(event.target.value) || 1)))} /></label><button type="button" onClick={() => setAmountUsd((value) => Math.min(quote.data?.maxAmount ?? 300, value + 1))} aria-label="Increase amount">+</button></div>
-        <label className="steam-login-field"><span>Steam login *</span><input value={steamLogin} onChange={(event) => setSteamLogin(event.target.value)} placeholder="Your Steam account login" autoComplete="username" maxLength={160} /><small>Enter the Steam account login exactly as required for the top-up. Do not enter your password.</small></label>
+        <div className="steam-section-label">STEAM TOP-UP</div>
+        <h2>Direct credit to Steam wallet</h2>
+        <p>USD only. Enter the Steam login that should receive the balance, then choose an amount from ${quote.data?.minAmount ?? 1} to ${quote.data?.maxAmount ?? 300}.</p>
+        <section className="steam-currency-section" aria-label="Wallet currency">
+          <span>WALLET CURRENCY</span>
+          <div className="steam-usd-indicator"><small>US</small><strong>USD</strong></div>
+        </section>
+        <label className="steam-login-field"><span>STEAM LOGIN *</span><input value={steamLogin} onChange={(event) => setSteamLogin(event.target.value)} placeholder="account_name" autoComplete="username" maxLength={160} /><small>Enter the Steam account login only. Do not enter your password.</small></label>
+        <section className="steam-amount-section">
+          <span>TOP-UP AMOUNT</span>
+          <label className="steam-amount-input"><span>$</span><input type="number" min={quote.data?.minAmount ?? 1} max={quote.data?.maxAmount ?? 300} value={amountUsd} onChange={(event) => setAmountUsd(Math.max(quote.data?.minAmount ?? 1, Math.min(quote.data?.maxAmount ?? 300, Number(event.target.value) || 1)))} aria-label="USD top-up amount" /><small>USD</small></label>
+          <div className="steam-quick-amounts" aria-label="Quick USD amount choices">{[5, 10, 25, 50, 100].map((quickAmount) => <button key={quickAmount} type="button" className={amountUsd === quickAmount ? "is-selected" : ""} onClick={() => setAmountUsd(quickAmount)}>${quickAmount}</button>)}</div>
+        </section>
       </article>
       <aside className="steam-top-up-summary">
         <div className="steam-section-label">VAMNUX WALLET CHECK</div>
