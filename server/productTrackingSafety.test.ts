@@ -24,4 +24,17 @@ describe("Product Tracking safety boundaries", () => {
     expect(runner).not.toContain("setInterval");
     expect(router).toContain('path: "/api/scheduled/product-tracking"');
   });
+
+  it("keeps the requested discovery, recovery-badge, and recent-sync summary controls bound to real Product Tracking data", async () => {
+    const [trackingWorkspace, adminWorkspace] = await Promise.all([
+      readFile(new URL("../client/src/components/AdminProductTracking.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../client/src/pages/SuperAdmin.tsx", import.meta.url), "utf8"),
+    ]);
+    expect(trackingWorkspace).toContain("Search out-of-stock products");
+    expect(trackingWorkspace).toContain("All categories");
+    expect(trackingWorkspace).toContain("Synced product summary");
+    expect(trackingWorkspace).toContain("dashboard.data.recentNewProducts");
+    expect(adminWorkspace).toContain("product-tracking-nav-badge");
+    expect(adminWorkspace).toContain("hiddenProducts.filter((product) => product.recovered)");
+  });
 });

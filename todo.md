@@ -894,3 +894,8 @@
 - [x] Confirm the owner-selected managed automatic synchronization mode; per-supplier 2-hour, 10-hour, and 24-hour choices will be supported after the deployed scheduled callback is available.
 - [x] Configure and activate the owner-authorized 2-hour Product Tracking schedule for FlashTopUp, FoxReload, and GamesDrop, then verify the persisted task identities and no-order safety boundary.
 - [x] Validate Product Tracking authorization, supplier/data isolation, stock visibility recovery, manual and scheduled sync behavior, customer catalog visibility, focused tests, build, and visual checks; FlashTopUp safely records a skipped availability check while its independent supplier integration remains paused.
+- [x] Inspect Product Tracking dashboard data and Admin navigation to reuse real out-of-stock, recovery, category, and recent-sync records for the requested discovery controls, badge, and chart.
+- [x] Add a client-side out-of-stock product search and category filter to Product Tracking without removing or changing existing supplier availability, hide/show, schedule, or run-history controls.
+- [x] Add a Product Tracking Admin navigation badge that counts real newly available hidden products, without exposing product data outside the owner-only workspace.
+- [x] Add a real visual summary chart for new synchronized product records across the last 24 hours, 3 days, and 7 days, retaining the existing textual sync-window details.
+- [x] Validate Product Tracking discovery controls, badge count, chart values, sync reporting for new and out-of-stock/recovered products, focused tests, build, protected Admin-route check, checkpoint, and GitHub push.

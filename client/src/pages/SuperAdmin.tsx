@@ -224,12 +224,26 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const supportTickets = trpc.admin.listSupportTickets.useQuery(undefined, { enabled: tabIs("notifications") });
   const productActivityEvents = trpc.admin.listProductActivityEvents.useQuery({ limit: 100 }, { enabled: tabIs("products") });
   const notificationInbox = trpc.admin.listNotificationInbox.useQuery({ limit: 250 }, { enabled: tabIs("notifications"), refetchInterval: tabIs("notifications") ? 30_000 : false, refetchOnWindowFocus: tabIs("notifications") });
+  const productTrackingBadge = trpc.admin.getProductTrackingDashboard.useQuery(undefined, { refetchInterval: 30_000, refetchOnWindowFocus: true });
   const [selectedSupportTicket, setSelectedSupportTicket] = useState<string | null>(null);
   const supportTicketDetail = trpc.admin.getSupportTicket.useQuery({ ticketCode: selectedSupportTicket || "" }, { enabled: !!selectedSupportTicket });
   const fundingRequests = trpc.admin.listWalletFundingRequests.useQuery(undefined, { enabled: tabIs("funding") });
   const health = trpc.admin.getSystemHealth.useQuery(undefined, { enabled: tabIs("health") });
   const auditEvents = trpc.admin.listAuditEvents.useQuery(undefined, { enabled: tabIs("risk", "health") });
   const utils = trpc.useUtils();
+  useEffect(() => {
+    const trackingButton = Array.from(document.querySelectorAll<HTMLButtonElement>(".admin-sidebar nav button"))
+      .find((button) => button.textContent?.includes("Product Tracking"));
+    if (!trackingButton) return;
+    trackingButton.querySelector(".product-tracking-nav-badge")?.remove();
+    const newlyAvailable = productTrackingBadge.data?.hiddenProducts.filter((product) => product.recovered).length ?? 0;
+    if (!newlyAvailable) return;
+    const badge = document.createElement("b");
+    badge.className = "admin-nav-unread product-tracking-nav-badge";
+    badge.setAttribute("aria-label", `${newlyAvailable} newly available hidden products`);
+    badge.textContent = newlyAvailable > 99 ? "99+" : String(newlyAvailable);
+    trackingButton.append(badge);
+  }, [activeTab, productTrackingBadge.data]);
   const [defaultMarkup, setDefaultMarkup] = useState("25");
   const [goalDraft, setGoalDraft] = useState({ orders: "0", revenue: "0", profit: "0" });
   const [customerStatusFilter, setCustomerStatusFilter] = useState<"all" | "suspended">("all");
