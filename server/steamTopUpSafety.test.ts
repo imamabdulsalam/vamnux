@@ -1,8 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
+import { calculateCustomerDisplayPrice } from "../shared/pricing";
 import { FoxReloadClient } from "./integrations/foxreload";
 
 describe("USD Steam Top-Up safety boundaries", () => {
+  it("recalculates a customer-only price whenever the global VAMNUX markup changes", () => {
+    const baseRule = { supplierBasePrice: 0.95, markupPercentOverride: null, displayPriceOverride: null };
+    expect(calculateCustomerDisplayPrice({ ...baseRule, defaultMarkupPercent: 25 })).toBe(1.19);
+    expect(calculateCustomerDisplayPrice({ ...baseRule, defaultMarkupPercent: 10 })).toBe(1.05);
+    expect(calculateCustomerDisplayPrice({ ...baseRule, defaultMarkupPercent: 40 })).toBe(1.33);
+  });
+
   it("reads the verified FoxReload product through USD context without creating an order", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       id: "product_01kjp6vtmjf8rbbxw88719wz3b",
@@ -39,6 +47,8 @@ describe("USD Steam Top-Up safety boundaries", () => {
     expect(dbSource).toContain('eq(products.category, "steam_top_up")');
     expect(dbSource).toContain('eq(products.baseCurrency, "USD")');
     expect(dbSource).toContain('eq(products.supplierCurrency, "USD")');
+    expect(dbSource).toContain("const settings = await ensureMarketplacePricingSettings(db)");
+    expect(dbSource).toContain("customerPriceForProduct(product, settings)");
     expect(dbSource).toContain('createFulfillmentFieldKey(quote.productId, "login")');
     expect(dbSource).toContain('if (login.length < 2 || login.length > 160 || /[\\r\\n\\t]/.test(login))');
     expect(dbSource).toContain('eq(steamTopUpCheckoutSessions.idempotencyKey, idempotencyKey)');
