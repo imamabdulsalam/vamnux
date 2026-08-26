@@ -226,6 +226,9 @@ export default function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const catalogSearchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("cart") === "1") setCartOpen(true);
+  }, [location]);
+  useEffect(() => {
     const timer = window.setTimeout(() => setCatalogSearchTerm(query.trim()), 180);
     return () => window.clearTimeout(timer);
   }, [query]);
@@ -525,6 +528,7 @@ export default function Home() {
               <select value={currency} onChange={(event) => handleCurrencyChange(event.target.value as CurrencyCode)} aria-label="Display currency">
                 {Object.entries(currencies).map(([code, details]) => <option key={code} value={code}>{details.label}</option>)}
               </select>
+              <ChevronDown className="currency-switcher-chevron" size={14} aria-hidden="true" />
             </label>
             {isAuthenticated ? <button className="header-icon" onClick={openAccount} aria-label="Open account"><UserRound size={20} /><span>Account</span></button> : <div className="header-auth-actions"><button className="header-signin" type="button" onClick={() => setLocation("/login")}>Sign in</button><button className="header-create-account" type="button" onClick={() => setLocation("/login?mode=signup")}>Create account</button></div>}
             <button className="header-icon favourite-button" onClick={() => isAuthenticated ? setLocation("/account?tab=saved") : startLogin()} aria-label="Open favorites"><Heart size={20} /><span>Favorites</span></button>

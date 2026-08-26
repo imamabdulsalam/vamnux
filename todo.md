@@ -924,3 +924,6 @@
 - [x] Remove only customer-facing FoxReload references from the Steam Top-Up category and direct USD top-up page, retaining all server-only supplier integration identifiers and behavior.
 - [x] Verify the customer Steam Top-Up page exposes no supplier identity or source cost while retaining the current dynamic VAMNUX markup and settled-wallet-only order gate.
 - [x] Change only the Steam Top-Up back button so it returns to the complete catalog with all categories instead of the Steam Top-Up category URL, then validate and push the targeted fix.
+- [x] Add a visible downward dropdown arrow to the shared USD selector without changing its currency behavior or styling beyond the requested affordance.
+- [x] Ensure only the USD selector and cart remain consistently reachable at the top-right of VAMNUX website, catalog, help, customer dashboard, and Admin layouts on desktop and mobile, without fixed-position overlap or changes to other header controls.
+- [x] Validate shared-header USD/cart visibility, responsive non-overlap, page-content access, focused tests, build, visual checks, checkpoint, and GitHub push.

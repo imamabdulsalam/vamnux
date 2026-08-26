@@ -5,6 +5,7 @@ import NotFound from "@/pages/NotFound";
 import { lazy, Suspense, useEffect, useLayoutEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { GlobalUtilityControls } from "./components/GlobalUtilityControls";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 
@@ -69,6 +70,16 @@ function Router() {
       </Switch>
     </Suspense>
   );
+}
+
+function VamnuxRouteFrame() {
+  const [location, setLocation] = useLocation();
+  const isHomeRoute = location === "/" || location.startsWith("/?");
+
+  return <div className={isHomeRoute ? undefined : "vamnux-utility-shell"}>
+    {!isHomeRoute && <GlobalUtilityControls onOpenCart={() => setLocation("/?cart=1")} />}
+    <Router />
+  </div>;
 }
 
 function RoutePositionReset() {
@@ -145,7 +156,7 @@ function App() {
           <Toaster richColors position="top-right" />
           <RoutePositionReset />
           <CatalogLinkRedirector />
-          <Router />
+          <VamnuxRouteFrame />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
