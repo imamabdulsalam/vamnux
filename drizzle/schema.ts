@@ -1082,9 +1082,9 @@ export const orders = mysqlTable("orders", {
  */
 export const steamTopUpCheckoutSessions = mysqlTable("steam_top_up_checkout_sessions", {
   id: int("id").autoincrement().primaryKey(),
-  orderId: int("orderId").notNull(),
+  orderId: int("orderId"),
   userId: int("userId").notNull(),
-  productId: int("productId").notNull(),
+  productId: int("productId"),
   supplierProductId: varchar("supplierProductId", { length: 180 }).notNull(),
   steamLogin: varchar("steamLogin", { length: 160 }).notNull(),
   amountUsd: int("amountUsd").notNull(),

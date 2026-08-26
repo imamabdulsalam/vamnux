@@ -44,15 +44,13 @@ describe("USD Steam Top-Up safety boundaries", () => {
       readFile(new URL("../client/src/pages/CatalogPage.tsx", import.meta.url), "utf8"),
     ]);
     expect(dbSource).toContain('const FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID = "product_01kjp6vtmjf8rbbxw88719wz3b"');
-    expect(dbSource).toContain('eq(products.category, "steam_top_up")');
-    expect(dbSource).toContain('eq(products.baseCurrency, "USD")');
-    expect(dbSource).toContain('eq(products.supplierCurrency, "USD")');
     expect(dbSource).toContain("const settings = await ensureMarketplacePricingSettings(db)");
-    expect(dbSource).toContain("customerPriceForProduct(product, settings)");
-    expect(dbSource).toContain('createFulfillmentFieldKey(quote.productId, "login")');
+    expect(dbSource).toContain("calculateCustomerDisplayPrice(priceRule)");
+    expect(dbSource).toContain('orderId: null');
+    expect(dbSource).toContain('productId: null');
     expect(dbSource).toContain('if (login.length < 2 || login.length > 160 || /[\\r\\n\\t]/.test(login))');
     expect(dbSource).toContain('eq(steamTopUpCheckoutSessions.idempotencyKey, idempotencyKey)');
-    expect(dbSource).toContain('if (existing) return { orderCode: existing.orderCode');
+    expect(dbSource).toContain('if (existing) return { orderCode: `STEAM-${existing.id}`');
     expect(dbSource).toContain('walletCanCoverOrder');
     expect(dbSource).toContain('status: "prepared"');
     expect(dbSource).not.toContain('"/api/orders/"');
@@ -65,6 +63,8 @@ describe("USD Steam Top-Up safety boundaries", () => {
     expect(pageSource).toContain("[5, 10, 25, 50, 100]");
     expect(pageSource).toContain('placeholder="account_name"');
     expect(pageSource).toContain("TOP-UP AMOUNT");
-    expect(catalogSource).toContain('if (product.id === 390015) return "/steam-top-up"');
+    expect(catalogSource).toContain('if (next === "Steam Top-Up")');
+    expect(catalogSource).toContain('setLocation("/steam-top-up")');
+    expect(catalogSource).toContain('if (category === "Steam Top-Up") setLocation("/steam-top-up")');
   });
 });

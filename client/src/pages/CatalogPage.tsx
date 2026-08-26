@@ -145,6 +145,10 @@ export default function CatalogPage() {
     setQuery(nextQuery);
   }, [location]);
 
+  useEffect(() => {
+    if (category === "Steam Top-Up") setLocation("/steam-top-up");
+  }, [category, setLocation]);
+
   const selectedCategory = categoryOptions.find((option) => option.value === category) ?? categoryOptions[0];
   const catalogInput = useMemo(() => ({
     page: 1,
@@ -208,6 +212,10 @@ export default function CatalogPage() {
   };
 
   const selectCategory = (next: CatalogFilter) => {
+    if (next === "Steam Top-Up") {
+      setLocation("/steam-top-up");
+      return;
+    }
     setCategory(next);
     setGamesPlatform("all");
     setTopUpMode("all");

@@ -267,6 +267,13 @@
       "when": 1787744194035,
       "tag": "0037_hard_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "5",
+      "when": 1787775925988,
+      "tag": "0038_tricky_sue_storm",
+      "breakpoints": true
     }
   ]
 }
