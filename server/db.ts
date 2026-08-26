@@ -1034,7 +1034,11 @@ function publicGamesPlatformCondition(platform: NonNullable<PublicCatalogPageInp
 /** Direct Top Up is evidenced by required customer input. Activation Codes require explicit supplier delivery metadata and remain empty until supplied. */
 function publicTopUpModeCondition(mode: NonNullable<PublicCatalogPageInput["topUpMode"]>) {
   if (mode === "direct") {
-    return and(eq(products.category, "top_up"), sql`coalesce(${products.inputRequirements}, '[]') <> '[]'`);
+    return and(
+      eq(products.category, "top_up"),
+      sql`coalesce(${products.inputRequirements}, '[]') <> '[]'`,
+      sql`lower(coalesce(json_unquote(json_extract(${products.metadata}, '$.deliveryFormat')), '')) <> 'activation_code'`,
+    );
   }
   return and(
     eq(products.category, "top_up"),
