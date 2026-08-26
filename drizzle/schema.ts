@@ -598,6 +598,78 @@ export const supplierSyncRuns = mysqlTable("supplier_sync_runs", {
   statusStartedIndex: index("supplier_sync_runs_status_started_idx").on(table.status, table.startedAt),
 }));
 
+/** Current supplier-backed availability evidence for an existing VAMNUX product. No source cost, SKU, or customer price is duplicated here. */
+export const productTrackingObservations = mysqlTable("product_tracking_observations", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  supplierKey: varchar("supplierKey", { length: 80 }),
+  supplierEligible: boolean("supplierEligible").notNull(),
+  observedAt: timestamp("observedAt").defaultNow().notNull(),
+  firstUnavailableAt: timestamp("firstUnavailableAt"),
+  availableAgainAt: timestamp("availableAgainAt"),
+  lastTrackingRunId: int("lastTrackingRunId"),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  productUnique: uniqueIndex("product_tracking_observations_product_unique").on(table.productId),
+  supplierAvailabilityIndex: index("product_tracking_observations_supplier_availability_idx").on(table.supplierKey, table.supplierEligible, table.observedAt),
+  recoveryIndex: index("product_tracking_observations_recovery_idx").on(table.availableAgainAt),
+}));
+
+/** Append-only Product Tracking actions and supplier-availability transitions for owner review. */
+export const productTrackingEvents = mysqlTable("product_tracking_events", {
+  id: int("id").autoincrement().primaryKey(),
+  productId: int("productId").notNull(),
+  supplierKey: varchar("supplierKey", { length: 80 }),
+  eventType: mysqlEnum("eventType", ["observed_available", "observed_out_of_stock", "recovered_available", "storefront_hidden", "storefront_shown"]).notNull(),
+  trackingRunId: int("trackingRunId"),
+  adminUserId: int("adminUserId"),
+  detail: varchar("detail", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  productCreatedIndex: index("product_tracking_events_product_created_idx").on(table.productId, table.createdAt),
+  supplierCreatedIndex: index("product_tracking_events_supplier_created_idx").on(table.supplierKey, table.createdAt),
+  runIndex: index("product_tracking_events_run_idx").on(table.trackingRunId),
+}));
+
+/** One record for every Product Tracking supplier run, including category/subcategory additions derived from real catalog records. */
+export const productTrackingRuns = mysqlTable("product_tracking_runs", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierKey: varchar("supplierKey", { length: 80 }).notNull(),
+  trigger: mysqlEnum("trigger", ["manual", "scheduled"]).notNull(),
+  status: mysqlEnum("status", ["started", "completed", "failed", "skipped"]).default("started").notNull(),
+  initiatedByAdminId: int("initiatedByAdminId"),
+  supplierSyncRunId: int("supplierSyncRunId"),
+  productsObserved: int("productsObserved").default(0).notNull(),
+  outOfStockProducts: int("outOfStockProducts").default(0).notNull(),
+  newlySyncedProducts: int("newlySyncedProducts").default(0).notNull(),
+  newlySyncedByCategory: json("newlySyncedByCategory"),
+  summary: varchar("summary", { length: 500 }),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+}, (table) => ({
+  supplierStartedIndex: index("product_tracking_runs_supplier_started_idx").on(table.supplierKey, table.startedAt),
+  statusStartedIndex: index("product_tracking_runs_status_started_idx").on(table.status, table.startedAt),
+}));
+
+/** Owner-managed recurring supplier catalog refresh configuration. The task UID is the durable scheduler identity. */
+export const productTrackingSchedules = mysqlTable("product_tracking_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierKey: varchar("supplierKey", { length: 80 }).notNull(),
+  intervalHours: mysqlEnum("intervalHours", ["2", "10", "24"]).notNull(),
+  status: mysqlEnum("status", ["pending_deployment", "active", "paused", "error"]).default("pending_deployment").notNull(),
+  scheduleCronTaskUid: varchar("scheduleCronTaskUid", { length: 65 }),
+  configuredByAdminId: int("configuredByAdminId").notNull(),
+  lastRunAt: timestamp("lastRunAt"),
+  nextRunAt: timestamp("nextRunAt"),
+  lastError: varchar("lastError", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  supplierUnique: uniqueIndex("product_tracking_schedules_supplier_unique").on(table.supplierKey),
+  taskUnique: uniqueIndex("product_tracking_schedules_task_unique").on(table.scheduleCronTaskUid),
+  statusIndex: index("product_tracking_schedules_status_idx").on(table.status, table.intervalHours),
+}));
+
 /** Future promotion configuration. Rules remain non-operative until an approved checkout application policy is implemented. */
 export const promotions = mysqlTable("promotions", {
   id: int("id").autoincrement().primaryKey(),

@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, like, lte, notInArray, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productTrackingEvents, productTrackingObservations, productTrackingRuns, productTrackingSchedules, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -22,6 +22,24 @@ import { isSupplierMappingCategory, mappingAttributesMatch, mappingIdentityValue
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
 export const FOXRELOAD_SUPPLIER_KEY = "foxreload" as const;
 export const GAMESDROP_SUPPLIER_KEY = "gamesdrop" as const;
+export const PRODUCT_TRACKING_SUPPLIER_KEYS = [FLASHTOPUP_SUPPLIER_KEY, FOXRELOAD_SUPPLIER_KEY, GAMESDROP_SUPPLIER_KEY] as const;
+export type ProductTrackingSupplierKey = (typeof PRODUCT_TRACKING_SUPPLIER_KEYS)[number];
+export const PRODUCT_TRACKING_INTERVAL_HOURS = [2, 10, 24] as const;
+export type ProductTrackingIntervalHours = (typeof PRODUCT_TRACKING_INTERVAL_HOURS)[number];
+
+const PRODUCT_TRACKING_SUPPLIER_NAMES: Record<ProductTrackingSupplierKey, string> = {
+  flashtopup: "FlashTopUp",
+  foxreload: "FoxReload",
+  gamesdrop: "GamesDrop",
+};
+
+export function isProductTrackingSupplierKey(value: string): value is ProductTrackingSupplierKey {
+  return PRODUCT_TRACKING_SUPPLIER_KEYS.includes(value as ProductTrackingSupplierKey);
+}
+
+export function productTrackingSupplierName(value: ProductTrackingSupplierKey) {
+  return PRODUCT_TRACKING_SUPPLIER_NAMES[value];
+}
 
 export function assertSupplierCatalogRowScope(supplierKey: string, rows: SupplierCatalogRow[]) {
   const requiredPrefix = supplierKey === FLASHTOPUP_SUPPLIER_KEY ? "ft-" : supplierKey === FOXRELOAD_SUPPLIER_KEY ? "fr-" : supplierKey === GAMESDROP_SUPPLIER_KEY ? "gd-" : null;
@@ -1914,7 +1932,7 @@ export async function recordCompletedSupplierCatalogSync(input: { supplierKey: s
   const db = requireDb(await getDb());
   const [integration] = await db.select({ id: commerceIntegrations.id }).from(commerceIntegrations)
     .where(and(eq(commerceIntegrations.integrationType, "supplier"), eq(commerceIntegrations.providerName, input.providerName))).limit(1);
-  await db.insert(supplierSyncRuns).values({
+  const [created] = await db.insert(supplierSyncRuns).values({
     integrationId: integration?.id ?? null,
     supplierKey: input.supplierKey,
     initiatedByAdminId: input.adminUserId,
@@ -1925,7 +1943,199 @@ export async function recordCompletedSupplierCatalogSync(input: { supplierKey: s
     productsFailed: Math.max(0, input.productsFailed ?? 0),
     summary: input.summary.slice(0, 500),
     completedAt: new Date(),
+  }).$returningId();
+  return created.id;
+}
+
+function productTrackingSubcategory(category: string, metadata: unknown, inputRequirements: unknown) {
+  const source = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata as Record<string, unknown> : {};
+  if (category === "steam") return typeof source.platformCode === "string" ? source.platformCode : "unclassified";
+  if (category === "top_up") {
+    if (source.deliveryFormat === "activation_code") return "Activation Codes";
+    if (Array.isArray(inputRequirements) && inputRequirements.length > 0) return "Direct Top Up";
+    return "All";
+  }
+  return null;
+}
+
+function trackingCategorySummary(rows: Array<{ category: string; metadata: unknown; inputRequirements: unknown }>) {
+  const grouped = new Map<string, { productCount: number; subcategories: Record<string, number> }>();
+  for (const row of rows) {
+    const existing = grouped.get(row.category) ?? { productCount: 0, subcategories: {} };
+    existing.productCount += 1;
+    const subcategory = productTrackingSubcategory(row.category, row.metadata, row.inputRequirements);
+    if (subcategory) existing.subcategories[subcategory] = (existing.subcategories[subcategory] ?? 0) + 1;
+    grouped.set(row.category, existing);
+  }
+  return Object.fromEntries(grouped);
+}
+
+async function refreshProductTrackingObservations(input: { supplierKey: ProductTrackingSupplierKey; trackingRunId: number }) {
+  const db = requireDb(await getDb());
+  const now = new Date();
+  await db.execute(sql`
+    INSERT INTO product_tracking_events (productId, supplierKey, eventType, trackingRunId, detail, createdAt)
+    SELECT p.id, p.supplierKey,
+      CASE WHEN p.supplierEligible = 1 THEN 'recovered_available' ELSE 'observed_out_of_stock' END,
+      ${input.trackingRunId},
+      CASE WHEN p.supplierEligible = 1 THEN 'Supplier availability recovered during tracked synchronization.' ELSE 'Supplier availability changed to out of stock during tracked synchronization.' END,
+      ${now}
+    FROM products p
+    INNER JOIN product_tracking_observations o ON o.productId = p.id
+    WHERE p.supplierKey = ${input.supplierKey}
+      AND o.supplierEligible <> p.supplierEligible
+  `);
+  await db.execute(sql`
+    UPDATE product_tracking_observations o
+    INNER JOIN products p ON p.id = o.productId
+    SET o.supplierEligible = p.supplierEligible,
+        o.observedAt = ${now},
+        o.firstUnavailableAt = CASE
+          WHEN o.supplierEligible = 1 AND p.supplierEligible = 0 THEN ${now}
+          WHEN p.supplierEligible = 0 THEN COALESCE(o.firstUnavailableAt, ${now})
+          ELSE o.firstUnavailableAt
+        END,
+        o.availableAgainAt = CASE WHEN o.supplierEligible = 0 AND p.supplierEligible = 1 THEN ${now} ELSE o.availableAgainAt END,
+        o.lastTrackingRunId = ${input.trackingRunId}
+    WHERE p.supplierKey = ${input.supplierKey}
+  `);
+  await db.execute(sql`
+    INSERT INTO product_tracking_observations (productId, supplierKey, supplierEligible, observedAt, firstUnavailableAt, availableAgainAt, lastTrackingRunId, updatedAt)
+    SELECT p.id, p.supplierKey, p.supplierEligible, ${now},
+      CASE WHEN p.supplierEligible = 0 THEN ${now} ELSE NULL END,
+      NULL, ${input.trackingRunId}, ${now}
+    FROM products p
+    LEFT JOIN product_tracking_observations o ON o.productId = p.id
+    WHERE p.supplierKey = ${input.supplierKey} AND o.id IS NULL
+  `);
+}
+
+export async function beginProductTrackingRun(input: { supplierKey: ProductTrackingSupplierKey; trigger: "manual" | "scheduled"; adminUserId?: number | null }) {
+  const db = requireDb(await getDb());
+  const [active] = await db.select({ id: productTrackingRuns.id }).from(productTrackingRuns)
+    .where(and(eq(productTrackingRuns.supplierKey, input.supplierKey), eq(productTrackingRuns.status, "started"))).limit(1);
+  if (active) throw new Error(`${productTrackingSupplierName(input.supplierKey)} already has a Product Tracking sync in progress.`);
+  const [created] = await db.insert(productTrackingRuns).values({ supplierKey: input.supplierKey, trigger: input.trigger, initiatedByAdminId: input.adminUserId ?? null, status: "started" }).$returningId();
+  return { id: created.id, startedAt: new Date() };
+}
+
+export async function completeProductTrackingRun(input: { runId: number; supplierKey: ProductTrackingSupplierKey; startedAt: Date; supplierSyncRunId?: number | null; productsObserved: number; productsFailed: number; summary: string }) {
+  const db = requireDb(await getDb());
+  const addedRows = await db.select({ category: products.category, metadata: products.metadata, inputRequirements: products.inputRequirements })
+    .from(products).where(and(eq(products.supplierKey, input.supplierKey), gte(products.createdAt, input.startedAt)));
+  const [availability] = await db.select({ count: sql<number>`count(*)` }).from(products)
+    .where(and(eq(products.supplierKey, input.supplierKey), eq(products.supplierEligible, false)));
+  const newProductSummary = trackingCategorySummary(addedRows);
+  await refreshProductTrackingObservations({ supplierKey: input.supplierKey, trackingRunId: input.runId });
+  await db.update(productTrackingRuns).set({
+    status: "completed",
+    supplierSyncRunId: input.supplierSyncRunId ?? null,
+    productsObserved: Math.max(0, input.productsObserved),
+    outOfStockProducts: Number(availability?.count ?? 0),
+    newlySyncedProducts: addedRows.length,
+    newlySyncedByCategory: newProductSummary,
+    summary: input.summary.slice(0, 500),
+    completedAt: new Date(),
+  }).where(eq(productTrackingRuns.id, input.runId));
+  return { newlySyncedProducts: addedRows.length, newlySyncedByCategory: newProductSummary, outOfStockProducts: Number(availability?.count ?? 0) };
+}
+
+export async function failProductTrackingRun(input: { runId: number; supplierKey: ProductTrackingSupplierKey; message: string }) {
+  const db = requireDb(await getDb());
+  await db.update(productTrackingRuns).set({ status: "failed", summary: input.message.slice(0, 500), completedAt: new Date() }).where(eq(productTrackingRuns.id, input.runId));
+}
+
+export async function setProductTrackingStorefrontVisibility(input: { productId: number; storefrontStatus: "visible" | "hidden"; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [product] = await db.select({ id: products.id, name: products.name, supplierKey: products.supplierKey }).from(products).where(eq(products.id, input.productId)).limit(1);
+  if (!product?.supplierKey || !isProductTrackingSupplierKey(product.supplierKey)) throw new Error("Only supplier-backed products can be managed from Product Tracking.");
+  await db.transaction(async (tx) => {
+    await tx.insert(productAdminAttributes).values({ productId: product.id, storefrontStatus: input.storefrontStatus, updatedByAdminId: input.adminUserId })
+      .onDuplicateKeyUpdate({ set: { storefrontStatus: input.storefrontStatus, updatedByAdminId: input.adminUserId } });
+    await tx.insert(productTrackingEvents).values({ productId: product.id, supplierKey: product.supplierKey, eventType: input.storefrontStatus === "hidden" ? "storefront_hidden" : "storefront_shown", adminUserId: input.adminUserId, detail: `Owner set storefront visibility to ${input.storefrontStatus}.` });
+    await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: `product_tracking.storefront_${input.storefrontStatus}`, targetType: "product", targetId: String(product.id), summary: `${input.storefrontStatus === "hidden" ? "Hidden" : "Restored"} ${product.name} through Product Tracking`, metadata: { supplierKey: product.supplierKey } });
   });
+  return { productId: product.id, storefrontStatus: input.storefrontStatus };
+}
+
+export async function listProductTrackingDashboard() {
+  const db = requireDb(await getDb());
+  const keys = [...PRODUCT_TRACKING_SUPPLIER_KEYS];
+  const [summaries, outOfStock, hiddenProducts, runs, schedules] = await Promise.all([
+    db.select({ supplierKey: products.supplierKey, totalProducts: sql<number>`count(*)`, unavailableProducts: sql<number>`sum(case when ${products.supplierEligible} = 0 then 1 else 0 end)` })
+      .from(products).where(inArray(products.supplierKey, keys)).groupBy(products.supplierKey),
+    db.select({ id: products.id, name: products.name, supplierKey: products.supplierKey, category: products.category, metadata: products.metadata, inputRequirements: products.inputRequirements, supplierEligible: products.supplierEligible, storefrontStatus: sql<"visible" | "hidden" | "coming_soon">`coalesce(${productAdminAttributes.storefrontStatus}, 'visible')`, observedAt: productTrackingObservations.observedAt, firstUnavailableAt: productTrackingObservations.firstUnavailableAt })
+      .from(products).leftJoin(productAdminAttributes, eq(productAdminAttributes.productId, products.id)).leftJoin(productTrackingObservations, eq(productTrackingObservations.productId, products.id))
+      .where(and(inArray(products.supplierKey, keys), eq(products.supplierEligible, false))).orderBy(desc(products.updatedAt)).limit(500),
+    db.select({ id: products.id, name: products.name, supplierKey: products.supplierKey, category: products.category, metadata: products.metadata, inputRequirements: products.inputRequirements, supplierEligible: products.supplierEligible, hiddenAt: productAdminAttributes.updatedAt, availableAgainAt: productTrackingObservations.availableAgainAt, observedAt: productTrackingObservations.observedAt })
+      .from(products).innerJoin(productAdminAttributes, eq(productAdminAttributes.productId, products.id)).leftJoin(productTrackingObservations, eq(productTrackingObservations.productId, products.id))
+      .where(and(inArray(products.supplierKey, keys), eq(productAdminAttributes.storefrontStatus, "hidden"))).orderBy(desc(productAdminAttributes.updatedAt)).limit(500),
+    db.select().from(productTrackingRuns).orderBy(desc(productTrackingRuns.startedAt)).limit(100),
+    db.select().from(productTrackingSchedules).orderBy(productTrackingSchedules.supplierKey),
+  ]);
+  const runsByWindow = [24, 72, 168].map((hours) => {
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000);
+    const completedRuns = runs.filter((run) => run.status === "completed" && run.startedAt >= cutoff);
+    const categories = new Map<string, { productCount: number; subcategories: Record<string, number> }>();
+    for (const run of completedRuns) {
+      const payload = run.newlySyncedByCategory && typeof run.newlySyncedByCategory === "object" && !Array.isArray(run.newlySyncedByCategory) ? run.newlySyncedByCategory as Record<string, { productCount?: number; subcategories?: Record<string, number> }> : {};
+      for (const [category, value] of Object.entries(payload)) {
+        const current = categories.get(category) ?? { productCount: 0, subcategories: {} };
+        current.productCount += Number(value.productCount ?? 0);
+        for (const [subcategory, count] of Object.entries(value.subcategories ?? {})) current.subcategories[subcategory] = (current.subcategories[subcategory] ?? 0) + Number(count);
+        categories.set(category, current);
+      }
+    }
+    return { hours, products: completedRuns.reduce((total, run) => total + run.newlySyncedProducts, 0), categories: Object.fromEntries(categories) };
+  });
+  return {
+    suppliers: keys.map((supplierKey) => {
+      const summary = summaries.find((row) => row.supplierKey === supplierKey);
+      return { supplierKey, supplierName: productTrackingSupplierName(supplierKey), totalProducts: Number(summary?.totalProducts ?? 0), outOfStockProducts: Number(summary?.unavailableProducts ?? 0), schedule: schedules.find((schedule) => schedule.supplierKey === supplierKey) ?? null };
+    }),
+    outOfStock: outOfStock.map((product) => ({ ...product, supplierName: productTrackingSupplierName(product.supplierKey as ProductTrackingSupplierKey), subcategory: productTrackingSubcategory(product.category, product.metadata, product.inputRequirements) })),
+    hiddenProducts: hiddenProducts.map((product) => ({ ...product, supplierName: productTrackingSupplierName(product.supplierKey as ProductTrackingSupplierKey), subcategory: productTrackingSubcategory(product.category, product.metadata, product.inputRequirements), recovered: product.supplierEligible && Boolean(product.availableAgainAt) })),
+    runs,
+    recentNewProducts: runsByWindow,
+  };
+}
+
+export async function saveProductTrackingScheduleConfiguration(input: { supplierKey: ProductTrackingSupplierKey; intervalHours: ProductTrackingIntervalHours; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [existing] = await db.select().from(productTrackingSchedules).where(eq(productTrackingSchedules.supplierKey, input.supplierKey)).limit(1);
+  if (!existing) {
+    const [created] = await db.insert(productTrackingSchedules).values({ supplierKey: input.supplierKey, intervalHours: String(input.intervalHours) as "2" | "10" | "24", status: "pending_deployment", configuredByAdminId: input.adminUserId }).$returningId();
+    return { id: created.id, scheduleCronTaskUid: null, status: "pending_deployment" as const };
+  }
+  await db.update(productTrackingSchedules).set({ intervalHours: String(input.intervalHours) as "2" | "10" | "24", configuredByAdminId: input.adminUserId, status: existing.scheduleCronTaskUid ? existing.status : "pending_deployment", lastError: null }).where(eq(productTrackingSchedules.id, existing.id));
+  return { id: existing.id, scheduleCronTaskUid: existing.scheduleCronTaskUid, status: existing.scheduleCronTaskUid ? existing.status : "pending_deployment" as const };
+}
+
+export async function getProductTrackingScheduleById(id: number) {
+  const db = requireDb(await getDb());
+  const [schedule] = await db.select().from(productTrackingSchedules).where(eq(productTrackingSchedules.id, id)).limit(1);
+  return schedule ?? null;
+}
+
+export async function getProductTrackingScheduleByTaskUid(taskUid: string) {
+  const db = requireDb(await getDb());
+  const [schedule] = await db.select().from(productTrackingSchedules).where(eq(productTrackingSchedules.scheduleCronTaskUid, taskUid)).limit(1);
+  return schedule ?? null;
+}
+
+export async function activateProductTrackingSchedule(input: { id: number; taskUid: string; nextRunAt?: string | null }) {
+  const db = requireDb(await getDb());
+  await db.update(productTrackingSchedules).set({ status: "active", scheduleCronTaskUid: input.taskUid, nextRunAt: input.nextRunAt ? new Date(input.nextRunAt) : null, lastError: null }).where(eq(productTrackingSchedules.id, input.id));
+}
+
+export async function updateProductTrackingScheduleState(input: { id: number; status: "active" | "paused" | "error"; nextRunAt?: string | null; lastError?: string | null }) {
+  const db = requireDb(await getDb());
+  await db.update(productTrackingSchedules).set({ status: input.status, nextRunAt: input.nextRunAt ? new Date(input.nextRunAt) : null, lastError: input.lastError?.slice(0, 500) ?? null }).where(eq(productTrackingSchedules.id, input.id));
+}
+
+export async function markProductTrackingScheduledRun(input: { id: number; lastRunAt: Date; nextRunAt?: string | null }) {
+  const db = requireDb(await getDb());
+  await db.update(productTrackingSchedules).set({ lastRunAt: input.lastRunAt, nextRunAt: input.nextRunAt ? new Date(input.nextRunAt) : null, status: "active", lastError: null }).where(eq(productTrackingSchedules.id, input.id));
 }
 
 /** Administrative catalog rows have a declared authorised source and never contain supplier credentials. */

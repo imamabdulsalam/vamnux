@@ -7,6 +7,7 @@ import { adminManagedCatalogProductInputSchema, authorizedCatalogSourceInputSche
 import { decodeManualProductImage, manualProductImageContentTypes } from "../shared/manualProductImage";
 import { bulkUpdateSyncedProductMarkup, canRunSupplierCatalogSync, cancelSuperAdminDraftOrder, configureCommerceIntegration, createAdminManagedCatalogProduct, createAuthorizedCatalogSource, createCustomerPrivacyRequest, createCustomerSupportTicket, createCustomerWalletFundingRequest, createMarketplaceCategory, createMarketplaceOrder, createPromotion, createSupplierManagementProfile, getAccountCommerceSummary, getCustomerDashboard, getCustomerOrderDetail, getCustomerSupportTicket, getLoyaltySettings, getMarketplacePricingSettings, getPublicPolicyPage, getReferralSettings, getSuperAdminCustomerControlDetail, getSuperAdminFinanceAnalytics, getSuperAdminSupportTicket, getSuperAdminSystemHealth, getSupplierSyncStatus, getUserById, globalAdminSearch, listActiveCatalogProducts, listAdminManagedCatalogProducts, listAdminProductOperations, listAuthorizedCatalogSources, listCatalogPricing, listCommerceIntegrations, listExchangeRates, listMarketplaceCategories, listNotificationTemplates, listPriceChangeHistory, listPromotions, listPublishedSiteContentBlocks, listRedactedApiRequestLogs, listRedactedSupplierWebhookEvents, listResellers, listSiteContentBlocks, listSiteSettings, listSupplierManagement, listSupplierSyncRuns, listSuperAdminAuditEvents, listSuperAdminCustomers, listSuperAdminManualDeliveryTasks, listSuperAdminOrders, listSuperAdminProductActivityEvents, listSuperAdminSupplierBalances, listSuperAdminSupportTickets, listSuperAdminWalletFundingRequests, markCustomerNotificationRead, recordCompletedSupplierCatalogSync, recordCustomerCartAddition, recordSuperAdminAuditEvent, recordSuperAdminSupplierBalance, reinstateCustomerAccount, replyToCustomerSupportTicket, replyToSuperAdminSupportTicket, reviewCustomerWalletFundingRequest, setAdminManagedCatalogProductStatus, suspendCustomerAccount, testSupplierManagementConnection, toggleCustomerSavedProduct, updateCatalogProductPricing, updateCustomerDashboardPreferences, updateCustomerNotificationPreferences, updateCustomerProfile, updateLoyaltySettings, updateMarketplaceCategory, updateMarketplacePricingSettings, updateProductAdminAttributes, updateReferralSettings, updateSupplierManagementProfile, updateSuperAdminManualDeliveryTask, upsertExchangeRate, upsertNotificationTemplate, upsertReseller, upsertSiteContentBlock, upsertSiteSetting } from "./db";
 import { bulkArchiveAdminManagedCatalogProducts, bulkUpdateProductStorefrontVisibility } from "./db";
+import { activateProductTrackingSchedule, getProductTrackingScheduleById, isProductTrackingSupplierKey, listProductTrackingDashboard, saveProductTrackingScheduleConfiguration, setProductTrackingStorefrontVisibility, updateProductTrackingScheduleState } from "./db";
 import { bulkUpdateMarketplaceCategoryStatus, reorderMarketplaceCategories } from "./db";
 import { assertCustomerAccountActive, recordCustomerConsent } from "./db";
 import { createCustomerProductRequest, recordNewsletterInterest, subscribeCustomerToNewsletterInterest } from "./db";
@@ -33,6 +34,8 @@ import { MOBILE_LEGENDS_ADAPTER_PROFILES, simulateSupplierInputAdapter, SUPPLIER
 import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
+import { runProductTrackingSupplierSync } from "./productTracking";
+import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { storagePut } from "./storage";
 import { systemRouter } from "./_core/systemRouter";
@@ -80,6 +83,14 @@ const supplierAdapterCanonicalInputSchema = z.object({
   productId: z.string().trim().min(1).max(120),
   denomination: z.string().trim().min(1).max(32),
 });
+const productTrackingSupplierSchema = z.enum(["flashtopup", "foxreload", "gamesdrop"]);
+const productTrackingIntervalSchema = z.union([z.literal(2), z.literal(10), z.literal(24)]);
+
+function productTrackingCron(intervalHours: 2 | 10 | 24) {
+  // A two-hour callback is used for both 2h and 10h schedules. The callback
+  // checks its persisted due time, preserving the selected supplier cadence.
+  return intervalHours === 24 ? "0 0 0 * * *" : "0 0 */2 * * *";
+}
 
 export const appRouter = router({
     // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
@@ -353,6 +364,34 @@ export const appRouter = router({
     updatePolicyPage: adminProcedure.input(z.object({ slug: z.enum(["terms-of-service", "privacy-policy", "cookie-policy", "refund-policy", "payment-policy", "delivery-policy", "acceptable-use-policy"]), title: z.string().trim().min(3).max(180), body: z.string().trim().min(30).max(50_000) }))
       .mutation(({ ctx, input }) => updateAdminPolicyPage({ ...input, adminUserId: ctx.user.id })),
     listSupplierSyncRuns: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).default(100) }).optional()).query(({ input }) => listSupplierSyncRuns(input?.limit)),
+    getProductTrackingDashboard: adminProcedure.query(() => listProductTrackingDashboard()),
+    runProductTrackingManualSync: adminProcedure.input(z.object({ supplierKey: productTrackingSupplierSchema })).mutation(({ ctx, input }) => runProductTrackingSupplierSync({ supplierKey: input.supplierKey, trigger: "manual", adminUserId: ctx.user.id })),
+    setProductTrackingStorefrontVisibility: adminProcedure.input(z.object({ productId: z.number().int().positive(), storefrontStatus: z.enum(["visible", "hidden"]) })).mutation(({ ctx, input }) => setProductTrackingStorefrontVisibility({ ...input, adminUserId: ctx.user.id })),
+    saveProductTrackingSchedule: adminProcedure.input(z.object({ supplierKey: productTrackingSupplierSchema, intervalHours: productTrackingIntervalSchema })).mutation(({ ctx, input }) => saveProductTrackingScheduleConfiguration({ ...input, adminUserId: ctx.user.id })),
+    activateProductTrackingSchedule: adminProcedure.input(z.object({ scheduleId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const schedule = await getProductTrackingScheduleById(input.scheduleId);
+      if (!schedule || !isProductTrackingSupplierKey(schedule.supplierKey)) throw new Error("Product Tracking schedule was not found.");
+      const intervalHours = Number(schedule.intervalHours) as 2 | 10 | 24;
+      const sessionToken = parseCookieHeader(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      const cron = productTrackingCron(intervalHours);
+      const description = `VAMNUX Product Tracking ${schedule.supplierKey} supplier availability sync every ${intervalHours} hours`;
+      if (schedule.scheduleCronTaskUid) {
+        const updated = await updateHeartbeatJob(schedule.scheduleCronTaskUid, { cron, path: "/api/scheduled/product-tracking", payload: {}, description, enable: true }, sessionToken);
+        await updateProductTrackingScheduleState({ id: schedule.id, status: "active", nextRunAt: updated.nextExecutionAt });
+        return { status: "active" as const, nextRunAt: updated.nextExecutionAt ?? null };
+      }
+      const job = await createHeartbeatJob({ name: `product-tracking-${schedule.supplierKey}`, cron, path: "/api/scheduled/product-tracking", payload: {}, description }, sessionToken);
+      await activateProductTrackingSchedule({ id: schedule.id, taskUid: job.taskUid, nextRunAt: job.nextExecutionAt });
+      return { status: "active" as const, nextRunAt: job.nextExecutionAt ?? null };
+    }),
+    setProductTrackingScheduleEnabled: adminProcedure.input(z.object({ scheduleId: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
+      const schedule = await getProductTrackingScheduleById(input.scheduleId);
+      if (!schedule?.scheduleCronTaskUid) throw new Error("Activate the saved Product Tracking schedule after publishing this version first.");
+      const sessionToken = parseCookieHeader(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      const updated = await updateHeartbeatJob(schedule.scheduleCronTaskUid, { enable: input.enabled }, sessionToken);
+      await updateProductTrackingScheduleState({ id: schedule.id, status: input.enabled ? "active" : "paused", nextRunAt: updated.nextExecutionAt });
+      return { status: input.enabled ? "active" as const : "paused" as const, nextRunAt: updated.nextExecutionAt ?? null };
+    }),
     listPromotions: adminProcedure.query(() => listPromotions()),
     createPromotion: adminProcedure.input(z.object({
       name: z.string().trim().min(1).max(160), code: z.string().trim().min(3).max(64).nullable().optional(), discountType: z.enum(["percentage", "fixed_amount"]), discountAmount: z.number().positive().max(1_000_000), minimumOrder: z.number().min(0).max(1_000_000).nullable().optional(), maximumDiscount: z.number().min(0).max(1_000_000).nullable().optional(), productId: z.number().int().positive().nullable().optional(), categorySlug: z.string().trim().min(1).max(80).nullable().optional(), startsAt: z.coerce.date().nullable().optional(), endsAt: z.coerce.date().nullable().optional(), usageLimit: z.number().int().positive().max(10_000_000).nullable().optional(), perUserLimit: z.number().int().positive().max(10_000_000).nullable().optional(), status: z.enum(["draft", "scheduled", "active", "paused", "archived"]),
