@@ -2,6 +2,54 @@
   position: relative;
 }
 
+.full-catalog-card {
+  position: relative;
+}
+
+.full-catalog-favorite {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgba(177, 195, 215, 0.9);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  color: #5a6e86;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(19, 43, 72, 0.12);
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background 160ms cubic-bezier(0.23, 1, 0.32, 1), color 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.full-catalog-favorite:hover {
+  transform: scale(1.06);
+  background: #fff;
+  color: #d84869;
+}
+
+.full-catalog-favorite:active {
+  transform: scale(0.97);
+}
+
+.full-catalog-favorite.saved {
+  border-color: #d84869;
+  background: #fff0f3;
+  color: #d84869;
+}
+
+.full-catalog-favorite:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.full-catalog-favorite:focus-visible {
+  outline: 3px solid rgba(45, 120, 207, 0.45);
+  outline-offset: 2px;
+}
+
 .full-catalog-grid-window {
   position: absolute;
   left: 0;

@@ -22,6 +22,13 @@ describe("dedicated full catalog page", () => {
     expect(catalogSource).not.toContain("Show more products");
   });
 
+  it("renders an accessible favorite control on every dedicated-catalog card without changing the catalog query contract", () => {
+    expect(catalogSource).toContain("full-catalog-favorite");
+    expect(catalogSource).toContain("toggleSavedProduct");
+    expect(catalogSource).toContain("Favorites are private to your VAMNUX account.");
+    expect(catalogSource).toContain("customerDashboard.useQuery");
+  });
+
   it("prefetches category selections and makes the Home breadcrumb navigable", () => {
     expect(catalogSource).toContain("utils.marketplace.catalog.prefetch");
     expect(catalogSource).toContain('onPointerEnter={() => prefetchCatalog(option.value)}');

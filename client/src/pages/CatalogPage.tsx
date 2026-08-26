@@ -1,6 +1,9 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, ImageIcon, Laptop, Search, Send, ShieldCheck, Sparkles, Tv, X } from "lucide-react";
+import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, Heart, ImageIcon, Laptop, Search, Send, ShieldCheck, Sparkles, Tv, X } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { GAMES_PLATFORM_SUBCATEGORIES, gamesPlatformCatalogPath, type GamesPlatformCode } from "@shared/gamesPlatformCategories";
@@ -42,7 +45,12 @@ function ProductArtwork({ product }: { product: LiveCatalogProduct }) {
   return <span className={`catalog-product-fallback tone-${product.tone}`} aria-label={`${product.name} digital product`}><ImageIcon size={31} aria-hidden="true" /></span>;
 }
 
-function VirtualCatalogGrid({ products }: { products: LiveCatalogProduct[] }) {
+function VirtualCatalogGrid({ products, favoriteProductIds, onToggleFavorite, favoritePendingProductId }: {
+  products: LiveCatalogProduct[];
+  favoriteProductIds: Set<number>;
+  onToggleFavorite: (productId: number) => void;
+  favoritePendingProductId: number | null;
+}) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: typeof window === "undefined" ? 1280 : window.innerWidth, scrollY: typeof window === "undefined" ? 0 : window.scrollY, height: typeof window === "undefined" ? 720 : window.innerHeight });
   useEffect(() => {
@@ -71,11 +79,16 @@ function VirtualCatalogGrid({ products }: { products: LiveCatalogProduct[] }) {
 
   return <div ref={gridRef} className="full-catalog-virtualized" style={{ height: totalRows * rowHeight }}>
     <div className="full-catalog-grid full-catalog-grid-window" style={{ top: startRow * rowHeight }}>
-      {visibleProducts.map((product) => <article key={product.id} className="full-catalog-card">
+      {visibleProducts.map((product) => {
+        const isFavorite = favoriteProductIds.has(product.id);
+        const isPending = favoritePendingProductId === product.id;
+        return <article key={product.id} className="full-catalog-card">
+        <button type="button" className={isFavorite ? "full-catalog-favorite saved" : "full-catalog-favorite"} onClick={() => onToggleFavorite(product.id)} disabled={isPending} aria-label={isFavorite ? `Remove ${product.product} from favorites` : `Add ${product.product} to favorites`} aria-pressed={isFavorite} title={isFavorite ? "Remove from favorites" : "Add to favorites"}><Heart size={16} fill={isFavorite ? "currentColor" : "none"} /></button>
         <Link href={productPath(product)} className="full-catalog-art"><ProductArtwork product={product} /></Link>
         <div className="full-catalog-card-copy"><span>{product.badge}</span><h2>{product.name}</h2><p>{product.product}</p></div>
         <div className="full-catalog-card-bottom"><strong>${product.price.toFixed(2)}</strong><small>{product.region}</small><Link href={productPath(product)}>View details <ArrowRight size={14} /></Link></div>
-      </article>)}
+      </article>;
+      })}
     </div>
   </div>;
 }
@@ -83,6 +96,7 @@ function VirtualCatalogGrid({ products }: { products: LiveCatalogProduct[] }) {
 export default function CatalogPage() {
   const [location, setLocation] = useLocation();
   const utils = trpc.useUtils();
+  const { isAuthenticated } = useAuth();
   const initialParams = new URLSearchParams(window.location.search);
   const initialCategory = initialParams.get("category") as CatalogFilter | null;
   const [category, setCategory] = useState<CatalogFilter>(initialCategory && categoryValues.has(initialCategory) ? initialCategory : "All");
@@ -94,7 +108,28 @@ export default function CatalogPage() {
   const [sort, setSort] = useState<SortMode>("featured");
   const [searchFocused, setSearchFocused] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
+  const [favoriteOverrides, setFavoriteOverrides] = useState<Record<number, boolean>>({});
+  const [favoritePendingProductId, setFavoritePendingProductId] = useState<number | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
+  const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated, staleTime: 5 * 60_000, refetchOnWindowFocus: false });
+  const toggleSavedProduct = trpc.marketplace.toggleSavedProduct.useMutation({
+    onMutate: ({ productId }) => {
+      setFavoritePendingProductId(productId);
+      const priorSaved = favoriteOverrides[productId] ?? customerDashboard.data?.savedProducts.some((product) => product.id === productId) ?? false;
+      setFavoriteOverrides((current) => ({ ...current, [productId]: !priorSaved }));
+      return { productId, priorSaved };
+    },
+    onError: (error, _variables, context) => {
+      if (context) setFavoriteOverrides((current) => ({ ...current, [context.productId]: context.priorSaved }));
+      toast.error(error.message || "Could not update your favorites.");
+    },
+    onSuccess: async (result, variables) => {
+      setFavoriteOverrides((current) => ({ ...current, [variables.productId]: result.saved }));
+      toast.success(result.saved ? "Product added to your favorites." : "Product removed from your favorites.");
+      await customerDashboard.refetch();
+    },
+    onSettled: () => setFavoritePendingProductId(null),
+  });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -152,6 +187,24 @@ export default function CatalogPage() {
     return mapped;
   }, [sort, visibleItems]);
   const suggestions = deferredQuery.length >= 2 ? suggestionsQuery.data ?? [] : [];
+  const favoriteProductIds = useMemo(() => {
+    const ids = new Set(customerDashboard.data?.savedProducts.map((product) => product.id) ?? []);
+    for (const [productId, isFavorite] of Object.entries(favoriteOverrides)) {
+      if (isFavorite) ids.add(Number(productId));
+      else ids.delete(Number(productId));
+    }
+    return ids;
+  }, [customerDashboard.data?.savedProducts, favoriteOverrides]);
+
+  const toggleCatalogFavorite = (productId: number) => {
+    if (!isAuthenticated) {
+      toast.message("Sign in to favorite products", { description: "Favorites are private to your VAMNUX account." });
+      startLogin();
+      return;
+    }
+    if (favoritePendingProductId !== null) return;
+    toggleSavedProduct.mutate({ productId });
+  };
 
   const selectCategory = (next: CatalogFilter) => {
     setCategory(next);
@@ -248,7 +301,7 @@ export default function CatalogPage() {
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>
       </div>
       <div className="full-catalog-summary"><span>{catalogTotal.toLocaleString()} products in this view</span><span><CircleDollarSign size={15} />Prices shown in USD</span></div>
-      {quickCatalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <VirtualCatalogGrid products={products} /> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
+      {quickCatalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <VirtualCatalogGrid products={products} favoriteProductIds={favoriteProductIds} onToggleFavorite={toggleCatalogFavorite} favoritePendingProductId={favoritePendingProductId} /> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
     </section>
   </main>;
 }

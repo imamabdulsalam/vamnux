@@ -881,3 +881,8 @@
 - [x] Reconcile supplier-backed category and subcategory evidence for all catalog records, identifying only provable presentation corrections and leaving uncertain products unchanged.
 - [x] Apply only approved non-destructive category or subcategory presentation corrections; no supplier-evidenced correction was required, so no product data changed.
 - [x] Verify zero exact supplier-source duplicates, correct customer category visibility, preserved catalog totals/pricing/commerce data, fast catalog and image-preview loading, then checkpoint and report the results.
+- [x] Inspect the customer product-detail, cart/checkout preparation, supplier-required field, order-visibility, favourites, catalog-loading, and image-preview paths without enabling live supplier orders or changing catalog data.
+- [x] Add a protected, responsive favourite control to every customer product card and eligible product detail page, with immediate saved-state feedback and no supplier/cost exposure.
+- [x] Correct only confirmed customer-flow defects so supplier-required player/server or other fields remain visible, validated, and carried into safe draft-order preparation; no checkout-flow defect required a data or supplier-flow change.
+- [x] Verify customer order and selected-product details render accurately for their authenticated owner, without exposing supplier secrets, cost, markup, or fulfillment credentials.
+- [x] Validate fast catalog first-result rendering, non-blocking complete-result loading, image fallbacks/previews, favourites, requirements, safe checkout preparation, and order visibility; then checkpoint, push, and report.
