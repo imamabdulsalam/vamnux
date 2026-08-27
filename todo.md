@@ -981,3 +981,6 @@
 - [x] Add additive immutable supplier-attempt, retry, routing-history, resolution, refund-control, and Admin order-audit records without changing historical orders, products, prices, wallets, or payments.
 - [x] Implement protected Admin order search, filters, dedicated operational views, details, financial snapshots, customer-input display, timelines, controls, analytics, retry queue, and supplier fallback history.
 - [x] Validate server-side authorization, idempotency, immutable historical data, secret privacy, retry safeguards, UI views, data preservation, tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Simplify only the Admin Pricing Engine into a scope selector for all products, category, product, or supplier; target selection; markup percentage; and clear effective-markup display while retaining existing server-side pricing safeguards.
+- [x] Ensure valid simplified markup updates refresh website pricing promptly without changing supplier costs, product records, wallets, orders, or historical prices.
+- [x] Validate pricing scope and precedence, protected Admin authorization, product/category/supplier selectors, website refresh, focused tests, build, visual behavior, checkpoint, and GitHub push.

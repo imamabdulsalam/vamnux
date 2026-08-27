@@ -1268,6 +1268,58 @@ export async function updateMarketplacePricingSettings(input: { defaultMarkupPer
   return getMarketplacePricingSettings();
 }
 
+export type SimplePricingMarkupScope = "global" | "category" | "product" | "supplier";
+
+export async function listSimplePricingTargets() {
+  const db = requireDb(await getDb());
+  const settings = await ensureMarketplacePricingSettings(db);
+  const rows = await db.select({
+    id: products.id,
+    name: products.name,
+    category: products.category,
+    supplierKey: products.supplierKey,
+    markupPercentOverride: products.markupPercentOverride,
+  }).from(products).orderBy(products.name).limit(500);
+  return {
+    globalMarkupPercent: settings.defaultMarkupPercent,
+    categories: Array.from(new Set(rows.map((row) => row.category).filter(Boolean))).sort(),
+    suppliers: Array.from(new Set(rows.map((row) => row.supplierKey).filter((value): value is string => Boolean(value)))).sort(),
+    products: rows.map((row) => ({ ...row, markupPercentOverride: row.markupPercentOverride === null ? null : Number(row.markupPercentOverride) })),
+  };
+}
+
+export async function updateScopedMarketplaceMarkup(input: {
+  scope: SimplePricingMarkupScope;
+  category?: SupplierMappingCategory | null;
+  productId?: number | null;
+  supplierKey?: string | null;
+  markupPercent: number;
+  adminUserId: number;
+}) {
+  if (!Number.isFinite(input.markupPercent) || input.markupPercent < -100 || input.markupPercent > 500) throw new Error("Markup must be between -100% and 500%.");
+  if (input.scope === "global") return updateMarketplacePricingSettings({ defaultMarkupPercent: input.markupPercent, adminUserId: input.adminUserId });
+  const db = requireDb(await getDb());
+  if (input.scope === "product") {
+    if (!input.productId || !Number.isInteger(input.productId)) throw new Error("Choose a product.");
+    return updateCatalogProductPricing({ productId: input.productId, markupPercentOverride: input.markupPercent, adminUserId: input.adminUserId });
+  }
+  const category = input.scope === "category" ? input.category : null;
+  const supplierKey = input.scope === "supplier" ? input.supplierKey?.trim() : null;
+  if (input.scope === "category" && (!category || !isSupplierMappingCategory(category))) throw new Error("Choose a category.");
+  if (input.scope === "supplier" && !supplierKey) throw new Error("Choose a supplier.");
+  const whereClause = category ? eq(products.category, category) : eq(products.supplierKey, supplierKey!);
+  const [countRow] = await db.select({ count: sql<number>`count(*)` }).from(products).where(whereClause);
+  const productCount = Number(countRow?.count ?? 0);
+  if (!productCount) throw new Error("No products match that selection.");
+  const target = category || supplierKey!;
+  await db.transaction(async (tx) => {
+    await tx.update(products).set({ markupPercentOverride: input.markupPercent.toFixed(2), displayPriceOverride: null }).where(whereClause);
+    await tx.insert(priceChangeHistory).values({ productId: null, adminUserId: input.adminUserId, changeType: "global_markup", oldValue: JSON.stringify({ scope: input.scope, target }), newValue: input.markupPercent.toFixed(2), reason: `Simplified ${input.scope} markup updated for ${productCount} product(s)` });
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: "pricing.scoped_markup_updated", targetType: `pricing_${input.scope}`, targetId: target, summary: `Set ${input.markupPercent}% markup for ${productCount} product(s)`, metadata: { scope: input.scope, target, markupPercent: input.markupPercent, productCount } });
+  });
+  return { scope: input.scope, target, markupPercent: input.markupPercent, productCount };
+}
+
 export async function listCatalogPricing(limit = 100) {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
