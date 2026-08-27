@@ -1,0 +1,28 @@
+/* User Dashboard only: retain existing layout and functionality while making labels readable. */
+.user-dashboard-shell .user-sidebar nav button,
+.user-dashboard-shell .user-dashboard-topbar,
+.user-dashboard-shell .user-dashboard-topbar a {
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
+.user-dashboard-shell .user-panel-heading > div > span,
+.user-dashboard-shell .user-wallet-section-heading > span,
+.user-dashboard-shell .user-saved-card-top > span,
+.user-dashboard-shell .user-kicker {
+  text-transform: lowercase;
+  letter-spacing: 0.035em;
+}
+
+.user-dashboard-shell .user-panel-heading > div > span::first-letter,
+.user-dashboard-shell .user-wallet-section-heading > span::first-letter,
+.user-dashboard-shell .user-saved-card-top > span::first-letter,
+.user-dashboard-shell .user-kicker::first-letter {
+  text-transform: uppercase;
+}
+
+.user-dashboard-shell .user-panel-heading h2,
+.user-dashboard-shell .user-saved-card h3,
+.user-dashboard-shell .user-empty-state h3 {
+  text-transform: none;
+}

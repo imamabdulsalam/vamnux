@@ -933,3 +933,6 @@
 - [x] Inspect the Admin Categories hide/show/archive/restore mutations and every dedicated catalog category visibility filter to identify the state mismatch without modifying products or categories.
 - [x] Make the dedicated customer catalog use the same persisted Admin category visible/status state for hide, show, archive, and restore actions, without changing individual category definitions or product data.
 - [x] Validate hide, show, archive, and restore synchronization between Admin Categories and customer catalog views; confirm unaffected categories, products, prices, orders, wallets, and supplier data; then test, build, checkpoint, and push.
+- [x] Rename only the User Dashboard Categories navigation label to Catalogs while preserving its existing destination and behavior.
+- [x] Convert User Dashboard sidebar feature labels and Favorites-area headings/actions from all-uppercase display to readable title or sentence case without changing their data, routes, controls, or other pages.
+- [x] Validate User Dashboard labels and Favorites presentation with focused tests, build, and visual checks; checkpoint and push the targeted text-only correction.

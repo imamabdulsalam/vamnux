@@ -32,6 +32,7 @@ import { Link, useLocation } from "wouter";
 import { UserDashboardCategoryBrowser } from "@/components/UserDashboardCategoryBrowser";
 import { toast } from "sonner";
 import "./userDashboardMobileMenu.css";
+import "./userDashboardTextCase.css";
 
 type DashboardTab = "overview" | "categories" | "orders" | "saved" | "wallet" | "referral" | "subscribe" | "request" | "account" | "profile" | "notifications" | "support" | "security" | "settings";
 type SupportCategory = "payment" | "order" | "game_top_up" | "gift_card" | "subscription" | "software" | "wallet" | "account" | "refund" | "other";
@@ -39,7 +40,7 @@ const dashboardTabs: DashboardTab[] = ["overview", "categories", "orders", "save
 
 const tabs: Array<{ id: DashboardTab; label: string; icon: typeof LayoutDashboard }> = [
   { id: "overview", label: "Dashboard", icon: LayoutDashboard },
-  { id: "categories", label: "Categories", icon: Grid2X2 },
+  { id: "categories", label: "Catalogs", icon: Grid2X2 },
   { id: "wallet", label: "Wallet", icon: WalletCards },
   { id: "saved", label: "Favorites", icon: Heart },
   { id: "orders", label: "Order history", icon: ReceiptText },
