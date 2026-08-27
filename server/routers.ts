@@ -358,7 +358,7 @@ export const appRouter = router({
       .mutation(({ ctx, input }) => reorderMarketplaceCategories({ ...input, adminUserId: ctx.user.id })),
     bulkUpdateMarketplaceCategoryStatus: adminProcedure.input(z.object({ categoryIds: z.array(z.number().int().positive()).min(1).max(100), action: z.enum(["hide", "archive", "show", "restore"]) }))
       .mutation(({ ctx, input }) => bulkUpdateMarketplaceCategoryStatus({ ...input, adminUserId: ctx.user.id })),
-    listAdminProductOperations: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(10_000).default(10_000) }).optional()).query(({ input }) => listAdminProductOperations(input?.limit)),
+    listAdminProductOperations: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(10_000).default(10_000), offset: z.number().int().min(0).default(0) }).optional()).query(({ input }) => listAdminProductOperations(input?.limit, input?.offset)),
     updateProductAdminAttributes: adminProcedure.input(z.object({
       productId: z.number().int().positive(), storefrontStatus: z.enum(["visible", "hidden", "coming_soon"]), featured: z.boolean(), trending: z.boolean(), bestSeller: z.boolean(), newProduct: z.boolean(), deal: z.boolean(), seoTitle: z.string().trim().max(180).nullable().optional(), seoDescription: z.string().trim().max(300).nullable().optional(), internalNote: z.string().trim().max(5000).nullable().optional(),
     })).mutation(({ ctx, input }) => updateProductAdminAttributes({ ...input, adminUserId: ctx.user.id })),

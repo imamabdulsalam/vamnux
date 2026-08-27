@@ -939,3 +939,7 @@
 - [x] Profile category and subcategory click responsiveness, catalog query timing, client state transitions, rendering work, and current console/network diagnostics without changing catalog data or layout.
 - [x] Implement only a targeted non-blocking category/subcategory switching fix that preserves category selection, product results, search, pricing, images, and existing quick first-result rendering.
 - [x] Validate rapid category/subcategory changes, stale-request safety, visible result correctness, tests, build, desktop/mobile performance checks, checkpoint, and GitHub push.
+- [x] Inspect the Admin Products query contract, supplier cost/currency fields, selected-product details, and scalable list/windowing behavior without changing products or customer APIs.
+- [x] Add supplier cost and source currency to the existing Admin-only product list and selected-product details while preserving supplier source, category, and VAMNUX customer display-price information.
+- [x] Preserve or improve responsive Admin browsing for catalogs exceeding 100,000 products using paged/windowed data access; do not fetch or render the entire catalog at once.
+- [x] Validate owner-only supplier-cost display, customer API privacy, product-list responsiveness, focused tests, build, visual checks, checkpoint, and GitHub push.

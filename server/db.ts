@@ -1747,12 +1747,12 @@ export async function upsertExchangeRate(input: { baseCurrency: string; quoteCur
 }
 
 /** Storefront presentation settings are additive to supplier catalog records and never replace supplier source data. */
-export async function listAdminProductOperations(limit = 10_000) {
+export async function listAdminProductOperations(limit = 10_000, offset = 0) {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
   const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
     .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
-    .orderBy(desc(products.updatedAt)).limit(Math.min(10_000, Math.max(1, limit)));
+    .orderBy(desc(products.updatedAt), desc(products.id)).limit(Math.min(10_000, Math.max(1, limit))).offset(Math.max(0, offset));
   return rows.map(({ product, attributes }) => {
     const price = customerPriceForProduct(product, settings);
     const metadata = product.metadata && typeof product.metadata === "object" ? product.metadata as Record<string, unknown> : null;
@@ -1771,8 +1771,10 @@ export async function listAdminProductOperations(limit = 10_000) {
       supplierEligible: product.supplierEligible,
       basePrice: Number(product.basePrice),
       baseCurrency: product.baseCurrency,
+      supplierCost: Number(product.basePrice),
+      supplierCostCurrency: product.baseCurrency,
       displayPrice: price.customerPrice,
-      priceRule: price.priceRule,
+      priceRule: `${price.priceRule} · Supplier cost: ${Number(product.basePrice).toFixed(2)} ${product.baseCurrency}`,
       storefrontStatus: attributes?.storefrontStatus ?? "visible",
       featured: attributes?.featured ?? false,
       trending: attributes?.trending ?? false,

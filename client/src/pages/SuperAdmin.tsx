@@ -132,6 +132,7 @@ function AdminAccessGate() {
 }
 
 function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: string; onSignOut: () => void; onReturn: () => void }) {
+  const PRODUCT_OPERATIONS_PAGE_SIZE = 100;
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const requestedTab = new URLSearchParams(window.location.search).get("tab");
     return tabs.some((tab) => tab.id === requestedTab) ? requestedTab as AdminTab : "overview";
@@ -177,11 +178,16 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     };
   }, []);
   const tabIs = (...tabs: AdminTab[]) => tabs.includes(activeTab);
+  const [productOperationsOffset, setProductOperationsOffset] = useState(0);
+  const [productOperationsRows, setProductOperationsRows] = useState<any[]>([]);
+  const [productOperationsHasMore, setProductOperationsHasMore] = useState(true);
   const overview = trpc.admin.getOverview.useQuery(undefined, { enabled: tabIs("overview") });
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery(undefined, { enabled: tabIs("pricing", "products") });
   const catalogPricing = trpc.admin.listCatalogPricing.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
   const priceHistory = trpc.admin.listPriceChangeHistory.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
-  const productOperations = trpc.admin.listAdminProductOperations.useQuery({ limit: 10_000 }, { enabled: tabIs("products", "categories") });
+  const categoryProductOperations = trpc.admin.listAdminProductOperations.useQuery({ limit: 10_000 }, { enabled: tabIs("categories") });
+  const productOperationsPage = trpc.admin.listAdminProductOperations.useQuery({ limit: PRODUCT_OPERATIONS_PAGE_SIZE, offset: productOperationsOffset }, { enabled: tabIs("products") });
+  const productOperations = activeTab === "categories" ? categoryProductOperations : { ...productOperationsPage, data: productOperationsRows };
   const marketplaceCategories = trpc.admin.listMarketplaceCategories.useQuery(undefined, { enabled: tabIs("categories") });
   // Legacy supplier-normalised `steam` records are presented as Games in Admin
   // category operations. The duplicate Steam taxonomy row stays out of this
@@ -342,6 +348,28 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
       internalNote: selectedOperationsProduct.internalNote || "",
     });
   }, [selectedOperationsProduct]);
+  useEffect(() => {
+    if (activeTab !== "products") return;
+    setProductOperationsOffset(0);
+    setProductOperationsRows([]);
+    setProductOperationsHasMore(true);
+  }, [activeTab]);
+  useEffect(() => {
+    if (activeTab !== "products" || !productOperationsPage.data) return;
+    setProductOperationsRows((current) => productOperationsOffset === 0 ? productOperationsPage.data : [...current, ...productOperationsPage.data.filter((product) => !current.some((existing) => existing.id === product.id))]);
+    setProductOperationsHasMore(productOperationsPage.data.length === PRODUCT_OPERATIONS_PAGE_SIZE);
+  }, [activeTab, productOperationsOffset, productOperationsPage.data, PRODUCT_OPERATIONS_PAGE_SIZE]);
+  useEffect(() => {
+    if (activeTab !== "products") return;
+    const container = document.querySelector<HTMLElement>(".admin-product-list-scroll");
+    if (!container) return;
+    const loadNextPage = () => {
+      if (!productOperationsHasMore || productOperationsPage.isFetching) return;
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 280) setProductOperationsOffset((current) => current + PRODUCT_OPERATIONS_PAGE_SIZE);
+    };
+    container.addEventListener("scroll", loadNextPage, { passive: true });
+    return () => container.removeEventListener("scroll", loadNextPage);
+  }, [activeTab, productOperationsHasMore, productOperationsPage.isFetching, PRODUCT_OPERATIONS_PAGE_SIZE]);
   useEffect(() => {
     if (!referralSettings.data) return;
     setReferralDraft({ percentageReward: String(referralSettings.data.percentageReward), fixedReward: String(referralSettings.data.fixedReward), minimumQualifyingOrder: String(referralSettings.data.minimumQualifyingOrder), maximumReward: referralSettings.data.maximumReward === null ? "" : String(referralSettings.data.maximumReward), releaseDays: String(referralSettings.data.releaseDays), status: referralSettings.data.status });

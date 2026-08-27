@@ -21,7 +21,7 @@ describe("catalog and admin loading performance", () => {
     expect(routerSource).toContain("includeMetadata: z.boolean().default(false)");
     expect(routerSource).toContain('gamePlatform: z.enum(["steam", "xbox", "playstation", "nintendo", "battlenet", "ea", "ubisoft", "mobile", "quest"])');
     expect(routerSource).toContain("listCatalogPricing(input?.limit)");
-    expect(routerSource).toContain("listAdminProductOperations(input?.limit)");
+    expect(routerSource).toContain("listAdminProductOperations(input?.limit, input?.offset)");
   });
 
   it("uses debounced server-side search and a single complete selected-result response on the storefront", () => {
@@ -40,24 +40,28 @@ describe("catalog and admin loading performance", () => {
 
   it("shows the first customer-safe catalog results before expanding the virtualized complete result set", () => {
     expect(catalogPageSource).toContain("const QUICK_CATALOG_PAGE_SIZE = 100");
-    expect(catalogPageSource).toContain("const COMPLETE_CATALOG_PAGE_SIZE = 50_000");
+    expect(catalogPageSource).toContain("const BACKGROUND_CATALOG_PAGE_SIZE = 1_000");
     expect(catalogPageSource).toContain("const quickCatalog = trpc.marketplace.catalog.useQuery");
-    expect(catalogPageSource).toContain("const completeCatalog = trpc.marketplace.catalog.useQuery");
-    expect(catalogPageSource).toContain("enabled: Boolean(quickCatalog.data)");
-    expect(catalogPageSource).toContain("const catalogTotal = completeCatalog.data?.total ?? quickCatalog.data?.total ?? products.length");
+    expect(catalogPageSource).toContain("const requestId = ++backgroundRequestId.current");
+    expect(catalogPageSource).toContain("if (cancelled || requestId !== backgroundRequestId.current) return");
+    expect(catalogPageSource).toContain("pageSize: BACKGROUND_CATALOG_PAGE_SIZE");
+    expect(catalogPageSource).toContain("const catalogTotal = quickCatalog.data?.total ?? products.length");
   });
 
   it("defers non-visible Admin workspace requests until their tab is selected", () => {
     expect(adminSource).toContain("const tabIs = (...tabs: AdminTab[])");
     expect(adminSource).toContain('enabled: tabIs("pricing", "products")');
-    expect(adminSource).toContain('enabled: tabIs("products", "categories")');
+    expect(adminSource).toContain('enabled: tabIs("categories")');
     expect(adminSource).toContain('enabled: tabIs("notifications")');
   });
 
-  it("gives Admin Products and Categories complete authorized catalog visibility instead of a 100-record cap", () => {
-    expect(dbSource).toContain("export async function listAdminProductOperations(limit = 10_000)");
-    expect(dbSource).toContain(".limit(Math.min(10_000, Math.max(1, limit)))");
-    expect(routerSource).toContain("listAdminProductOperations: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(10_000).default(10_000) })");
-    expect(adminSource).toContain("listAdminProductOperations.useQuery({ limit: 10_000 }");
+  it("gives Admin Categories complete visibility while Admin Products load supplier-cost rows in responsive pages", () => {
+    expect(dbSource).toContain("export async function listAdminProductOperations(limit = 10_000, offset = 0)");
+    expect(dbSource).toContain("supplierCostCurrency: product.baseCurrency");
+    expect(dbSource).toContain("Supplier cost:");
+    expect(routerSource).toContain("offset: z.number().int().min(0).default(0)");
+    expect(adminSource).toContain("const PRODUCT_OPERATIONS_PAGE_SIZE = 100");
+    expect(adminSource).toContain("offset: productOperationsOffset");
+    expect(adminSource).toContain("container.addEventListener(\"scroll\", loadNextPage");
   });
 });
