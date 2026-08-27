@@ -1018,7 +1018,7 @@ export const walletFundingAttempts = mysqlTable("wallet_funding_attempts", {
   idempotencyKey: varchar("idempotencyKey", { length: 120 }).notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 3 }).notNull(),
-  status: mysqlEnum("status", ["initialized", "pending", "settled", "failed", "expired", "cancelled"]).default("initialized").notNull(),
+  status: mysqlEnum("status", ["initialized", "pending", "settled", "failed", "expired", "cancelled", "reversed"]).default("initialized").notNull(),
   checkoutUrl: text("checkoutUrl"),
   metadata: json("metadata"),
   settledAt: timestamp("settledAt"),
@@ -1029,7 +1029,98 @@ export const walletFundingAttempts = mysqlTable("wallet_funding_attempts", {
   idempotencyUnique: uniqueIndex("wallet_funding_attempts_idempotency_unique").on(table.idempotencyKey),
   providerEventUnique: uniqueIndex("wallet_funding_attempts_event_unique").on(table.providerEventId),
   userCreatedIndex: index("wallet_funding_attempts_user_created_idx").on(table.userId, table.createdAt),
-  providerReferenceIndex: index("wallet_funding_attempts_reference_idx").on(table.providerReference),
+  providerReferenceUnique: uniqueIndex("wallet_funding_attempts_provider_reference_unique").on(table.providerReference),
+}));
+
+/**
+ * Redacted payment-provider callback receipt. Raw payloads, signatures, and
+ * credentials are deliberately never stored. Credit requires a separate
+ * verified Super Admin action against the matching funding request.
+ */
+export const paymentWebhookEvents = mysqlTable("payment_webhook_events", {
+  id: int("id").autoincrement().primaryKey(),
+  integrationId: int("integrationId"),
+  providerName: varchar("providerName", { length: 120 }).notNull(),
+  providerEventId: varchar("providerEventId", { length: 160 }).notNull(),
+  eventType: varchar("eventType", { length: 120 }).notNull(),
+  providerTransactionId: varchar("providerTransactionId", { length: 160 }),
+  providerReference: varchar("providerReference", { length: 160 }),
+  fundingAttemptId: int("fundingAttemptId"),
+  userId: int("userId"),
+  amount: decimal("amount", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 3 }),
+  signatureStatus: mysqlEnum("signatureStatus", ["verified", "invalid", "unavailable"]).default("unavailable").notNull(),
+  providerStatus: mysqlEnum("providerStatus", ["pending", "successful", "failed", "refunded", "reversed", "unknown"]).default("unknown").notNull(),
+  processingStatus: mysqlEnum("processingStatus", ["received", "verified", "credited", "duplicate", "rejected", "error", "reconciled"]).default("received").notNull(),
+  errorMessage: varchar("errorMessage", { length: 1000 }),
+  payloadHash: varchar("payloadHash", { length: 64 }),
+  receivedAt: timestamp("receivedAt").defaultNow().notNull(),
+  processedAt: timestamp("processedAt"),
+}, (table) => ({
+  providerEventUnique: uniqueIndex("payment_webhook_events_provider_event_unique").on(table.providerName, table.providerEventId),
+  providerReceivedIndex: index("payment_webhook_events_provider_received_idx").on(table.providerName, table.receivedAt),
+  fundingReceivedIndex: index("payment_webhook_events_funding_received_idx").on(table.fundingAttemptId, table.receivedAt),
+  referenceIndex: index("payment_webhook_events_reference_idx").on(table.providerReference, table.receivedAt),
+  transactionIndex: index("payment_webhook_events_transaction_idx").on(table.providerTransactionId, table.receivedAt),
+  processingIndex: index("payment_webhook_events_processing_idx").on(table.processingStatus, table.receivedAt),
+}));
+
+/**
+ * Open/closed reconciliation cases for payment receipts that need an explicit
+ * Admin decision. Resolution is an immutable review record, not a balance edit.
+ */
+export const topUpReconciliationCases = mysqlTable("top_up_reconciliation_cases", {
+  id: int("id").autoincrement().primaryKey(),
+  caseKey: varchar("caseKey", { length: 180 }).notNull(),
+  webhookEventId: int("webhookEventId"),
+  fundingAttemptId: int("fundingAttemptId"),
+  userId: int("userId"),
+  providerName: varchar("providerName", { length: 120 }),
+  category: mysqlEnum("category", ["missing_wallet_credit", "duplicate_event", "duplicate_reference", "invalid_signature", "amount_currency_mismatch", "provider_failed", "provider_pending", "refunded_or_reversed"]).notNull(),
+  status: mysqlEnum("status", ["open", "resolved"]).default("open").notNull(),
+  detail: varchar("detail", { length: 1000 }).notNull(),
+  resolutionNote: varchar("resolutionNote", { length: 1000 }),
+  resolvedByAdminId: int("resolvedByAdminId"),
+  resolvedAt: timestamp("resolvedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  caseKeyUnique: uniqueIndex("top_up_reconciliation_cases_case_key_unique").on(table.caseKey),
+  statusCreatedIndex: index("top_up_reconciliation_cases_status_created_idx").on(table.status, table.createdAt),
+  fundingCreatedIndex: index("top_up_reconciliation_cases_funding_created_idx").on(table.fundingAttemptId, table.createdAt),
+  webhookCreatedIndex: index("top_up_reconciliation_cases_webhook_created_idx").on(table.webhookEventId, table.createdAt),
+}));
+
+/**
+ * Immutable link between an original completed ledger entry and one
+ * compensating reversal entry. The unique original entry key prevents reversal
+ * of the same wallet movement more than once.
+ */
+export const walletEntryReversals = mysqlTable("wallet_entry_reversals", {
+  id: int("id").autoincrement().primaryKey(),
+  originalEntryId: int("originalEntryId").notNull(),
+  reversalEntryId: int("reversalEntryId").notNull(),
+  fundingAttemptId: int("fundingAttemptId"),
+  adminUserId: int("adminUserId").notNull(),
+  reason: varchar("reason", { length: 1000 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  originalEntryUnique: uniqueIndex("wallet_entry_reversals_original_entry_unique").on(table.originalEntryId),
+  reversalEntryUnique: uniqueIndex("wallet_entry_reversals_reversal_entry_unique").on(table.reversalEntryId),
+  fundingCreatedIndex: index("wallet_entry_reversals_funding_created_idx").on(table.fundingAttemptId, table.createdAt),
+  adminCreatedIndex: index("wallet_entry_reversals_admin_created_idx").on(table.adminUserId, table.createdAt),
+}));
+
+/** Immutable balance snapshot captured beside a newly recorded wallet ledger entry. */
+export const walletEntryBalanceSnapshots = mysqlTable("wallet_entry_balance_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  walletEntryId: int("walletEntryId").notNull(),
+  walletId: int("walletId").notNull(),
+  previousBalance: decimal("previousBalance", { precision: 12, scale: 2 }).notNull(),
+  resultingBalance: decimal("resultingBalance", { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  entryUnique: uniqueIndex("wallet_entry_balance_snapshots_entry_unique").on(table.walletEntryId),
+  walletCreatedIndex: index("wallet_entry_balance_snapshots_wallet_created_idx").on(table.walletId, table.createdAt),
 }));
 
 /** Idempotent supplier callback receipt log. The raw payload is not persisted; only its integrity hash and processing state are retained. */
@@ -1265,6 +1356,10 @@ export type Wallet = typeof wallets.$inferSelect;
 export type CommerceIntegration = typeof commerceIntegrations.$inferSelect;
 export type AuthorizedCatalogSource = typeof authorizedCatalogSources.$inferSelect;
 export type WalletFundingAttempt = typeof walletFundingAttempts.$inferSelect;
+export type PaymentWebhookEvent = typeof paymentWebhookEvents.$inferSelect;
+export type TopUpReconciliationCase = typeof topUpReconciliationCases.$inferSelect;
+export type WalletEntryReversal = typeof walletEntryReversals.$inferSelect;
+export type WalletEntryBalanceSnapshot = typeof walletEntryBalanceSnapshots.$inferSelect;
 export type SupplierWebhookEvent = typeof supplierWebhookEvents.$inferSelect;
 export type SavedProduct = typeof savedProducts.$inferSelect;
 export type AdminAuditEvent = typeof adminAuditEvents.$inferSelect;

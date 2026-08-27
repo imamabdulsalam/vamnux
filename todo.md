@@ -948,3 +948,8 @@
 - [x] Validate full-catalog Admin search, deferred instant suggestions, selected-product details, owner-only supplier cost, focused tests, build, protected-route check, checkpoint, and GitHub push.
 - [x] Inspect and fix only the Admin Products search input blinking and typed-text visibility while retaining its protected full-catalog search and related suggestions.
 - [x] Validate stable typed input, full-catalog search results, suggestions, focused tests, build, visual check, checkpoint, and GitHub push.
+- [x] Assess existing wallet funding, payment-webhook, reconciliation, and immutable-ledger controls without changing customer balances or unrelated VAMNUX data.
+- [x] Add protected payment-webhook, reconciliation, fraud-review, and immutable wallet-control records with duplicate/reference safeguards and reversible ledger-only adjustment semantics.
+- [x] Implement server-side Super Admin-only dashboard, searchable/paginated monitors, reconciliation views, payment-review actions, and reasoned credit/debit/reversal actions without exposing provider secrets.
+- [x] Add the Admin-only Webhook / Top-Up Control workspace with dashboard metrics, filters, wallet timeline, audit log, and confirmation-gated action controls.
+- [x] Validate authorization, idempotency, duplicate/refund blocking, balance preservation, tests, build, Admin visual behavior, checkpoint, and GitHub push.

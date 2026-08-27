@@ -18,6 +18,7 @@ import { ENV } from './_core/env';
 import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzle/schema";
 import { customerProductRequests } from "../drizzle/schema";
 import { masterProducts, supplierOfferMappingReviews, supplierOffers } from "../drizzle/schema";
+import { paymentWebhookEvents, topUpReconciliationCases, walletEntryBalanceSnapshots, walletEntryReversals } from "../drizzle/schema";
 import { isSupplierMappingCategory, mappingAttributesMatch, mappingIdentityValue, normalizeMappingAttributes, type MappingAttributes, type MappingStatus, type SupplierMappingCategory } from "../shared/supplierProductMapping";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
@@ -70,7 +71,7 @@ const POLICY_DRAFTS = [
   { slug: "acceptable-use-policy", title: "VAMNUX Acceptable Use Policy", version: "owner-content-1", status: "published" as const, body: "## Prohibited activity\nDo not use VAMNUX to commit fraud or financial crimes, use stolen payment information, create fraudulent accounts, abuse refunds or promotions, access another user’s account, disrupt the platform, exploit vulnerabilities, abuse bots, conduct unlawful activity, or circumvent security and account restrictions.\n\n## Review and reporting\nVAMNUX may investigate suspicious activity and review accounts involved in prohibited conduct. To report a possible security issue, submit a private ticket with a responsible report and do not include passwords, payment data, or authentication codes." },
 ] as const;
 
-async function appendAdminAuditEvent(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, input: SafeAuditInput) {
+async function appendAdminAuditEvent(db: { insert: (...args: any[]) => any }, input: SafeAuditInput) {
   await db.insert(adminAuditEvents).values({
     adminUserId: input.adminUserId,
     action: input.action.slice(0, 120),
@@ -3564,6 +3565,14 @@ export async function reviewCustomerWalletFundingRequest(input: { adminUserId: n
     const [attempt] = await tx.select().from(walletFundingAttempts).where(eq(walletFundingAttempts.fundingCode, input.fundingCode)).limit(1);
     if (!attempt) throw new Error("Wallet funding request was not found");
     if (attempt.status !== "pending") throw new Error(`Only pending funding requests can be reviewed; this request is ${attempt.status}`);
+    const blockingCases = await tx.select({ category: topUpReconciliationCases.category })
+      .from(topUpReconciliationCases)
+      .where(and(
+        eq(topUpReconciliationCases.fundingAttemptId, attempt.id),
+        eq(topUpReconciliationCases.status, "open"),
+        inArray(topUpReconciliationCases.category, ["duplicate_event", "duplicate_reference", "invalid_signature", "amount_currency_mismatch", "refunded_or_reversed"]),
+      ));
+    if (input.action === "settle" && blockingCases.length) throw new Error("Resolve the open payment discrepancy before crediting this wallet request");
     const nextMetadata = {
       ...(attempt.metadata && typeof attempt.metadata === "object" && !Array.isArray(attempt.metadata) ? attempt.metadata as Record<string, unknown> : {}),
       reviewedByAdminId: input.adminUserId,
@@ -3578,11 +3587,403 @@ export async function reviewCustomerWalletFundingRequest(input: { adminUserId: n
     const ledgerReference = `wallet-funding:${attempt.fundingCode}`;
     const [existingEntry] = await tx.select({ id: walletEntries.id }).from(walletEntries).where(eq(walletEntries.reference, ledgerReference)).limit(1);
     if (existingEntry) throw new Error("This wallet funding request already has a ledger entry");
-    await tx.insert(walletEntries).values({ walletId: attempt.walletId, direction: "credit", entryType: "funding", amount: attempt.amount, currency: attempt.currency, reference: ledgerReference, status: "completed", metadata: { fundingCode: attempt.fundingCode, verificationReference } });
+    const [wallet] = await tx.select({ id: wallets.id, availableBalance: wallets.availableBalance, currency: wallets.currency, status: wallets.status }).from(wallets).where(eq(wallets.id, attempt.walletId)).limit(1);
+    if (!wallet || wallet.status !== "active" || wallet.currency !== attempt.currency) throw new Error("The matching customer wallet is unavailable for this verified credit");
+    const previousBalance = Number(wallet.availableBalance);
+    const resultingBalance = previousBalance + Number(attempt.amount);
+    const [entryResult] = await tx.insert(walletEntries).values({ walletId: attempt.walletId, direction: "credit", entryType: "funding", amount: attempt.amount, currency: attempt.currency, reference: ledgerReference, status: "completed", metadata: { fundingCode: attempt.fundingCode, verificationReference } });
     await tx.update(wallets).set({ availableBalance: sql`${wallets.availableBalance} + ${attempt.amount}` }).where(eq(wallets.id, attempt.walletId));
+    await tx.insert(walletEntryBalanceSnapshots).values({ walletEntryId: Number(entryResult.insertId), walletId: attempt.walletId, previousBalance: previousBalance.toFixed(2), resultingBalance: resultingBalance.toFixed(2) });
     await tx.update(walletFundingAttempts).set({ status: "settled", providerReference: verificationReference, metadata: nextMetadata, settledAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
     await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "wallet_funding.settled", targetType: "wallet_funding_request", targetId: attempt.fundingCode, summary: `Settled wallet top-up request ${attempt.fundingCode}`, metadata: { amount: Number(attempt.amount), currency: attempt.currency, verificationReference, reviewNote } });
     return { fundingCode: attempt.fundingCode, status: "settled" as const };
+  });
+}
+
+type TopUpControlListInput = {
+  search?: string;
+  status?: string;
+  provider?: string;
+  currency?: string;
+  category?: string;
+  start?: Date;
+  end?: Date;
+  offset?: number;
+  limit?: number;
+};
+
+const TOP_UP_CONTROL_PAGE_SIZE = 50;
+
+function topUpControlPage(input: TopUpControlListInput) {
+  return {
+    offset: Math.max(0, input.offset ?? 0),
+    limit: Math.min(100, Math.max(1, input.limit ?? TOP_UP_CONTROL_PAGE_SIZE)),
+  };
+}
+
+function topUpControlSearchCondition(search: string | undefined) {
+  const term = search?.trim();
+  if (!term || term.length < 2) return undefined;
+  const wildcard = `%${term.replace(/[%_]/g, "\\$&")}%`;
+  return or(
+    like(users.name, wildcard),
+    like(users.email, wildcard),
+    like(customerProfiles.username, wildcard),
+    like(walletFundingAttempts.fundingCode, wildcard),
+    like(walletFundingAttempts.providerReference, wildcard),
+  );
+}
+
+function eventSearchCondition(search: string | undefined) {
+  const term = search?.trim();
+  if (!term || term.length < 2) return undefined;
+  const wildcard = `%${term.replace(/[%_]/g, "\\$&")}%`;
+  return or(
+    like(users.name, wildcard),
+    like(users.email, wildcard),
+    like(customerProfiles.username, wildcard),
+    like(paymentWebhookEvents.providerName, wildcard),
+    like(paymentWebhookEvents.providerEventId, wildcard),
+    like(paymentWebhookEvents.providerReference, wildcard),
+    like(paymentWebhookEvents.providerTransactionId, wildcard),
+    like(walletFundingAttempts.fundingCode, wildcard),
+  );
+}
+
+function displayWalletPaymentMethod(providerName: string | null) {
+  return providerName || "Manual Admin Review";
+}
+
+export async function getTopUpControlDashboard() {
+  const db = requireDb(await getDb());
+  const [funding] = await db.select({
+    totalTopUps: sql<number>`count(*)`,
+    successful: sql<number>`coalesce(sum(case when ${walletFundingAttempts.status} = 'settled' then 1 else 0 end), 0)`,
+    pending: sql<number>`coalesce(sum(case when ${walletFundingAttempts.status} in ('initialized', 'pending') then 1 else 0 end), 0)`,
+    failed: sql<number>`coalesce(sum(case when ${walletFundingAttempts.status} in ('failed', 'expired', 'cancelled') then 1 else 0 end), 0)`,
+    reversed: sql<number>`coalesce(sum(case when ${walletFundingAttempts.status} = 'reversed' then 1 else 0 end), 0)`,
+    totalReceived: sql<string>`coalesce(sum(case when ${walletFundingAttempts.status} = 'settled' then ${walletFundingAttempts.amount} else 0 end), 0)`,
+  }).from(walletFundingAttempts);
+  const [credited] = await db.select({ totalCredited: sql<string>`coalesce(sum(${walletEntries.amount}), 0)` })
+    .from(walletEntries).where(and(eq(walletEntries.entryType, "funding"), eq(walletEntries.direction, "credit"), eq(walletEntries.status, "completed")));
+  const receivedByCurrency = await db.select({ currency: walletFundingAttempts.currency, amount: sql<string>`coalesce(sum(${walletFundingAttempts.amount}), 0)` }).from(walletFundingAttempts).where(eq(walletFundingAttempts.status, "settled")).groupBy(walletFundingAttempts.currency);
+  const creditedByCurrency = await db.select({ currency: walletEntries.currency, amount: sql<string>`coalesce(sum(${walletEntries.amount}), 0)` }).from(walletEntries).where(and(eq(walletEntries.entryType, "funding"), eq(walletEntries.direction, "credit"), eq(walletEntries.status, "completed"))).groupBy(walletEntries.currency);
+  const [suspicious] = await db.select({ count: sql<number>`count(*)` }).from(paymentWebhookEvents)
+    .where(or(eq(paymentWebhookEvents.signatureStatus, "invalid"), eq(paymentWebhookEvents.processingStatus, "duplicate"), eq(paymentWebhookEvents.processingStatus, "error")));
+  const [unresolved] = await db.select({ count: sql<number>`count(*)` }).from(topUpReconciliationCases).where(eq(topUpReconciliationCases.status, "open"));
+  return {
+    totalTopUps: Number(funding?.totalTopUps ?? 0),
+    successful: Number(funding?.successful ?? 0),
+    pending: Number(funding?.pending ?? 0),
+    failed: Number(funding?.failed ?? 0),
+    reversed: Number(funding?.reversed ?? 0),
+    suspicious: Number(suspicious?.count ?? 0),
+    unresolvedWebhookErrors: Number(unresolved?.count ?? 0),
+    totalReceived: Number(funding?.totalReceived ?? 0),
+    totalCredited: Number(credited?.totalCredited ?? 0),
+    receivedByCurrency: receivedByCurrency.map((row) => ({ currency: row.currency, amount: Number(row.amount) })),
+    creditedByCurrency: creditedByCurrency.map((row) => ({ currency: row.currency, amount: Number(row.amount) })),
+  };
+}
+
+export async function listTopUpWebhookMonitor(input: TopUpControlListInput = {}) {
+  const db = requireDb(await getDb());
+  const { offset, limit } = topUpControlPage(input);
+  const conditions = [
+    eventSearchCondition(input.search),
+    input.status ? eq(paymentWebhookEvents.processingStatus, input.status as "received" | "verified" | "credited" | "duplicate" | "rejected" | "error" | "reconciled") : undefined,
+    input.provider ? eq(paymentWebhookEvents.providerName, input.provider.trim().slice(0, 120)) : undefined,
+    input.currency ? eq(paymentWebhookEvents.currency, input.currency.trim().toUpperCase().slice(0, 3)) : undefined,
+    input.start ? gte(paymentWebhookEvents.receivedAt, input.start) : undefined,
+    input.end ? lte(paymentWebhookEvents.receivedAt, input.end) : undefined,
+  ];
+  const events = await db.select({
+    id: paymentWebhookEvents.id,
+    provider: paymentWebhookEvents.providerName,
+    eventId: paymentWebhookEvents.providerEventId,
+    transactionId: paymentWebhookEvents.providerTransactionId,
+    reference: paymentWebhookEvents.providerReference,
+    fundingCode: walletFundingAttempts.fundingCode,
+    userId: paymentWebhookEvents.userId,
+    customerName: users.name,
+    customerEmail: users.email,
+    customerUsername: customerProfiles.username,
+    amount: paymentWebhookEvents.amount,
+    currency: paymentWebhookEvents.currency,
+    eventType: paymentWebhookEvents.eventType,
+    signatureStatus: paymentWebhookEvents.signatureStatus,
+    providerStatus: paymentWebhookEvents.providerStatus,
+    status: paymentWebhookEvents.processingStatus,
+    errorMessage: paymentWebhookEvents.errorMessage,
+    receivedAt: paymentWebhookEvents.receivedAt,
+    processedAt: paymentWebhookEvents.processedAt,
+  }).from(paymentWebhookEvents)
+    .leftJoin(walletFundingAttempts, eq(paymentWebhookEvents.fundingAttemptId, walletFundingAttempts.id))
+    .leftJoin(users, eq(paymentWebhookEvents.userId, users.id))
+    .leftJoin(customerProfiles, eq(paymentWebhookEvents.userId, customerProfiles.userId))
+    .where(and(...conditions))
+    .orderBy(desc(paymentWebhookEvents.receivedAt), desc(paymentWebhookEvents.id))
+    .limit(limit + 1).offset(offset);
+  return { offset, limit, hasMore: events.length > limit, events: events.slice(0, limit).map((event) => ({ ...event, amount: event.amount === null ? null : Number(event.amount) })) };
+}
+
+export async function listTopUpTransactions(input: TopUpControlListInput = {}) {
+  const db = requireDb(await getDb());
+  const { offset, limit } = topUpControlPage(input);
+  const conditions = [
+    topUpControlSearchCondition(input.search),
+    input.status ? eq(walletFundingAttempts.status, input.status as "initialized" | "pending" | "settled" | "failed" | "expired" | "cancelled" | "reversed") : undefined,
+    input.provider ? eq(commerceIntegrations.providerName, input.provider.trim().slice(0, 120)) : undefined,
+    input.currency ? eq(walletFundingAttempts.currency, input.currency.trim().toUpperCase().slice(0, 3)) : undefined,
+    input.start ? gte(walletFundingAttempts.createdAt, input.start) : undefined,
+    input.end ? lte(walletFundingAttempts.createdAt, input.end) : undefined,
+  ];
+  const rows = await db.select({
+    id: walletFundingAttempts.id,
+    fundingCode: walletFundingAttempts.fundingCode,
+    userId: walletFundingAttempts.userId,
+    customerName: users.name,
+    customerEmail: users.email,
+    customerUsername: customerProfiles.username,
+    amount: walletFundingAttempts.amount,
+    currency: walletFundingAttempts.currency,
+    status: walletFundingAttempts.status,
+    providerReference: walletFundingAttempts.providerReference,
+    paymentMethod: commerceIntegrations.providerName,
+    walletId: wallets.id,
+    currentBalance: wallets.availableBalance,
+    previousBalance: walletEntryBalanceSnapshots.previousBalance,
+    resultingBalance: walletEntryBalanceSnapshots.resultingBalance,
+    createdAt: walletFundingAttempts.createdAt,
+    settledAt: walletFundingAttempts.settledAt,
+  }).from(walletFundingAttempts)
+    .leftJoin(users, eq(walletFundingAttempts.userId, users.id))
+    .leftJoin(customerProfiles, eq(walletFundingAttempts.userId, customerProfiles.userId))
+    .leftJoin(wallets, eq(walletFundingAttempts.walletId, wallets.id))
+    .leftJoin(commerceIntegrations, eq(walletFundingAttempts.integrationId, commerceIntegrations.id))
+    .leftJoin(walletEntries, eq(walletEntries.reference, sql`concat('wallet-funding:', ${walletFundingAttempts.fundingCode})`))
+    .leftJoin(walletEntryBalanceSnapshots, eq(walletEntryBalanceSnapshots.walletEntryId, walletEntries.id))
+    .where(and(...conditions))
+    .orderBy(desc(walletFundingAttempts.createdAt), desc(walletFundingAttempts.id))
+    .limit(limit + 1).offset(offset);
+  return { offset, limit, hasMore: rows.length > limit, transactions: rows.slice(0, limit).map((row) => ({ ...row, amount: Number(row.amount), currentBalance: Number(row.currentBalance ?? 0), previousBalance: row.previousBalance === null ? null : Number(row.previousBalance), resultingBalance: row.resultingBalance === null ? null : Number(row.resultingBalance), paymentMethod: displayWalletPaymentMethod(row.paymentMethod) })) };
+}
+
+export async function listTopUpReconciliationCases(input: TopUpControlListInput = {}) {
+  const db = requireDb(await getDb());
+  const { offset, limit } = topUpControlPage(input);
+  const search = input.search?.trim();
+  const wildcard = search && search.length >= 2 ? `%${search.replace(/[%_]/g, "\\$&")}%` : undefined;
+  const conditions = [
+    input.status ? eq(topUpReconciliationCases.status, input.status as "open" | "resolved") : undefined,
+    input.category ? eq(topUpReconciliationCases.category, input.category as "missing_wallet_credit" | "duplicate_event" | "duplicate_reference" | "invalid_signature" | "amount_currency_mismatch" | "provider_failed" | "provider_pending" | "refunded_or_reversed") : undefined,
+    input.provider ? eq(topUpReconciliationCases.providerName, input.provider.trim().slice(0, 120)) : undefined,
+    input.start ? gte(topUpReconciliationCases.createdAt, input.start) : undefined,
+    input.end ? lte(topUpReconciliationCases.createdAt, input.end) : undefined,
+    wildcard ? or(like(topUpReconciliationCases.caseKey, wildcard), like(topUpReconciliationCases.detail, wildcard), like(users.name, wildcard), like(users.email, wildcard), like(customerProfiles.username, wildcard), like(walletFundingAttempts.fundingCode, wildcard)) : undefined,
+  ];
+  const cases = await db.select({
+    id: topUpReconciliationCases.id,
+    caseKey: topUpReconciliationCases.caseKey,
+    category: topUpReconciliationCases.category,
+    status: topUpReconciliationCases.status,
+    detail: topUpReconciliationCases.detail,
+    resolutionNote: topUpReconciliationCases.resolutionNote,
+    provider: topUpReconciliationCases.providerName,
+    fundingCode: walletFundingAttempts.fundingCode,
+    eventId: paymentWebhookEvents.providerEventId,
+    providerStatus: paymentWebhookEvents.providerStatus,
+    userId: topUpReconciliationCases.userId,
+    customerName: users.name,
+    customerEmail: users.email,
+    customerUsername: customerProfiles.username,
+    resolvedAt: topUpReconciliationCases.resolvedAt,
+    createdAt: topUpReconciliationCases.createdAt,
+  }).from(topUpReconciliationCases)
+    .leftJoin(walletFundingAttempts, eq(topUpReconciliationCases.fundingAttemptId, walletFundingAttempts.id))
+    .leftJoin(paymentWebhookEvents, eq(topUpReconciliationCases.webhookEventId, paymentWebhookEvents.id))
+    .leftJoin(users, eq(topUpReconciliationCases.userId, users.id))
+    .leftJoin(customerProfiles, eq(topUpReconciliationCases.userId, customerProfiles.userId))
+    .where(and(...conditions))
+    .orderBy(desc(topUpReconciliationCases.createdAt), desc(topUpReconciliationCases.id))
+    .limit(limit + 1).offset(offset);
+  return { offset, limit, hasMore: cases.length > limit, cases: cases.slice(0, limit) };
+}
+
+export async function listUserWalletTimeline(input: TopUpControlListInput = {}) {
+  const db = requireDb(await getDb());
+  const { offset, limit } = topUpControlPage(input);
+  const search = input.search?.trim();
+  const wildcard = search && search.length >= 2 ? `%${search.replace(/[%_]/g, "\\$&")}%` : undefined;
+  const conditions = [
+    input.status ? eq(walletEntries.status, input.status as "pending" | "completed" | "reversed" | "failed") : undefined,
+    input.category ? eq(walletEntries.entryType, input.category as "funding" | "purchase" | "refund" | "adjustment" | "reward") : undefined,
+    input.currency ? eq(walletEntries.currency, input.currency.trim().toUpperCase().slice(0, 3)) : undefined,
+    input.start ? gte(walletEntries.createdAt, input.start) : undefined,
+    input.end ? lte(walletEntries.createdAt, input.end) : undefined,
+    wildcard ? or(like(users.name, wildcard), like(users.email, wildcard), like(customerProfiles.username, wildcard), like(walletEntries.reference, wildcard)) : undefined,
+  ];
+  const entries = await db.select({
+    id: walletEntries.id,
+    userId: wallets.userId,
+    customerName: users.name,
+    customerEmail: users.email,
+    customerUsername: customerProfiles.username,
+    direction: walletEntries.direction,
+    entryType: walletEntries.entryType,
+    amount: walletEntries.amount,
+    currency: walletEntries.currency,
+    reference: walletEntries.reference,
+    status: walletEntries.status,
+    previousBalance: walletEntryBalanceSnapshots.previousBalance,
+    resultingBalance: walletEntryBalanceSnapshots.resultingBalance,
+    reversedAt: walletEntryReversals.createdAt,
+    createdAt: walletEntries.createdAt,
+  }).from(walletEntries)
+    .innerJoin(wallets, eq(walletEntries.walletId, wallets.id))
+    .leftJoin(users, eq(wallets.userId, users.id))
+    .leftJoin(customerProfiles, eq(wallets.userId, customerProfiles.userId))
+    .leftJoin(walletEntryBalanceSnapshots, eq(walletEntryBalanceSnapshots.walletEntryId, walletEntries.id))
+    .leftJoin(walletEntryReversals, eq(walletEntryReversals.originalEntryId, walletEntries.id))
+    .where(and(...conditions))
+    .orderBy(desc(walletEntries.createdAt), desc(walletEntries.id))
+    .limit(limit + 1).offset(offset);
+  return { offset, limit, hasMore: entries.length > limit, entries: entries.slice(0, limit).map((entry) => ({ ...entry, amount: Number(entry.amount), previousBalance: entry.previousBalance === null ? null : Number(entry.previousBalance), resultingBalance: entry.resultingBalance === null ? null : Number(entry.resultingBalance) })) };
+}
+
+export async function listTopUpControlAudit(input: TopUpControlListInput = {}) {
+  const db = requireDb(await getDb());
+  const { offset, limit } = topUpControlPage(input);
+  const search = input.search?.trim();
+  const wildcard = search && search.length >= 2 ? `%${search.replace(/[%_]/g, "\\$&")}%` : undefined;
+  const actions = or(like(adminAuditEvents.action, "wallet_%"), like(adminAuditEvents.action, "top_up_control.%"));
+  const conditions = [
+    actions,
+    input.start ? gte(adminAuditEvents.createdAt, input.start) : undefined,
+    input.end ? lte(adminAuditEvents.createdAt, input.end) : undefined,
+    wildcard ? or(like(adminAuditEvents.action, wildcard), like(adminAuditEvents.targetId, wildcard), like(adminAuditEvents.summary, wildcard), like(users.name, wildcard), like(users.email, wildcard)) : undefined,
+  ];
+  const audits = await db.select({ id: adminAuditEvents.id, adminUserId: adminAuditEvents.adminUserId, adminName: users.name, adminEmail: users.email, action: adminAuditEvents.action, targetType: adminAuditEvents.targetType, targetId: adminAuditEvents.targetId, summary: adminAuditEvents.summary, metadata: adminAuditEvents.metadata, createdAt: adminAuditEvents.createdAt })
+    .from(adminAuditEvents).leftJoin(users, eq(adminAuditEvents.adminUserId, users.id)).where(and(...conditions)).orderBy(desc(adminAuditEvents.createdAt), desc(adminAuditEvents.id)).limit(limit + 1).offset(offset);
+  return { offset, limit, hasMore: audits.length > limit, audits: audits.slice(0, limit) };
+}
+
+export async function resolveTopUpReconciliationCase(input: { adminUserId: number; caseId: number; resolutionNote: string }) {
+  const db = requireDb(await getDb());
+  const resolutionNote = input.resolutionNote.trim().slice(0, 1000);
+  if (resolutionNote.length < 3) throw new Error("Provide a resolution note before closing this payment reconciliation case");
+  return db.transaction(async (tx) => {
+    const [item] = await tx.select().from(topUpReconciliationCases).where(eq(topUpReconciliationCases.id, input.caseId)).limit(1);
+    if (!item) throw new Error("Payment reconciliation case was not found");
+    if (item.status === "resolved") throw new Error("This payment reconciliation case is already resolved");
+    await tx.update(topUpReconciliationCases).set({ status: "resolved", resolutionNote, resolvedByAdminId: input.adminUserId, resolvedAt: new Date() }).where(eq(topUpReconciliationCases.id, item.id));
+    if (item.webhookEventId) await tx.update(paymentWebhookEvents).set({ processingStatus: "reconciled", processedAt: new Date() }).where(eq(paymentWebhookEvents.id, item.webhookEventId));
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: "top_up_control.reconciliation_resolved", targetType: "top_up_reconciliation_case", targetId: item.caseKey, summary: `Resolved payment reconciliation case ${item.caseKey}`, metadata: { category: item.category, fundingAttemptId: item.fundingAttemptId, userId: item.userId, resolutionNote } });
+    return { caseId: item.id, status: "resolved" as const };
+  });
+}
+
+export async function createManualWalletAdjustment(input: { adminUserId: number; userId: number; direction: "credit" | "debit"; amount: number; currency: string; reference: string; reason: string }) {
+  const db = requireDb(await getDb());
+  const amount = Number(input.amount);
+  const currency = input.currency.trim().toUpperCase().slice(0, 3);
+  const reference = input.reference.trim().slice(0, 120);
+  const reason = input.reason.trim().slice(0, 1000);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) throw new Error("Enter a valid adjustment amount");
+  if (currency.length !== 3 || !reference || reason.length < 3) throw new Error("Currency, unique reference, and a reason are required for every wallet adjustment");
+  return db.transaction(async (tx) => {
+    const [wallet] = await tx.select().from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
+    if (!wallet || wallet.status !== "active") throw new Error("The selected customer wallet is unavailable");
+    if (wallet.currency !== currency) throw new Error(`This wallet uses ${wallet.currency}; adjustments must use the wallet currency`);
+    const [existing] = await tx.select({ id: walletEntries.id }).from(walletEntries).where(eq(walletEntries.reference, reference)).limit(1);
+    if (existing) throw new Error("This wallet adjustment reference already exists");
+    const previousBalance = Number(wallet.availableBalance);
+    if (input.direction === "debit" && previousBalance < amount) throw new Error("A manual debit cannot exceed the available wallet balance");
+    const resultingBalance = input.direction === "credit" ? previousBalance + amount : previousBalance - amount;
+    const [entryResult] = await tx.insert(walletEntries).values({ walletId: wallet.id, direction: input.direction, entryType: "adjustment", amount: amount.toFixed(2), currency, reference, status: "completed", metadata: { operation: `manual_${input.direction}`, reason, adminUserId: input.adminUserId } });
+    const balanceChange = input.direction === "credit" ? sql`${wallets.availableBalance} + ${amount.toFixed(2)}` : sql`${wallets.availableBalance} - ${amount.toFixed(2)}`;
+    const [balanceUpdate] = await tx.update(wallets).set({ availableBalance: balanceChange }).where(input.direction === "debit" ? and(eq(wallets.id, wallet.id), gte(wallets.availableBalance, amount.toFixed(2))) : eq(wallets.id, wallet.id));
+    if (input.direction === "debit" && Number((balanceUpdate as { affectedRows?: number }).affectedRows ?? 0) !== 1) throw new Error("The wallet balance changed before this debit could be recorded; review the current balance and retry");
+    await tx.insert(walletEntryBalanceSnapshots).values({ walletEntryId: Number(entryResult.insertId), walletId: wallet.id, previousBalance: previousBalance.toFixed(2), resultingBalance: resultingBalance.toFixed(2) });
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: `wallet.adjustment_${input.direction}`, targetType: "wallet_entry", targetId: reference, summary: `Recorded manual wallet ${input.direction} for customer ${input.userId}`, metadata: { userId: input.userId, walletId: wallet.id, amount, currency, previousBalance, newBalance: resultingBalance, reason, reference } });
+    return { entryId: Number(entryResult.insertId), userId: input.userId, direction: input.direction, amount, currency, previousBalance, resultingBalance };
+  });
+}
+
+export async function reverseWalletLedgerEntry(input: { adminUserId: number; walletEntryId: number; reference: string; reason: string }) {
+  const db = requireDb(await getDb());
+  const reference = input.reference.trim().slice(0, 120);
+  const reason = input.reason.trim().slice(0, 1000);
+  if (!reference || reason.length < 3) throw new Error("A unique reversal reference and reason are required");
+  return db.transaction(async (tx) => {
+    const [original] = await tx.select({ entry: walletEntries, wallet: wallets }).from(walletEntries).innerJoin(wallets, eq(walletEntries.walletId, wallets.id)).where(eq(walletEntries.id, input.walletEntryId)).limit(1);
+    if (!original || original.entry.status !== "completed") throw new Error("Only a completed wallet ledger entry can be reversed");
+    const [existingReversal] = await tx.select({ id: walletEntryReversals.id }).from(walletEntryReversals).where(eq(walletEntryReversals.originalEntryId, original.entry.id)).limit(1);
+    if (existingReversal) throw new Error("This wallet ledger entry has already been reversed");
+    const [existingReference] = await tx.select({ id: walletEntries.id }).from(walletEntries).where(eq(walletEntries.reference, reference)).limit(1);
+    if (existingReference) throw new Error("This reversal reference already exists");
+    const reversalDirection = original.entry.direction === "credit" ? "debit" as const : "credit" as const;
+    const previousBalance = Number(original.wallet.availableBalance);
+    const amount = Number(original.entry.amount);
+    if (reversalDirection === "debit" && previousBalance < amount) throw new Error("This reversal cannot debit more than the customer’s available wallet balance");
+    const resultingBalance = reversalDirection === "credit" ? previousBalance + amount : previousBalance - amount;
+    const reversalEntryType = original.entry.entryType === "purchase" ? "refund" as const : "adjustment" as const;
+    const [reversalResult] = await tx.insert(walletEntries).values({ walletId: original.wallet.id, direction: reversalDirection, entryType: reversalEntryType, amount: original.entry.amount, currency: original.entry.currency, reference, status: "completed", metadata: { operation: original.entry.entryType === "purchase" ? "refund" : "reversal", originalEntryId: original.entry.id, reason, adminUserId: input.adminUserId } });
+    const balanceChange = reversalDirection === "credit" ? sql`${wallets.availableBalance} + ${original.entry.amount}` : sql`${wallets.availableBalance} - ${original.entry.amount}`;
+    const [balanceUpdate] = await tx.update(wallets).set({ availableBalance: balanceChange }).where(reversalDirection === "debit" ? and(eq(wallets.id, original.wallet.id), gte(wallets.availableBalance, original.entry.amount)) : eq(wallets.id, original.wallet.id));
+    if (reversalDirection === "debit" && Number((balanceUpdate as { affectedRows?: number }).affectedRows ?? 0) !== 1) throw new Error("The wallet balance changed before this reversal could be recorded; review the current balance and retry");
+    await tx.update(walletEntries).set({ status: "reversed" }).where(eq(walletEntries.id, original.entry.id));
+    const [fundingAttempt] = original.entry.entryType === "funding" ? await tx.select({ id: walletFundingAttempts.id }).from(walletFundingAttempts).where(eq(walletFundingAttempts.fundingCode, sql`replace(${original.entry.reference}, 'wallet-funding:', '')`)).limit(1) : [];
+    if (fundingAttempt) await tx.update(walletFundingAttempts).set({ status: "reversed" }).where(eq(walletFundingAttempts.id, fundingAttempt.id));
+    await tx.insert(walletEntryBalanceSnapshots).values({ walletEntryId: Number(reversalResult.insertId), walletId: original.wallet.id, previousBalance: previousBalance.toFixed(2), resultingBalance: resultingBalance.toFixed(2) });
+    await tx.insert(walletEntryReversals).values({ originalEntryId: original.entry.id, reversalEntryId: Number(reversalResult.insertId), fundingAttemptId: fundingAttempt?.id ?? null, adminUserId: input.adminUserId, reason });
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: original.entry.entryType === "purchase" ? "wallet.refund_recorded" : "wallet.reversal_recorded", targetType: "wallet_entry", targetId: reference, summary: `${original.entry.entryType === "purchase" ? "Recorded refund for" : "Reversed"} wallet entry ${original.entry.id}`, metadata: { userId: original.wallet.userId, originalEntryId: original.entry.id, reversalEntryId: Number(reversalResult.insertId), amount, currency: original.entry.currency, previousBalance, newBalance: resultingBalance, reason, reference } });
+    return { originalEntryId: original.entry.id, reversalEntryId: Number(reversalResult.insertId), direction: reversalDirection, amount, currency: original.entry.currency, previousBalance, resultingBalance };
+  });
+}
+
+async function createTopUpReconciliationCase(db: any, input: { caseKey: string; webhookEventId?: number | null; fundingAttemptId?: number | null; userId?: number | null; providerName?: string | null; category: "missing_wallet_credit" | "duplicate_event" | "duplicate_reference" | "invalid_signature" | "amount_currency_mismatch" | "provider_failed" | "provider_pending" | "refunded_or_reversed"; detail: string }) {
+  const [existing] = await db.select({ id: topUpReconciliationCases.id }).from(topUpReconciliationCases).where(eq(topUpReconciliationCases.caseKey, input.caseKey)).limit(1);
+  if (existing) return existing;
+  const [result] = await db.insert(topUpReconciliationCases).values({ ...input, caseKey: input.caseKey.slice(0, 180), detail: input.detail.slice(0, 1000) });
+  return { id: Number(result.insertId) };
+}
+
+/** Server-only payment callback recording. It deliberately records and flags receipts but never credits a wallet automatically. */
+export async function recordPaymentWebhookEvent(input: { providerName: string; providerEventId: string; eventType: string; providerTransactionId?: string | null; providerReference?: string | null; fundingCode?: string | null; userId?: number | null; amount?: number | null; currency?: string | null; signatureStatus: "verified" | "invalid" | "unavailable"; providerStatus: "pending" | "successful" | "failed" | "refunded" | "reversed" | "unknown"; payloadHash?: string | null; errorMessage?: string | null }) {
+  const db = requireDb(await getDb());
+  const providerName = input.providerName.trim().slice(0, 120);
+  const providerEventId = input.providerEventId.trim().slice(0, 160);
+  if (!providerName || !providerEventId) throw new Error("A payment provider and provider event ID are required");
+  return db.transaction(async (tx) => {
+    const [integration] = await tx.select({ id: commerceIntegrations.id }).from(commerceIntegrations).where(and(eq(commerceIntegrations.integrationType, "payment"), eq(commerceIntegrations.providerName, providerName))).limit(1);
+    const [existingEvent] = await tx.select().from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.providerName, providerName), eq(paymentWebhookEvents.providerEventId, providerEventId))).limit(1);
+    if (existingEvent) {
+      await tx.update(paymentWebhookEvents).set({ processingStatus: "duplicate", errorMessage: "Duplicate provider event ID received", processedAt: new Date() }).where(eq(paymentWebhookEvents.id, existingEvent.id));
+      await createTopUpReconciliationCase(tx, { caseKey: `duplicate-event:${providerName}:${providerEventId}`, webhookEventId: existingEvent.id, fundingAttemptId: existingEvent.fundingAttemptId, userId: existingEvent.userId, providerName, category: "duplicate_event", detail: "Duplicate provider event ID was received and no wallet credit was attempted." });
+      return { eventId: existingEvent.id, outcome: "duplicate" as const };
+    }
+    const reference = input.providerReference?.trim().slice(0, 160) || null;
+    const providerTransactionId = input.providerTransactionId?.trim().slice(0, 160) || null;
+    const [attempt] = input.fundingCode?.trim()
+      ? await tx.select().from(walletFundingAttempts).where(eq(walletFundingAttempts.fundingCode, input.fundingCode.trim().slice(0, 32))).limit(1)
+      : reference ? await tx.select().from(walletFundingAttempts).where(eq(walletFundingAttempts.providerReference, reference)).limit(1)
+      : [];
+    const amount = input.amount === null || input.amount === undefined ? null : Number(input.amount);
+    const currency = input.currency?.trim().toUpperCase().slice(0, 3) || null;
+    const mismatch = !!attempt && ((amount !== null && Number(attempt.amount) !== amount) || (currency !== null && attempt.currency !== currency));
+    const refundedOrReversedAttempt = attempt?.status === "reversed";
+    const duplicateReference = !!reference && (await tx.select({ id: paymentWebhookEvents.id }).from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.providerName, providerName), eq(paymentWebhookEvents.providerReference, reference))).limit(1)).length > 0;
+    const duplicateTransaction = !!providerTransactionId && (await tx.select({ id: paymentWebhookEvents.id }).from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.providerName, providerName), eq(paymentWebhookEvents.providerTransactionId, providerTransactionId))).limit(1)).length > 0;
+    const duplicatePayment = duplicateReference || duplicateTransaction;
+    const category = input.signatureStatus === "invalid" ? "invalid_signature" : duplicatePayment ? "duplicate_reference" : refundedOrReversedAttempt || input.providerStatus === "refunded" || input.providerStatus === "reversed" ? "refunded_or_reversed" : mismatch ? "amount_currency_mismatch" : input.providerStatus === "failed" ? "provider_failed" : input.providerStatus === "pending" ? "provider_pending" : "missing_wallet_credit";
+    const processingStatus = input.signatureStatus === "invalid" || refundedOrReversedAttempt ? "rejected" as const : duplicatePayment ? "duplicate" as const : input.providerStatus === "successful" && attempt && !mismatch ? "verified" as const : "error" as const;
+    const duplicateError = duplicateTransaction ? "Duplicate provider transaction ID received" : duplicateReference ? "Duplicate provider reference received" : null;
+    const [inserted] = await tx.insert(paymentWebhookEvents).values({ integrationId: integration?.id ?? null, providerName, providerEventId, eventType: input.eventType.trim().slice(0, 120), providerTransactionId, providerReference: reference, fundingAttemptId: attempt?.id ?? null, userId: attempt?.userId ?? input.userId ?? null, amount: amount === null || !Number.isFinite(amount) ? null : amount.toFixed(2), currency, signatureStatus: input.signatureStatus, providerStatus: input.providerStatus, processingStatus, errorMessage: duplicateError || input.errorMessage?.trim().slice(0, 1000) || null, payloadHash: input.payloadHash?.trim().slice(0, 64) || null, processedAt: new Date() });
+    const eventId = Number(inserted.insertId);
+    const detail = input.signatureStatus === "invalid" ? "Invalid webhook signature; no wallet credit was attempted." : duplicateTransaction ? "Duplicate provider transaction ID detected; no wallet credit was attempted." : duplicateReference ? "Duplicate provider reference detected; no wallet credit was attempted." : refundedOrReversedAttempt ? "The linked top-up was already reversed, so this provider receipt cannot credit the wallet." : mismatch ? "Provider amount or currency does not match the associated wallet top-up request." : input.providerStatus === "successful" ? "Provider reported success, but an explicit Super Admin verification is required before crediting the wallet." : `Provider status is ${input.providerStatus}; no wallet credit was attempted.`;
+    await createTopUpReconciliationCase(tx, { caseKey: `${category}:${providerName}:${providerEventId}`, webhookEventId: eventId, fundingAttemptId: attempt?.id ?? null, userId: attempt?.userId ?? input.userId ?? null, providerName, category, detail });
+    return { eventId, outcome: processingStatus };
   });
 }
 
