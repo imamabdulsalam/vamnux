@@ -1747,12 +1747,25 @@ export async function upsertExchangeRate(input: { baseCurrency: string; quoteCur
 }
 
 /** Storefront presentation settings are additive to supplier catalog records and never replace supplier source data. */
-export async function listAdminProductOperations(limit = 10_000, offset = 0) {
+export async function listAdminProductOperations(limit = 10_000, offset = 0, search?: string) {
   const db = requireDb(await getDb());
   const settings = await ensureMarketplacePricingSettings(db);
+  const normalizedSearch = search?.trim().slice(0, 100) || "";
+  const searchPattern = `%${normalizedSearch.replace(/[\\%_]/g, "\\$&")}%`;
+  const searchCondition = normalizedSearch
+    ? or(
+      like(products.name, searchPattern),
+      like(products.slug, searchPattern),
+      like(products.supplierKey, searchPattern),
+      like(products.supplierSku, searchPattern),
+      like(products.category, searchPattern),
+    )
+    : undefined;
   const rows = await db.select({ product: products, attributes: productAdminAttributes }).from(products)
     .leftJoin(productAdminAttributes, eq(products.id, productAdminAttributes.productId))
-    .orderBy(desc(products.updatedAt), desc(products.id)).limit(Math.min(10_000, Math.max(1, limit))).offset(Math.max(0, offset));
+    .where(searchCondition)
+    .orderBy(normalizedSearch ? products.name : desc(products.updatedAt), desc(products.id))
+    .limit(Math.min(10_000, Math.max(1, limit))).offset(Math.max(0, offset));
   return rows.map(({ product, attributes }) => {
     const price = customerPriceForProduct(product, settings);
     const metadata = product.metadata && typeof product.metadata === "object" ? product.metadata as Record<string, unknown> : null;

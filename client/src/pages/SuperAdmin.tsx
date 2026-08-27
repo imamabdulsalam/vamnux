@@ -55,7 +55,7 @@ import {
   UsersRound,
   WalletCards,
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { toast } from "sonner";
 
@@ -181,12 +181,14 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const [productOperationsOffset, setProductOperationsOffset] = useState(0);
   const [productOperationsRows, setProductOperationsRows] = useState<any[]>([]);
   const [productOperationsHasMore, setProductOperationsHasMore] = useState(true);
+  const [productListSearch, setProductListSearch] = useState("");
+  const deferredProductListSearch = useDeferredValue(productListSearch.trim());
   const overview = trpc.admin.getOverview.useQuery(undefined, { enabled: tabIs("overview") });
   const pricingSettings = trpc.admin.getMarketplacePricingSettings.useQuery(undefined, { enabled: tabIs("pricing", "products") });
   const catalogPricing = trpc.admin.listCatalogPricing.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
   const priceHistory = trpc.admin.listPriceChangeHistory.useQuery({ limit: 100 }, { enabled: tabIs("pricing", "products") });
   const categoryProductOperations = trpc.admin.listAdminProductOperations.useQuery({ limit: 10_000 }, { enabled: tabIs("categories") });
-  const productOperationsPage = trpc.admin.listAdminProductOperations.useQuery({ limit: PRODUCT_OPERATIONS_PAGE_SIZE, offset: productOperationsOffset }, { enabled: tabIs("products") });
+  const productOperationsPage = trpc.admin.listAdminProductOperations.useQuery({ limit: PRODUCT_OPERATIONS_PAGE_SIZE, offset: productOperationsOffset, search: deferredProductListSearch.length >= 2 ? deferredProductListSearch : undefined }, { enabled: tabIs("products") });
   const productOperations = activeTab === "categories" ? categoryProductOperations : { ...productOperationsPage, data: productOperationsRows };
   const marketplaceCategories = trpc.admin.listMarketplaceCategories.useQuery(undefined, { enabled: tabIs("categories") });
   // Legacy supplier-normalised `steam` records are presented as Games in Admin
@@ -275,7 +277,6 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
   const [draggedCategoryId, setDraggedCategoryId] = useState<number | null>(null);
   const [categoryDraft, setCategoryDraft] = useState<{ slug: string; name: string; description: string; imageUrl: string; seoTitle: string; seoDescription: string; sortOrder: string; visible: boolean; featured: boolean; status: "active" | "archived" }>({ slug: "", name: "", description: "", imageUrl: "", seoTitle: "", seoDescription: "", sortOrder: "0", visible: true, featured: false, status: "active" });
   const [productOperationsId, setProductOperationsId] = useState("");
-  const [productListSearch, setProductListSearch] = useState("");
   const [selectedProductOperationIds, setSelectedProductOperationIds] = useState<number[]>([]);
   const [selectedProductBulkMarkup, setSelectedProductBulkMarkup] = useState("25");
   const [productPresentationDraft, setProductPresentationDraft] = useState<{ storefrontStatus: "visible" | "hidden" | "coming_soon"; featured: boolean; trending: boolean; bestSeller: boolean; newProduct: boolean; deal: boolean; seoTitle: string; seoDescription: string; internalNote: string }>({ storefrontStatus: "visible", featured: false, trending: false, bestSeller: false, newProduct: false, deal: false, seoTitle: "", seoDescription: "", internalNote: "" });
@@ -353,7 +354,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     setProductOperationsOffset(0);
     setProductOperationsRows([]);
     setProductOperationsHasMore(true);
-  }, [activeTab]);
+  }, [activeTab, deferredProductListSearch]);
   useEffect(() => {
     if (activeTab !== "products" || !productOperationsPage.data) return;
     setProductOperationsRows((current) => productOperationsOffset === 0 ? productOperationsPage.data : [...current, ...productOperationsPage.data.filter((product) => !current.some((existing) => existing.id === product.id))]);
@@ -421,8 +422,24 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     tools.className = "admin-product-list-tools";
     const searchInput = document.createElement("input");
     searchInput.type = "search";
-    searchInput.placeholder = "Search products or suppliers";
-    searchInput.setAttribute("aria-label", "Search product listings");
+    searchInput.value = productListSearch;
+    searchInput.placeholder = "Search every product or supplier";
+    searchInput.setAttribute("aria-label", "Search every product listing or supplier");
+    const suggestions = document.createElement("div");
+    suggestions.className = "admin-product-search-suggestions";
+    const searchTerm = productListSearch.trim();
+    if (searchTerm.length >= 2 && products.length) {
+      const label = document.createElement("small");
+      label.textContent = productOperationsPage.isFetching ? "Finding related catalog matches…" : "Related catalog matches";
+      suggestions.append(label);
+      products.slice(0, 8).forEach((product) => {
+        const suggestion = document.createElement("button");
+        suggestion.type = "button";
+        suggestion.textContent = `${product.name} · ${product.supplierKey || "Admin managed"}`;
+        suggestion.addEventListener("click", () => setProductOperationsId(String(product.id)));
+        suggestions.append(suggestion);
+      });
+    }
     const selectionBar = document.createElement("div");
     selectionBar.className = "admin-product-dom-bulk";
     const selectVisible = document.createElement("button"); selectVisible.type = "button"; selectVisible.textContent = "Select visible";
@@ -434,11 +451,11 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     const markup = document.createElement("input"); markup.type = "number"; markup.value = "25"; markup.min = "-100"; markup.max = "500"; markup.step = "0.01"; markup.setAttribute("aria-label", "Selected supplier product markup percentage");
     const applyMarkup = document.createElement("button"); applyMarkup.type = "button"; applyMarkup.textContent = "Apply markup"; applyMarkup.className = "admin-secondary-action";
     const archive = document.createElement("button"); archive.type = "button"; archive.textContent = "Archive Admin items"; archive.className = "admin-danger-action";
-    actions.append(show, hide, markup, applyMarkup, archive); tools.append(searchInput, selectionBar, actions); heading.after(tools);
+    actions.append(show, hide, markup, applyMarkup, archive); tools.append(searchInput, suggestions, selectionBar, actions); heading.after(tools);
     const rows = Array.from(list.querySelectorAll<HTMLElement>(":scope > article"));
     const refresh = () => { const visibleRows = rows.filter((row) => row.style.display !== "none"); selectedCount.textContent = `${selected.size} selected`; selectVisible.textContent = visibleRows.length && visibleRows.every((row) => selected.has(Number(row.dataset.productId))) ? "Clear visible" : "Select visible"; };
     rows.forEach((row, index) => { const product = products[index]; if (!product) return; row.dataset.productId = String(product.id); const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.dataset.productRowCheckbox = "true"; checkbox.setAttribute("aria-label", `Select ${product.name}`); checkbox.addEventListener("change", () => { checkbox.checked ? selected.add(product.id) : selected.delete(product.id); refresh(); }); row.prepend(checkbox); const edit = document.createElement("button"); edit.type = "button"; edit.dataset.productRowEdit = "true"; edit.className = "admin-secondary-action"; edit.textContent = "Edit"; edit.addEventListener("click", () => setProductOperationsId(String(product.id))); row.append(edit); });
-    searchInput.addEventListener("input", () => { const term = searchInput.value.trim().toLowerCase(); rows.forEach((row, index) => { const product = products[index]; row.style.display = !term || `${product.name} ${product.category} ${product.supplierKey || "admin managed"}`.toLowerCase().includes(term) ? "grid" : "none"; }); refresh(); });
+    searchInput.addEventListener("input", () => { setProductListSearch(searchInput.value); });
     selectVisible.addEventListener("click", () => { const visibleRows = rows.filter((row) => row.style.display !== "none"); const allSelected = visibleRows.length > 0 && visibleRows.every((row) => selected.has(Number(row.dataset.productId))); visibleRows.forEach((row) => { const id = Number(row.dataset.productId); const checkbox = row.querySelector<HTMLInputElement>("[data-product-row-checkbox]"); if (allSelected) selected.delete(id); else selected.add(id); if (checkbox) checkbox.checked = !allSelected; }); refresh(); });
     const currentSelection = () => products.filter((product) => selected.has(product.id));
     show.addEventListener("click", () => { const selectedProducts = currentSelection(); if (selectedProducts.length && window.confirm(`Show ${selectedProducts.length} selected listings?`)) bulkUpdateProductVisibility.mutate({ productIds: selectedProducts.map((product) => product.id), storefrontStatus: "visible" }); });
@@ -447,7 +464,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     archive.addEventListener("click", () => { const selectedProducts = currentSelection(); if (!selectedProducts.length || selectedProducts.some((product) => product.supplierKey !== "admin_managed")) { toast.error("Archive is available only when every selected listing is Admin-managed."); return; } if (window.confirm(`Archive ${selectedProducts.length} Admin-managed listings?`)) bulkArchiveAdminProducts.mutate({ productIds: selectedProducts.map((product) => product.id) }); });
     refresh();
     return () => { tools.remove(); panel.querySelectorAll("[data-product-row-checkbox], [data-product-row-edit]").forEach((element) => element.remove()); rows.forEach((row) => { row.style.display = ""; delete row.dataset.productId; }); };
-  }, [activeTab, productOperations.data, bulkArchiveAdminProducts, bulkUpdateProductVisibility, bulkUpdateSyncedMarkup]);
+  }, [activeTab, productOperations.data, productOperationsPage.isFetching, productListSearch, bulkArchiveAdminProducts, bulkUpdateProductVisibility, bulkUpdateSyncedMarkup]);
   useEffect(() => {
     if (activeTab !== "categories") return;
     const panel = document.querySelector<HTMLElement>(".admin-category-list");

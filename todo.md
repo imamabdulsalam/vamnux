@@ -943,3 +943,6 @@
 - [x] Add supplier cost and source currency to the existing Admin-only product list and selected-product details while preserving supplier source, category, and VAMNUX customer display-price information.
 - [x] Preserve or improve responsive Admin browsing for catalogs exceeding 100,000 products using paged/windowed data access; do not fetch or render the entire catalog at once.
 - [x] Validate owner-only supplier-cost display, customer API privacy, product-list responsiveness, focused tests, build, visual checks, checkpoint, and GitHub push.
+- [x] Inspect the Admin Products paged-query search behavior and existing client search state to identify why searching only uses the initial visible page.
+- [x] Make the Admin Products search query the complete protected catalog server-side and return fast relevant product and supplier suggestions while preserving 100-row incremental browsing when no search is entered.
+- [x] Validate full-catalog Admin search, deferred instant suggestions, selected-product details, owner-only supplier cost, focused tests, build, protected-route check, checkpoint, and GitHub push.

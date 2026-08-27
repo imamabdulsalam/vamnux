@@ -21,7 +21,7 @@ describe("catalog and admin loading performance", () => {
     expect(routerSource).toContain("includeMetadata: z.boolean().default(false)");
     expect(routerSource).toContain('gamePlatform: z.enum(["steam", "xbox", "playstation", "nintendo", "battlenet", "ea", "ubisoft", "mobile", "quest"])');
     expect(routerSource).toContain("listCatalogPricing(input?.limit)");
-    expect(routerSource).toContain("listAdminProductOperations(input?.limit, input?.offset)");
+    expect(routerSource).toContain("listAdminProductOperations(input?.limit, input?.offset, input?.search)");
   });
 
   it("uses debounced server-side search and a single complete selected-result response on the storefront", () => {
@@ -56,12 +56,16 @@ describe("catalog and admin loading performance", () => {
   });
 
   it("gives Admin Categories complete visibility while Admin Products load supplier-cost rows in responsive pages", () => {
-    expect(dbSource).toContain("export async function listAdminProductOperations(limit = 10_000, offset = 0)");
+    expect(dbSource).toContain("export async function listAdminProductOperations(limit = 10_000, offset = 0, search?: string)");
     expect(dbSource).toContain("supplierCostCurrency: product.baseCurrency");
     expect(dbSource).toContain("Supplier cost:");
     expect(routerSource).toContain("offset: z.number().int().min(0).default(0)");
     expect(adminSource).toContain("const PRODUCT_OPERATIONS_PAGE_SIZE = 100");
     expect(adminSource).toContain("offset: productOperationsOffset");
     expect(adminSource).toContain("container.addEventListener(\"scroll\", loadNextPage");
+    expect(routerSource).toContain("search: z.string().trim().min(2).max(100).optional()");
+    expect(dbSource).toContain("const searchCondition = normalizedSearch");
+    expect(adminSource).toContain("useDeferredValue(productListSearch.trim())");
+    expect(adminSource).toContain("Related catalog matches");
   });
 });
