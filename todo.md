@@ -968,3 +968,5 @@
 - [ ] Implement Admin-only coupon generation, usage-limit management, and product-specific/all-product discount settings.
 - [ ] Add the Admin OFFERS workspace with coupon creation, current-code list, usage details, and working discount controls.
 - [ ] Validate authorization, coupon limits, discount scope, original-price preservation, tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Assess the existing VAMNUX product purchase flows and add only a clear wallet checkout action that retains product requirements, protected balance validation, and all current order safeguards.
+- [x] Validate checkout availability across Home, digital product, and game-family flows without changing product records, supplier data, prices, or wallet balances; run tests, build, visual checks, checkpoint, and GitHub push.

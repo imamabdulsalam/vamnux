@@ -56,7 +56,7 @@ export default function CompactCatalog({ products, activeCategory, keyword, form
         </div>
         <div className="compact-product-footer">
           <div><strong>{formatPrice(product.price)}</strong><small>{product.priceNote}</small></div>
-          <div className="compact-product-actions"><button className="compact-product-details" onClick={() => onOpenProduct(product)}>Details <ArrowRight size={14} /></button><button className="compact-product-add" onClick={() => onAddToCart(product)} aria-label={`Add ${product.product} to cart`} title="Add to cart"><ShoppingCart size={16} /></button></div>
+          <div className="compact-product-actions"><button className="compact-product-details" onClick={() => onOpenProduct(product)}>Details <ArrowRight size={14} /></button><button className="compact-product-add" onClick={() => onAddToCart(product)} aria-label={`Checkout ${product.product} with wallet`} title="Checkout with wallet"><ShoppingCart size={16} /><span>Checkout</span></button></div>
         </div>
       </article>;
       })}

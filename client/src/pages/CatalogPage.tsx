@@ -88,7 +88,7 @@ function VirtualCatalogGrid({ products, favoriteProductIds, onToggleFavorite, fa
         <button type="button" className={isFavorite ? "full-catalog-favorite saved" : "full-catalog-favorite"} onClick={() => onToggleFavorite(product.id)} disabled={isPending} aria-label={isFavorite ? `Remove ${product.product} from favorites` : `Add ${product.product} to favorites`} aria-pressed={isFavorite} title={isFavorite ? "Remove from favorites" : "Add to favorites"}><Heart size={16} fill={isFavorite ? "currentColor" : "none"} /></button>
         <Link href={productPath(product)} className="full-catalog-art"><ProductArtwork product={product} /></Link>
         <div className="full-catalog-card-copy"><span>{product.badge}</span><h2>{product.name}</h2><p>{product.product}</p></div>
-        <div className="full-catalog-card-bottom"><strong>${product.price.toFixed(2)}</strong><small>{product.region}</small><Link href={productPath(product)}>View details <ArrowRight size={14} /></Link></div>
+        <div className="full-catalog-card-bottom"><strong>${product.price.toFixed(2)}</strong><small>{product.region}</small><div className="full-catalog-card-bottom-links"><Link href={productPath(product)}>View details <ArrowRight size={14} /></Link><Link href={productPath(product)} className="full-catalog-checkout">Checkout <ArrowRight size={14} /></Link></div></div>
       </article>;
       })}
     </div>
