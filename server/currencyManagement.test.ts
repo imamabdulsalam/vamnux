@@ -34,8 +34,9 @@ describe("Currency and Exchange Rate Management", () => {
     const rateSaveBlock = dbSource.slice(dbSource.indexOf("export async function saveCurrencyRateVersion"), dbSource.indexOf("export async function listCurrencyRateHistory"));
     expect(rateSaveBlock).not.toContain("tx.update(products)");
     expect(rateSaveBlock).not.toContain("fetch(");
-    expect(uiSource).toContain("No automatic repricing");
-    expect(uiSource).toContain("No external provider is contacted by this release.");
+    expect(uiSource).toContain("Simple and protected");
+    expect(uiSource).toContain("Save current rate");
+    expect(rateSaveBlock).toContain('if (input.baseCurrency === "USD" && input.quoteCurrency === "NGN")');
   });
 
   it("keeps currency controls Admin-only and protects future price applications with the existing explicit Step 4 confirmation", () => {
@@ -45,6 +46,6 @@ describe("Currency and Exchange Rate Management", () => {
     expect(routerSource).toContain("previewCurrencyManagement: adminProcedure.input");
     expect(routerSource).toContain("listPricingRateSnapshots: adminProcedure.input");
     expect(dbSource).toContain('if (input.confirmation !== "APPLY")');
-    expect(uiSource).toContain("explicit APPLY confirmation");
+    expect(uiSource).toContain("Set your USD to NGN rate");
   });
 });

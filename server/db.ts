@@ -1774,6 +1774,12 @@ export async function saveCurrencyRateVersion(input: CurrencyRateVersionInput) {
   const changePercent = priorRate === null ? null : ((nextRate - priorRate) / priorRate) * 100;
   const [created] = await db.insert(currencyRateVersions).values({ baseCurrency: input.baseCurrency, quoteCurrency: input.quoteCurrency, rate: input.rate.toFixed(6), bufferPercent: input.bufferPercent.toFixed(2), source: input.source, sourceLabel, rateUpdateFrequency: input.rateUpdateFrequency, effectiveAt: input.effectiveAt, active: input.active, supersedesRateVersionId: previous?.id ?? null, createdByAdminId: input.adminUserId, reason: input.reason?.trim().slice(0, 500) || null }).$returningId();
   if (!created) throw new Error("Currency rate version could not be saved");
+  // Wallet funding and future payment-method quotations read the existing USD/NGN exchange-rate record.
+  // Keep that current quote source synchronized with the append-only Admin rate version; no product or order is repriced.
+  if (input.baseCurrency === "USD" && input.quoteCurrency === "NGN") {
+    const legacyValues = { baseCurrency: "USD", quoteCurrency: "NGN", rate: input.rate.toFixed(6), bufferPercent: input.bufferPercent.toFixed(2), source: "manual" as const, active: input.active, updatedByAdminId: input.adminUserId };
+    await db.insert(exchangeRates).values(legacyValues).onDuplicateKeyUpdate({ set: legacyValues });
+  }
   await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "currency.rate_version_saved", targetType: "currency_rate_version", targetId: String(created.id), summary: `Saved ${input.baseCurrency}/${input.quoteCurrency} VAMNUX rate version`, metadata: { previousRate: priorRate, nextRate, changePercent, significantChange: changePercent !== null && Math.abs(changePercent) >= MATERIAL_RATE_CHANGE_PERCENT, source: input.source, sourceLabel, effectiveAt: input.effectiveAt.toISOString(), active: input.active } });
   return { id: created.id, previousRate: priorRate, effectiveRate: nextRate, changePercent, significantChange: changePercent !== null && Math.abs(changePercent) >= MATERIAL_RATE_CHANGE_PERCENT };
 }

@@ -984,3 +984,6 @@
 - [x] Simplify only the Admin Pricing Engine into a scope selector for all products, category, product, or supplier; target selection; markup percentage; and clear effective-markup display while retaining existing server-side pricing safeguards.
 - [x] Ensure valid simplified markup updates refresh website pricing promptly without changing supplier costs, product records, wallets, orders, or historical prices.
 - [x] Validate pricing scope and precedence, protected Admin authorization, product/category/supplier selectors, website refresh, focused tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Simplify only the Admin Exchange Rate feature into one protected USD-to-NGN current-rate field, visible current-rate panel, and save action for wallet funding and future payment quotations.
+- [x] Ensure a saved USD-to-NGN rate refreshes wallet-funding and future payment quotation data promptly without changing products, supplier data, wallet balances, orders, or unrelated settings.
+- [x] Validate current-rate display, protected update, wallet-funding quote use, data preservation, focused tests, build, visual behavior, checkpoint, and GitHub push.
