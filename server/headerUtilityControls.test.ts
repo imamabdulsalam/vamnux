@@ -15,10 +15,15 @@ describe("shared USD and cart header utilities", () => {
     expect(appSource).toContain('className={isHomeRoute ? undefined : "vamnux-utility-shell"}');
     expect(utilitySource).toContain("ChevronDown");
     expect(utilitySource).toContain("ShoppingBag");
-    expect(utilitySource).toContain('aria-label="Display currency: USD"');
+    expect(utilitySource).toContain('aria-label="Display currency"');
+    expect(utilitySource).toContain('<option value="USD">USD</option>');
+    expect(utilitySource).toContain('<option value="EUR">EUR</option>');
+    expect(utilitySource).toContain('<option value="GBP">GBP</option>');
+    expect(utilitySource).toContain('<option value="NGN">NGN</option>');
     expect(utilitySource).toContain('aria-label="Open cart"');
     expect(cssSource).toContain(".vamnux-utility-shell{min-height:100vh;padding-top:58px}");
     expect(cssSource).toContain(".vamnux-utility-bar{position:absolute");
+    expect(cssSource).toContain(".vamnux-utility-currency select{min-width:34px;appearance:none");
     expect(homeSource).toContain('className="header-signin"');
     expect(homeSource).toContain('className="header-create-account"');
     expect(homeSource).toContain('aria-label="Open account"');
