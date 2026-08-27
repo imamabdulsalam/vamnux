@@ -437,7 +437,6 @@ export default function Home() {
 
   const addToCart = (item: Product) => {
     setCart((current) => [...current, item]);
-    setCartOpen(true);
     if (isAuthenticated) recordCartAddition.mutate({ productId: item.id });
     toast.success(`${item.product} added to your cart`, {
       description: `${formatPrice(item.price)} shown in ${currency}. VAMNUX products use wallet-only purchase; no direct payment is offered.`,

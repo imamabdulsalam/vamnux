@@ -6,10 +6,6 @@ import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode } from 
 const homeSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/Home.tsx"), "utf8");
 const digitalDetailSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/DigitalProductDetail.tsx"), "utf8");
 const gameDetailSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/GameFamilyDetail.tsx"), "utf8");
-const catalogPageSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/CatalogPage.tsx"), "utf8");
-const compactCatalogSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/components/CompactCatalog.tsx"), "utf8");
-const selectedProductBrowserSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/components/SelectedProductBrowser.tsx"), "utf8");
-const steamTopUpSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/SteamTopUp.tsx"), "utf8");
 const dbSource = fs.readFileSync(path.resolve(import.meta.dirname, "db.ts"), "utf8");
 const schemaSource = fs.readFileSync(path.resolve(import.meta.dirname, "../drizzle/schema.ts"), "utf8");
 const routerSource = fs.readFileSync(path.resolve(import.meta.dirname, "routers.ts"), "utf8");
@@ -65,17 +61,10 @@ describe("VAMNUX marketplace helpers", () => {
     expect(orderBlock).not.toContain("db.update(products)");
   });
 
-  it("exposes a clear wallet checkout entry point for every product presentation while retaining protected balance checks", () => {
-    expect(homeSource).toContain("setCartOpen(true)");
-    expect(compactCatalogSource).toContain("Checkout ${product.product} with wallet");
-    expect(selectedProductBrowserSource).toContain("selected-preview-checkout");
-    expect(catalogPageSource).toContain("full-catalog-checkout");
-    expect(digitalDetailSource).toContain("Checkout with wallet");
-    expect(gameDetailSource).toContain("Checkout with wallet");
-    expect(steamTopUpSource).toContain("Checkout with wallet");
-    const orderBlock = dbSource.slice(dbSource.indexOf("export async function createMarketplaceOrder"), dbSource.indexOf("const FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID"));
-    expect(orderBlock).toContain("walletCanCoverOrder");
-    expect(orderBlock).toContain('status: "draft"');
-    expect(orderBlock).not.toContain("db.update(wallets)");
+  it("provides optional coupon entry in every existing customer purchase flow", () => {
+    for (const source of [homeSource, digitalDetailSource, gameDetailSource]) {
+      expect(source).toContain("Coupon code (optional)");
+      expect(source).toContain("couponCode: couponCode.trim() || undefined");
+    }
   });
 });

@@ -239,8 +239,6 @@ footer { padding:34px 32px 20px; background:#090b11; color:#fff; }.footer-top,.f
 .selected-preview-price strong { font-size:25px; line-height:1.1; }
 .selected-preview-actions { padding:0 18px 18px; }
 .selected-preview-actions button { min-height:42px; font-size:11px; }
-.selected-preview-actions .selected-preview-checkout { display:inline-flex; align-items:center; justify-content:center; gap:7px; flex:1; background:#b8ff43; color:#10121a; }
-.selected-preview-actions .selected-preview-checkout:hover { background:#d1ff83; }
 .family-detail-summary h1 { font-size:clamp(34px,4.5vw,56px); letter-spacing:-.04em; line-height:1.02; }
 .family-detail-summary>p { font-size:14px; line-height:1.6; }
 .family-detail-summary>div { font-size:9px; line-height:1.4; }
