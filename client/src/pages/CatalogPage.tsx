@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, ChevronDown, CircleDollarSign, Gamepad2, Gift, Grid2X2, Heart, ImageIcon, Laptop, Search, Send, ShieldCheck, Sparkles, Tv, X } from "lucide-react";
 import { toast } from "sonner";
@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { digitalProductPath, gameFamilyPath } from "@shared/catalogRoutes";
 import { GAMES_PLATFORM_SUBCATEGORIES, gamesPlatformCatalogPath, type GamesPlatformCode } from "@shared/gamesPlatformCategories";
 import { TOP_UP_SUBCATEGORIES, topUpCatalogPath, type TopUpSubcategoryCode } from "@shared/topUpSubcategories";
-import { toLiveCatalogProduct, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
+import { toLiveCatalogProduct, type CatalogSourceRow, type LiveCatalogProduct, type ProductCategory } from "@/lib/liveCatalog";
 import "./fullCatalogPage.css";
 import "./catalogGamesPlatformBrowser.css";
 import "./fullCatalogMobileOverride.css";
@@ -33,7 +33,7 @@ const categoryOptions: Array<{ label: string; value: CatalogFilter; slug?: strin
 
 const categoryValues = new Set(categoryOptions.map((option) => option.value));
 const QUICK_CATALOG_PAGE_SIZE = 100;
-const COMPLETE_CATALOG_PAGE_SIZE = 50_000;
+const BACKGROUND_CATALOG_PAGE_SIZE = 1_000;
 
 function productPath(product: LiveCatalogProduct) {
   if (product.id === 390015) return "/steam-top-up";
@@ -47,7 +47,7 @@ function ProductArtwork({ product }: { product: LiveCatalogProduct }) {
 }
 
 function VirtualCatalogGrid({ products, favoriteProductIds, onToggleFavorite, favoritePendingProductId }: {
-  products: LiveCatalogProduct[];
+  products: CatalogSourceRow[];
   favoriteProductIds: Set<number>;
   onToggleFavorite: (productId: number) => void;
   favoritePendingProductId: number | null;
@@ -80,7 +80,8 @@ function VirtualCatalogGrid({ products, favoriteProductIds, onToggleFavorite, fa
 
   return <div ref={gridRef} className="full-catalog-virtualized" style={{ height: totalRows * rowHeight }}>
     <div className="full-catalog-grid full-catalog-grid-window" style={{ top: startRow * rowHeight }}>
-      {visibleProducts.map((product) => {
+      {visibleProducts.map((sourceProduct, index) => {
+        const product = toLiveCatalogProduct(sourceProduct, startRow * columns + index);
         const isFavorite = favoriteProductIds.has(product.id);
         const isPending = favoritePendingProductId === product.id;
         return <article key={product.id} className="full-catalog-card">
@@ -111,6 +112,7 @@ export default function CatalogPage() {
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [favoriteOverrides, setFavoriteOverrides] = useState<Record<number, boolean>>({});
   const [favoritePendingProductId, setFavoritePendingProductId] = useState<number | null>(null);
+  const backgroundRequestId = useRef(0);
   const deferredQuery = useDeferredValue(query.trim());
   const publicCategories = trpc.marketplace.categories.useQuery(undefined, { refetchInterval: 15_000, refetchOnWindowFocus: true });
   const visibleCategoryOptions = useMemo(() => {
@@ -185,16 +187,14 @@ export default function CatalogPage() {
   }, [publicCategories.refetch, utils]);
 
   const selectedCategory = categoryOptions.find((option) => option.value === category) ?? categoryOptions[0];
-  const catalogInput = useMemo(() => ({
-    page: 1,
-    pageSize: COMPLETE_CATALOG_PAGE_SIZE,
+  const catalogCriteria = useMemo(() => ({
     scope: "all" as const,
     category: selectedCategory.api,
     gamePlatform: category === "Games" && gamesPlatform !== "all" ? gamesPlatform : undefined,
     topUpMode: category === "Top-up" && topUpMode !== "all" ? topUpMode : undefined,
     search: deferredQuery || undefined,
   }), [category, deferredQuery, gamesPlatform, selectedCategory.api, topUpMode]);
-  const quickCatalogInput = useMemo(() => ({ ...catalogInput, pageSize: QUICK_CATALOG_PAGE_SIZE }), [catalogInput]);
+  const quickCatalogInput = useMemo(() => ({ ...catalogCriteria, page: 1, pageSize: QUICK_CATALOG_PAGE_SIZE, includeMetadata: true }), [catalogCriteria]);
   const suggestionInput = useMemo(() => ({
     query: deferredQuery,
     scope: "all" as const,
@@ -209,22 +209,46 @@ export default function CatalogPage() {
     refetchOnMount: false,
   } as const;
   const quickCatalog = trpc.marketplace.catalog.useQuery(quickCatalogInput, catalogQueryOptions);
-  const completeCatalog = trpc.marketplace.catalog.useQuery(catalogInput, { ...catalogQueryOptions, enabled: Boolean(quickCatalog.data) });
   const suggestionsQuery = trpc.marketplace.catalogSuggestions.useQuery(suggestionInput, { ...catalogQueryOptions, enabled: searchFocused && deferredQuery.length >= 2 });
   const [visibleItems, setVisibleItems] = useState<NonNullable<typeof quickCatalog.data>["items"]>([]);
   useEffect(() => {
-    if (quickCatalog.data) setVisibleItems(quickCatalog.data.items);
-  }, [quickCatalog.data]);
-  useEffect(() => {
-    if (completeCatalog.data) setVisibleItems(completeCatalog.data.items);
-  }, [completeCatalog.data]);
+    if (!quickCatalog.data) return;
+    const requestId = ++backgroundRequestId.current;
+    const initialItems = quickCatalog.data.items;
+    startTransition(() => setVisibleItems(initialItems));
+    if (!quickCatalog.data.hasMore) return;
+
+    let cancelled = false;
+    const loadRemainingItems = async () => {
+      const itemsById = new Map(initialItems.map((item) => [item.id, item]));
+      let page = 1;
+      let hasMore = true;
+      while (hasMore && !cancelled && requestId === backgroundRequestId.current) {
+        const result = await utils.marketplace.catalog.fetch({
+          ...catalogCriteria,
+          page,
+          pageSize: BACKGROUND_CATALOG_PAGE_SIZE,
+        });
+        if (cancelled || requestId !== backgroundRequestId.current) return;
+        result.items.forEach((item) => itemsById.set(item.id, item));
+        const nextItems = Array.from(itemsById.values());
+        startTransition(() => setVisibleItems(nextItems));
+        hasMore = result.hasMore;
+        page += 1;
+        if (hasMore) await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      }
+    };
+    void loadRemainingItems();
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogCriteria, quickCatalog.data, utils.marketplace.catalog]);
 
   const products = useMemo(() => {
-    const mapped = visibleItems.map(toLiveCatalogProduct);
-    if (sort === "price-low") return mapped.sort((left, right) => left.price - right.price || left.name.localeCompare(right.name));
-    if (sort === "price-high") return mapped.sort((left, right) => right.price - left.price || left.name.localeCompare(right.name));
-    if (sort === "name") return mapped.sort((left, right) => left.name.localeCompare(right.name) || left.product.localeCompare(right.product));
-    return mapped;
+    if (sort === "price-low") return [...visibleItems].sort((left, right) => Number(left.customerPrice) - Number(right.customerPrice) || left.name.localeCompare(right.name));
+    if (sort === "price-high") return [...visibleItems].sort((left, right) => Number(right.customerPrice) - Number(left.customerPrice) || left.name.localeCompare(right.name));
+    if (sort === "name") return [...visibleItems].sort((left, right) => left.name.localeCompare(right.name));
+    return visibleItems;
   }, [sort, visibleItems]);
   const suggestions = deferredQuery.length >= 2 ? suggestionsQuery.data ?? [] : [];
   const favoriteProductIds = useMemo(() => {
@@ -319,7 +343,7 @@ export default function CatalogPage() {
     }
   };
 
-  const catalogTotal = completeCatalog.data?.total ?? quickCatalog.data?.total ?? products.length;
+  const catalogTotal = quickCatalog.data?.total ?? products.length;
 
   return <main className="full-catalog-page">
     <header className="full-catalog-header">

@@ -17,7 +17,7 @@ export type LiveCatalogProduct = {
   inputRequirements: Array<{ key: string; label: string; type: "text" | "email" | "select"; required: boolean; helperText?: string }>;
 };
 
-type CatalogSourceRow = {
+export type CatalogSourceRow = {
   id: number;
   slug: string;
   category: string;

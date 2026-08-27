@@ -936,3 +936,6 @@
 - [x] Rename only the User Dashboard Categories navigation label to Catalogs while preserving its existing destination and behavior.
 - [x] Convert User Dashboard sidebar feature labels and Favorites-area headings/actions from all-uppercase display to readable title or sentence case without changing their data, routes, controls, or other pages.
 - [x] Validate User Dashboard labels and Favorites presentation with focused tests, build, and visual checks; checkpoint and push the targeted text-only correction.
+- [x] Profile category and subcategory click responsiveness, catalog query timing, client state transitions, rendering work, and current console/network diagnostics without changing catalog data or layout.
+- [x] Implement only a targeted non-blocking category/subcategory switching fix that preserves category selection, product results, search, pricing, images, and existing quick first-result rendering.
+- [x] Validate rapid category/subcategory changes, stale-request safety, visible result correctness, tests, build, desktop/mobile performance checks, checkpoint, and GitHub push.

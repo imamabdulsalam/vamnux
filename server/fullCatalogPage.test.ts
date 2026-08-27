@@ -11,10 +11,13 @@ describe("dedicated full catalog page", () => {
     expect(appSource).toContain('setLocation("/catalog", { replace: true })');
   });
 
-  it("starts with fast customer-safe results and expands to the complete selected result set", () => {
-    expect(catalogSource).toContain("const COMPLETE_CATALOG_PAGE_SIZE = 50_000");
-    expect(catalogSource).toContain("pageSize: COMPLETE_CATALOG_PAGE_SIZE");
+  it("starts with fast customer-safe results and expands selected results in cancellable background batches", () => {
+    expect(catalogSource).toContain("const BACKGROUND_CATALOG_PAGE_SIZE = 1_000");
+    expect(catalogSource).toContain("pageSize: BACKGROUND_CATALOG_PAGE_SIZE");
     expect(catalogSource).toContain("pageSize: QUICK_CATALOG_PAGE_SIZE");
+    expect(catalogSource).toContain("backgroundRequestId");
+    expect(catalogSource).toContain("requestId !== backgroundRequestId.current");
+    expect(catalogSource).toContain("startTransition(() => setVisibleItems(nextItems))");
     expect(catalogSource).toContain('scope: "all" as const');
     expect(catalogSource).toContain('scope: "all",');
     expect(catalogSource).toContain("full-catalog-grid");
@@ -33,6 +36,11 @@ describe("dedicated full catalog page", () => {
     expect(catalogSource).toContain("utils.marketplace.catalog.prefetch");
     expect(catalogSource).toContain('onPointerEnter={() => prefetchCatalog(option.value)}');
     expect(catalogSource).toContain('<Link href="/">Home</Link>');
+  });
+
+  it("maps only visible virtualized cards instead of remapping the complete background result set on each switch", () => {
+    expect(catalogSource).toContain("const product = toLiveCatalogProduct(sourceProduct, startRow * columns + index)");
+    expect(catalogSource).not.toContain("const mapped = visibleItems.map(toLiveCatalogProduct)");
   });
 
   it("routes footer product destinations to the standalone catalogue", () => {
