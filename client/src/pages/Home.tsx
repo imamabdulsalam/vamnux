@@ -667,36 +667,10 @@ export default function Home() {
             <h2 id="products-title">FIND YOUR<br /><em>DIGITAL PICK.</em></h2>
           </div>
           <div className="section-heading-right">
-            <p>Search or use a category menu to go straight to available VAMNUX products. Each compact card keeps region, USD-based price, details, and draft-only add-to-cart action within reach.</p>
+            <p>Search VAMNUX for a specific product. The preview below rotates through two active image-backed product picks while preserving region, price, details, and cart actions.</p>
             <button className="all-products-button" onClick={() => setLocation("/catalog")}>Browse VAMNUX products <ArrowRight size={17} /></button>
           </div>
         </div>
-
-        <div className="filter-row" aria-label="Filter product list">
-          {(["All", ...visibleCategories.map((category) => category.filter)] as Array<"All" | ProductCategory>).map((filter) => (
-            <button key={filter} onClick={() => { setActiveCategory(filter); setActiveGamesPlatform("all"); setActiveTopUpMode("all"); }} className={activeCategory === filter ? "filter-chip active" : "filter-chip"}>
-              {filter === "All" ? "All picks" : filter}
-            </button>
-          ))}
-          <span className="price-display-note">Prices shown in <strong>{currency}</strong></span>
-        </div>
-
-        {activeCategory === "Games" && <div className="games-platform-browser" aria-label="Games platform subcategories">
-          <div className="games-platform-browser-heading"><span>Games</span><strong>Browse by platform</strong></div>
-          <div className="games-platform-tabs" role="tablist" aria-label="Games platform filters">
-            {gamesPlatformFilters.map((platform) => <button key={platform.code} type="button" role="tab" aria-selected={activeGamesPlatform === platform.code} className={activeGamesPlatform === platform.code ? "games-platform-tab active" : "games-platform-tab"} onClick={() => chooseGamesPlatform(platform.code)}>
-              <span aria-hidden="true">{platform.code === "all" ? "•" : platform.label.slice(0, 1)}</span>{platform.label}
-            </button>)}
-          </div>
-          <p>{activeGamesPlatform === "all" ? "All existing Games products remain visible here." : `Showing Games with verified ${gamesPlatformFilters.find((platform) => platform.code === activeGamesPlatform)?.label} platform data.`}</p>
-        </div>}
-        {activeCategory === "Top-up" && <div className="games-platform-browser" aria-label="Top-up subcategories">
-          <div className="games-platform-browser-heading"><span>Top-up</span><strong>Choose a fulfillment type</strong></div>
-          <div className="games-platform-tabs" role="tablist" aria-label="Top-up subcategory filters">
-            {topUpSubcategoryFilters.map((subcategory) => <button key={subcategory.code} type="button" role="tab" aria-selected={activeTopUpMode === subcategory.code} className={activeTopUpMode === subcategory.code ? "games-platform-tab active" : "games-platform-tab"} onClick={() => { setActiveTopUpMode(subcategory.code); setActiveCategory("Top-up"); }}><span aria-hidden="true">{subcategory.code === "all" ? "•" : subcategory.label.slice(0, 1)}</span>{subcategory.label}</button>)}
-          </div>
-          <p>{activeTopUpMode === "all" ? "All existing Top-up products remain visible here." : activeTopUpMode === "direct" ? "Showing Top-up products with verified required customer input." : "Showing products with verified Activation Code metadata."}</p>
-        </div>}
 
         <div className="catalog-keyword-search" aria-label="Search live game listings">
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>

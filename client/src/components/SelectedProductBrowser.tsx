@@ -13,26 +13,37 @@ type SelectedProductBrowserProps = {
 };
 
 export default function SelectedProductBrowser({ products, formatPrice, onOpenProduct, onAddToCart, favoriteProductIds = [], onToggleFavorite }: SelectedProductBrowserProps) {
-  const [selectedId, setSelectedId] = useState<number | null>(products[0]?.id ?? null);
-  const selectedProduct = useMemo(() => products.find((product) => product.id === selectedId) ?? products[0], [products, selectedId]);
+  const [rotationTick, setRotationTick] = useState(0);
+  const imageBackedProducts = useMemo(() => {
+    const productsWithImages = products.filter((product) => Boolean(product.image));
+    return productsWithImages.length >= 2 ? productsWithImages : products;
+  }, [products]);
+  const rotatingProducts = useMemo(() => {
+    const pool = [...imageBackedProducts];
+    const picks: LiveCatalogProduct[] = [];
+    while (pool.length && picks.length < 2) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    return picks;
+  }, [imageBackedProducts, rotationTick]);
+  const selectedProduct = rotatingProducts[0] ?? imageBackedProducts[0];
 
   useEffect(() => {
-    if (!products.some((product) => product.id === selectedId)) setSelectedId(products[0]?.id ?? null);
-  }, [products, selectedId]);
+    if (imageBackedProducts.length < 2) return;
+    const rotation = window.setInterval(() => setRotationTick((tick) => tick + 1), 3_000);
+    return () => window.clearInterval(rotation);
+  }, [imageBackedProducts.length]);
 
   if (!selectedProduct) return null;
   const selectedPresentation = catalogProductPresentation(selectedProduct);
 
   return <div className="selected-product-browser">
     <div className="selected-browser-list" aria-label="Available products">
-      <div className="selected-browser-list-head"><span>{products.length} available {products.length === 1 ? "product" : "products"}</span><span>Choose one to preview</span></div>
-      <div className="selected-browser-scroll" aria-label="Scroll through all available products">
-        {products.map((product) => {
+      <div className="selected-browser-list-head"><span>Two live VAMNUX picks</span><span>Updates every 3 seconds</span></div>
+      <div className="selected-browser-rotation" key={rotationTick} aria-live="polite" aria-label="Two randomly selected VAMNUX products">
+        {rotatingProducts.map((product) => {
           const presentation = catalogProductPresentation(product);
-          const isSelected = selectedProduct.id === product.id;
           const isFavorite = favoriteProductIds.includes(product.id);
-          return <div key={product.id} className={isSelected ? "selected-browser-row active" : "selected-browser-row"}>
-            <button type="button" className="selected-browser-row-main" onClick={() => setSelectedId(product.id)} onMouseEnter={() => setSelectedId(product.id)} aria-pressed={isSelected}>
+          return <div key={product.id} className="selected-browser-row active">
+            <button type="button" className="selected-browser-row-main" onClick={() => onOpenProduct(product)} aria-label={`View ${presentation.serviceName} details`}>
               <span className="selected-browser-art">{product.image ? <img src={product.image} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span>{presentation.serviceName.slice(0, 1)}</span>}</span>
               <span className="selected-browser-row-copy"><strong>{presentation.serviceName}</strong><small>{presentation.offerName || product.category}</small></span>
               <span className="selected-browser-row-price">{formatPrice(product.price)}</span>

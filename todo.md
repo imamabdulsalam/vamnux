@@ -957,3 +957,5 @@
 - [x] Validate email-based adjustment targeting, focused tests, build, checkpoint, and GitHub push.
 - [x] Explain the Manual Wallet Adjustment unique-reference and typed-confirmation fields, then apply only the user-confirmed simplification while preserving minimum duplicate and accidental-change safeguards.
 - [x] Remove only the Manual Wallet Adjustment form’s visible reference and typed-confirmation fields; generate the reference server-side and require one final clear confirmation dialog before the protected ledger action.
+- [x] Change only the specified catalog-preview section: retain its search control, remove only its local category chips, and rotate two real VAMNUX products with product images and names every three seconds instead of scrolling.
+- [x] Validate the scoped rotating preview, current VAMNUX product image/name source, retained search, unaffected category controls, tests, build, visual behavior, checkpoint, and GitHub push.
