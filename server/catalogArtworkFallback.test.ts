@@ -5,6 +5,8 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const dbSource = fs.readFileSync(path.join(root, "server/db.ts"), "utf8");
 const catalogSource = fs.readFileSync(path.join(root, "client/src/pages/CatalogPage.tsx"), "utf8");
+const compactCatalogSource = fs.readFileSync(path.join(root, "client/src/components/CompactCatalog.tsx"), "utf8");
+const selectedBrowserSource = fs.readFileSync(path.join(root, "client/src/components/SelectedProductBrowser.tsx"), "utf8");
 
 describe("customer catalog artwork fallbacks", () => {
   it("retains only exact stored supplier artwork on the server and never repeats a generic supplier logo", () => {
@@ -18,5 +20,15 @@ describe("customer catalog artwork fallbacks", () => {
     expect(catalogSource).toContain('onError={() => setImageFailed(true)}');
     expect(catalogSource).toContain("<ImageIcon size={31}");
     expect(catalogSource).not.toContain("{product.name.slice(0, 1)}");
+  });
+
+  it("loads rendered artwork promptly, retains visible fallbacks, and prefetches detail data before navigation", () => {
+    expect(catalogSource).toContain('loading="eager" decoding="async" fetchPriority="high"');
+    expect(catalogSource).toContain("onPrefetchProduct");
+    expect(catalogSource).toContain("prefetchProductDetails");
+    expect(compactCatalogSource).toContain("function ImmediateArtwork");
+    expect(compactCatalogSource).toContain('loading="eager" decoding="async" fetchPriority="high"');
+    expect(selectedBrowserSource).toContain("function PreviewArtwork");
+    expect(selectedBrowserSource).toContain('loading="eager" decoding="async" fetchPriority="high"');
   });
 });

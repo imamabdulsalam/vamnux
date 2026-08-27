@@ -963,8 +963,15 @@
 - [x] Validate the scoped catalog-search navigation, six-second rotation, two-card desktop/mobile preview, unchanged sections, tests, build, visual behavior, checkpoint, and GitHub push.
 - [x] Fix only the mobile top-right account controls so signed-out users see Sign in and Create account and signed-in users see Account dashboard access, while preserving the permanent currency, favorites, and cart controls.
 - [x] Validate mobile and desktop header account access, preserved currency/favorites/cart controls, focused tests, build, visual behavior, checkpoint, and GitHub push.
-- [x] Diagnose and fix only the Account Terms and Privacy acceptance-block error by providing a functional acceptance recovery path and clear feedback without changing wallet, product, pricing, supplier, or order behavior.
-- [x] Validate policy acceptance and the previously blocked Account action, focused tests, build, checkpoint, and GitHub push.
-- [ ] Verify and create the required checkpoint containing the latest USD-selector and Preview WebSocket fixes so the user can publish from the project interface.
-- [ ] Add only a Buy Now action beside Add to Cart after customers select a product option, using the existing protected wallet purchase preparation and not adding buttons to catalog cards.
-- [ ] Validate Buy Now and Add to Cart controls across selected-product views, protected wallet routing, responsive layout, unaffected catalog cards, tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Diagnose and fix only the Vite development-preview WebSocket/HMR connection failure without changing VAMNUX application functionality or data.
+- [x] Validate Preview page loading and WebSocket reconnection after the development-server restart, then push the scoped correction to GitHub.
+- [ ] Diagnose and fix only the Vite development-preview WebSocket/HMR connection failure without changing VAMNUX application functionality or data.
+- [ ] Validate preview WebSocket connectivity, page loading, focused checks, checkpoint, and GitHub push.
+- [ ] Assess current Admin, checkout, product-price, and order paths to add only protected coupon and discount controls without altering supplier data or unrelated features.
+- [ ] Add protected coupon, redemption, and product/all-product discount-setting records with server-side usage-limit and pricing safeguards.
+- [ ] Implement Admin-only coupon generation, usage-limit management, and product-specific/all-product discount settings.
+- [ ] Add the Admin OFFERS workspace with coupon creation, current-code list, usage details, and working discount controls.
+- [ ] Validate authorization, coupon limits, discount scope, original-price preservation, tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Remove only the Terms and Privacy acceptance requirement from customer wallet-eligibility checks while retaining wallet-balance, authentication, and order safeguards.
+- [x] Fix directly related product image/icon loading and View Details navigation/loading errors without changing catalog products, prices, supplier data, or other site features.
+- [x] Validate checkout eligibility, image visibility, product-detail loading, focused tests, build, visual behavior, checkpoint, and GitHub push.

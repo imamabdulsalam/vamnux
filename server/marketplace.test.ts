@@ -6,6 +6,9 @@ import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode } from 
 const homeSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/Home.tsx"), "utf8");
 const digitalDetailSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/DigitalProductDetail.tsx"), "utf8");
 const gameDetailSource = fs.readFileSync(path.resolve(import.meta.dirname, "../client/src/pages/GameFamilyDetail.tsx"), "utf8");
+const dbSource = fs.readFileSync(path.resolve(import.meta.dirname, "db.ts"), "utf8");
+const schemaSource = fs.readFileSync(path.resolve(import.meta.dirname, "../drizzle/schema.ts"), "utf8");
+const routerSource = fs.readFileSync(path.resolve(import.meta.dirname, "routers.ts"), "utf8");
 
 describe("VAMNUX marketplace helpers", () => {
   it("calculates a server-side order total from quantity and unit price", () => {
@@ -37,5 +40,31 @@ describe("VAMNUX marketplace helpers", () => {
     expect(homeSource).toContain("Product availability updates");
     expect(digitalDetailSource).toContain("Digital product listing");
     expect(gameDetailSource).toContain("Product availability");
+  });
+
+  it("enforces Admin coupon limits and records each coupon application immutably", () => {
+    expect(schemaSource).toContain('offerKind: mysqlEnum("offerKind", ["coupon", "catalog_discount"])');
+    expect(schemaSource).toContain('usageCount: int("usageCount").default(0).notNull()');
+    expect(schemaSource).toContain("export const promotionRedemptions");
+    expect(schemaSource).toContain('promotionOrderUnique: uniqueIndex("promotion_redemptions_promotion_order_unique")');
+    expect(dbSource).toContain("This coupon has reached its usage limit");
+    expect(dbSource).toContain("promotions.usageCount} + 1");
+    expect(dbSource).toContain("promotionRedemptions).values");
+    expect(routerSource).toContain("couponCode: z.string().trim().min(3).max(64).optional()");
+  });
+
+  it("derives product discounts on the server without overwriting source product prices", () => {
+    expect(dbSource).toContain("getActiveCatalogDiscounts(db)");
+    expect(dbSource).toContain("catalogDiscountPercentForProduct(product.id, activeCatalogDiscounts)");
+    expect(dbSource).toContain("offerDiscountPercent");
+    const orderBlock = dbSource.slice(dbSource.indexOf("export async function createMarketplaceOrder"), dbSource.indexOf("const FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID"));
+    expect(orderBlock).not.toContain("db.update(products)");
+  });
+
+  it("provides optional coupon entry in every existing customer purchase flow", () => {
+    for (const source of [homeSource, digitalDetailSource, gameDetailSource]) {
+      expect(source).toContain("Coupon code (optional)");
+      expect(source).toContain("couponCode: couponCode.trim() || undefined");
+    }
   });
 });

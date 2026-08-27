@@ -1,7 +1,7 @@
 import type { LiveCatalogProduct } from "@/lib/liveCatalog";
 import { catalogProductPresentation } from "@/lib/liveCatalog";
 import { ArrowRight, CircleDollarSign, Heart, ShoppingCart } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 type SelectedProductBrowserProps = {
   products: LiveCatalogProduct[];
@@ -11,6 +11,12 @@ type SelectedProductBrowserProps = {
   favoriteProductIds?: number[];
   onToggleFavorite?: (product: LiveCatalogProduct) => void;
 };
+
+function PreviewArtwork({ src, alt, fallback }: { src?: string; alt: string; fallback: ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) return <img src={src} alt={alt} loading="eager" decoding="async" fetchPriority="high" onError={() => setFailed(true)} />;
+  return <>{fallback}</>;
+}
 
 export default function SelectedProductBrowser({ products, formatPrice, onOpenProduct, onAddToCart, favoriteProductIds = [], onToggleFavorite }: SelectedProductBrowserProps) {
   const [rotationTick, setRotationTick] = useState(0);
@@ -37,7 +43,7 @@ export default function SelectedProductBrowser({ products, formatPrice, onOpenPr
           const presentation = catalogProductPresentation(product);
           const isFavorite = favoriteProductIds.includes(product.id);
           return <article className="selected-browser-preview" key={product.id}>
-      <div className="selected-preview-art">{product.image ? <img src={product.image} alt={`${presentation.serviceName} artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span>{presentation.serviceName.slice(0, 1)}</span>}</div>
+      <div className="selected-preview-art"><PreviewArtwork src={product.image} alt={`${presentation.serviceName} artwork`} fallback={<span>{presentation.serviceName.slice(0, 1)}</span>} /></div>
       <div className="selected-preview-copy">
         <p>{product.badge} · {presentation.requirementLabel}</p>
         <h3>{presentation.serviceName}</h3>

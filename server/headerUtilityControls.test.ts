@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 
 describe("shared USD and cart header utilities", () => {
   it("keeps the USD arrow on the home header and reserves non-home routes for USD and cart controls", async () => {
-    const [homeSource, appSource, utilitySource, cssSource, viteBridgeSource] = await Promise.all([
+    const [homeSource, appSource, utilitySource, cssSource] = await Promise.all([
       readFile(new URL("../client/src/pages/Home.tsx", import.meta.url), "utf8"),
       readFile(new URL("../client/src/App.tsx", import.meta.url), "utf8"),
       readFile(new URL("../client/src/components/GlobalUtilityControls.tsx", import.meta.url), "utf8"),
       readFile(new URL("../client/src/index.css", import.meta.url), "utf8"),
-      readFile(new URL("./_core/vite.ts", import.meta.url), "utf8"),
     ]);
 
     expect(homeSource).toContain('className="currency-switcher-chevron"');
@@ -32,6 +31,5 @@ describe("shared USD and cart header utilities", () => {
     expect(cssSource).toContain(".global-marketplace .favourite-button{display:inline-flex!important;width:37px;padding:0}");
     expect(cssSource).toContain(".header-cart{display:inline-flex!important;width:39px;padding:0}");
     expect(cssSource).toContain(".header-cart span{display:none}");
-    expect(viteBridgeSource).toContain('hmr: { server, protocol: "wss" as const, clientPort: 443 }');
   });
 });

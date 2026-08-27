@@ -1,7 +1,7 @@
 import type { LiveCatalogProduct, ProductCategory } from "@/lib/liveCatalog";
 import { catalogProductPresentation } from "@/lib/liveCatalog";
 import { ArrowRight, ShoppingCart } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { groupLiveProductFamilies } from "@shared/marketplace";
 
 type CompactCatalogProps = {
@@ -18,6 +18,12 @@ function categoryLabel(category: ProductCategory) {
   return category === "Gift cards" ? "Gift card" : category;
 }
 
+function ImmediateArtwork({ src, alt, fallback }: { src?: string; alt: string; fallback: ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) return <img src={src} alt={alt} loading="eager" decoding="async" fetchPriority="high" onError={() => setFailed(true)} />;
+  return <>{fallback}</>;
+}
+
 export default function CompactCatalog({ products, activeCategory, keyword, formatPrice, onOpenProduct, onOpenFamily, onAddToCart }: CompactCatalogProps) {
   const [visibleCount, setVisibleCount] = useState(18);
   useEffect(() => setVisibleCount(18), [activeCategory, keyword, products.length]);
@@ -31,7 +37,7 @@ export default function CompactCatalog({ products, activeCategory, keyword, form
     <div className="compact-catalog-meta"><span>{topUpFamilies.length} verified game {topUpFamilies.length === 1 ? "family" : "families"}</span><span>Choose a game to see denominations</span></div>
     <div className="compact-family-grid">
       {topUpFamilies.map((family, index) => <button className="compact-family-card" key={family.name} onClick={() => onOpenFamily(family.name)} style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}>
-        <div className="compact-family-art">{family.image ? <img src={family.image} alt={`${family.name} supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span>{family.name.slice(0, 1)}</span>}</div>
+        <div className="compact-family-art"><ImmediateArtwork src={family.image} alt={`${family.name} supplier artwork`} fallback={<span>{family.name.slice(0, 1)}</span>} /></div>
         <div><p>{family.items.length} active {family.items.length === 1 ? "option" : "options"}</p><strong>{family.name}</strong><span>From {formatPrice(Math.min(...family.items.map((item) => item.price)))} <ArrowRight size={14} /></span></div>
       </button>)}
     </div>
@@ -46,7 +52,7 @@ export default function CompactCatalog({ products, activeCategory, keyword, form
         return <article className="compact-product-card" key={product.id} style={{ animationDelay: `${Math.min(index, 12) * 24}ms` }}>
         <button className="compact-product-visual" onClick={() => onOpenProduct(product)} aria-label={`View ${product.product} details`}>
           <span className="compact-product-category">{product.badge}</span>
-          {showCardArtwork ? <img src={product.image} alt={`${presentation.serviceName} supplier artwork`} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : <span className="compact-product-text-visual"><small>{product.badge}</small><strong>{presentation.serviceName}</strong><span>{presentation.offerName}</span></span>}
+          {showCardArtwork ? <ImmediateArtwork src={product.image} alt={`${presentation.serviceName} supplier artwork`} fallback={<span className="compact-product-text-visual"><small>{product.badge}</small><strong>{presentation.serviceName}</strong><span>{presentation.offerName}</span></span>} /> : <span className="compact-product-text-visual"><small>{product.badge}</small><strong>{presentation.serviceName}</strong><span>{presentation.offerName}</span></span>}
         </button>
         <div className="compact-product-copy">
           <p>{product.badge} · {presentation.requirementLabel}</p>

@@ -42,15 +42,16 @@ function productPath(product: LiveCatalogProduct) {
 
 function ProductArtwork({ product }: { product: LiveCatalogProduct }) {
   const [imageFailed, setImageFailed] = useState(false);
-  if (product.image && !imageFailed) return <img src={product.image} alt={`${product.name} product artwork`} loading="lazy" onError={() => setImageFailed(true)} />;
+  if (product.image && !imageFailed) return <img src={product.image} alt={`${product.name} product artwork`} loading="eager" decoding="async" fetchPriority="high" onError={() => setImageFailed(true)} />;
   return <span className={`catalog-product-fallback tone-${product.tone}`} aria-label={`${product.name} digital product`}><ImageIcon size={31} aria-hidden="true" /></span>;
 }
 
-function VirtualCatalogGrid({ products, favoriteProductIds, onToggleFavorite, favoritePendingProductId }: {
+function VirtualCatalogGrid({ products, favoriteProductIds, onToggleFavorite, favoritePendingProductId, onPrefetchProduct }: {
   products: CatalogSourceRow[];
   favoriteProductIds: Set<number>;
   onToggleFavorite: (productId: number) => void;
   favoritePendingProductId: number | null;
+  onPrefetchProduct: (product: LiveCatalogProduct) => void;
 }) {
   const gridRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: typeof window === "undefined" ? 1280 : window.innerWidth, scrollY: typeof window === "undefined" ? 0 : window.scrollY, height: typeof window === "undefined" ? 720 : window.innerHeight });
@@ -86,9 +87,9 @@ function VirtualCatalogGrid({ products, favoriteProductIds, onToggleFavorite, fa
         const isPending = favoritePendingProductId === product.id;
         return <article key={product.id} className="full-catalog-card">
         <button type="button" className={isFavorite ? "full-catalog-favorite saved" : "full-catalog-favorite"} onClick={() => onToggleFavorite(product.id)} disabled={isPending} aria-label={isFavorite ? `Remove ${product.product} from favorites` : `Add ${product.product} to favorites`} aria-pressed={isFavorite} title={isFavorite ? "Remove from favorites" : "Add to favorites"}><Heart size={16} fill={isFavorite ? "currentColor" : "none"} /></button>
-        <Link href={productPath(product)} className="full-catalog-art"><ProductArtwork product={product} /></Link>
+        <Link href={productPath(product)} className="full-catalog-art" onPointerEnter={() => onPrefetchProduct(product)} onFocus={() => onPrefetchProduct(product)} onPointerDown={() => onPrefetchProduct(product)}><ProductArtwork product={product} /></Link>
         <div className="full-catalog-card-copy"><span>{product.badge}</span><h2>{product.name}</h2><p>{product.product}</p></div>
-        <div className="full-catalog-card-bottom"><strong>${product.price.toFixed(2)}</strong><small>{product.region}</small><Link href={productPath(product)}>View details <ArrowRight size={14} /></Link></div>
+        <div className="full-catalog-card-bottom"><strong>${product.price.toFixed(2)}</strong><small>{product.region}</small><Link href={productPath(product)} onPointerEnter={() => onPrefetchProduct(product)} onFocus={() => onPrefetchProduct(product)} onPointerDown={() => onPrefetchProduct(product)}>View details <ArrowRight size={14} /></Link></div>
       </article>;
       })}
     </div>
@@ -310,6 +311,17 @@ export default function CatalogPage() {
     });
   };
 
+  const prefetchProductDetails = (product: LiveCatalogProduct) => {
+    if (product.id === 390015) return;
+    if (product.category === "Top-up") {
+      void import("./GameFamilyDetail");
+      void utils.marketplace.catalog.prefetch({ page: 1, pageSize: 96, familyName: product.name, scope: "all" });
+      return;
+    }
+    void import("./DigitalProductDetail");
+    void utils.marketplace.catalog.prefetch({ page: 1, pageSize: 12, slug: product.slug, scope: "all" });
+  };
+
   const onSearchChange = (value: string) => {
     setQuery(value);
     setActiveSuggestionIndex(-1);
@@ -369,7 +381,7 @@ export default function CatalogPage() {
         <label className="full-catalog-sort"><span>Sort</span><select value={sort} onChange={(event) => setSort(event.target.value as SortMode)} aria-label="Sort products"><option value="featured">Featured</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="name">Name: A to Z</option></select><ChevronDown size={17} /></label>
       </div>
       <div className="full-catalog-summary"><span>{catalogTotal.toLocaleString()} products in this view</span><span><CircleDollarSign size={15} />Prices shown in USD</span></div>
-      {quickCatalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <VirtualCatalogGrid products={products} favoriteProductIds={favoriteProductIds} onToggleFavorite={toggleCatalogFavorite} favoritePendingProductId={favoritePendingProductId} /> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
+      {quickCatalog.isLoading && visibleItems.length === 0 ? <div className="full-catalog-initial-state" role="status"><span /><strong>Preparing your catalogue</strong></div> : products.length > 0 ? <VirtualCatalogGrid products={products} favoriteProductIds={favoriteProductIds} onToggleFavorite={toggleCatalogFavorite} favoritePendingProductId={favoritePendingProductId} onPrefetchProduct={prefetchProductDetails} /> : <div className="full-catalog-empty"><Search size={30} /><h2>No matching products</h2><p>Try a product name, category, region, or service requirement.</p><button type="button" onClick={() => { selectCategory("All"); onSearchChange(""); }}>Reset catalog</button></div>}
     </section>
   </main>;
 }
