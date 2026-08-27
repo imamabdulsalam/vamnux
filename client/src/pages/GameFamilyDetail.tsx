@@ -85,6 +85,7 @@ export default function GameFamilyDetail() {
       startLogin();
       return;
     }
+    if (customerDashboard.data && !customerDashboard.data.consents.termsPrivacyAccepted) return redirectToTermsPrivacyAcceptance();
     createDraftOrder.mutate({
       currency: "USD",
       items: cart.reduce<Array<{ productId: number; quantity: number }>>((items, item) => {
