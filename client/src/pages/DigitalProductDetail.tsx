@@ -49,9 +49,14 @@ export default function DigitalProductDetail() {
   const config = currencies[currency];
   const formatPrice = (price: number) => new Intl.NumberFormat(config.locale, { style: "currency", currency, maximumFractionDigits: currency === "NGN" ? 0 : 2 }).format(price * config.rate);
   const cartTotal = cart.reduce((total, item) => total + item.price, 0);
+  const redirectToTermsPrivacyAcceptance = () => {
+    setCartOpen(false);
+    toast.message("Accept the current Terms & Privacy to continue.", { description: "VAMNUX will open Account settings so you can review and accept the current documents." });
+    setLocation("/account?tab=settings");
+  };
   const createDraftOrder = trpc.marketplace.createOrder.useMutation({
     onSuccess: (result) => { toast.success(`Draft order ${result.orderCode} created`, { description: "Wallet balance eligibility was confirmed. No wallet debit or supplier order has been sent." }); setCart([]); setFulfillmentDetails({}); setCartOpen(false); setLocation("/account"); },
-    onError: (error) => toast.error(error.message || "We could not create your draft order."),
+    onError: (error) => error.message.includes("Accept the current VAMNUX Terms and Privacy") ? redirectToTermsPrivacyAcceptance() : toast.error(error.message || "We could not create your draft order."),
   });
   const toggleSavedProduct = trpc.marketplace.toggleSavedProduct.useMutation({
     onSuccess: async (result) => {
@@ -69,6 +74,7 @@ export default function DigitalProductDetail() {
   };
   const saveDraft = () => {
     if (!isAuthenticated) { toast.message("Sign in to use your VAMNUX wallet", { description: "Product orders require sufficient settled wallet balance; direct product payment is not offered." }); startLogin(); return; }
+    if (customerDashboard.data && !customerDashboard.data.consents.termsPrivacyAccepted) return redirectToTermsPrivacyAcceptance();
     createDraftOrder.mutate({ currency: "USD", items: cart.reduce<Array<{ productId: number; quantity: number }>>((items, item) => { const existing = items.find((line) => line.productId === item.id); if (existing) existing.quantity += 1; else items.push({ productId: item.id, quantity: 1 }); return items; }, []), fulfillmentDetails });
   };
   if (productLookup.isLoading) return <main className="family-page-loading"><Search size={28} /><p>Loading products…</p></main>;

@@ -15,12 +15,16 @@ export default function SteamTopUp() {
   const checkoutKey = useRef(typeof crypto === "undefined" ? `steam-${Date.now()}-checkout` : crypto.randomUUID());
   const quote = trpc.marketplace.steamTopUpQuote.useQuery(undefined, { enabled: isAuthenticated, staleTime: 30_000, retry: false });
   const dashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated, staleTime: 30_000 });
+  const redirectToTermsPrivacyAcceptance = () => {
+    toast.message("Accept the current Terms & Privacy to continue.", { description: "VAMNUX will open Account settings so you can review and accept the current documents." });
+    setLocation("/account?tab=settings");
+  };
   const prepare = trpc.marketplace.prepareSteamTopUpWalletOrder.useMutation({
     onSuccess: (result) => {
       toast.success(`Steam Top-Up order ${result.orderCode} prepared`, { description: "Your wallet was checked. No wallet debit, supplier payment, or Steam top-up has been submitted." });
       setLocation("/account");
     },
-    onError: (error) => toast.error(error.message || "The Steam Top-Up could not be prepared."),
+    onError: (error) => error.message.includes("Accept the current VAMNUX Terms and Privacy") ? redirectToTermsPrivacyAcceptance() : toast.error(error.message || "The Steam Top-Up could not be prepared."),
   });
 
   const unitPrice = quote.data?.vamnuxUnitPrice ?? 0;
@@ -30,6 +34,7 @@ export default function SteamTopUp() {
 
   const prepareOrder = () => {
     if (!isAuthenticated) { startLogin(); return; }
+    if (dashboard.data && !dashboard.data.consents.termsPrivacyAccepted) return redirectToTermsPrivacyAcceptance();
     prepare.mutate({ amountUsd, steamLogin, idempotencyKey: checkoutKey.current });
   };
 
