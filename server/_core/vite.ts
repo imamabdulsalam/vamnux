@@ -9,9 +9,7 @@ import viteConfig from "../../vite.config";
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
-    // Preview is served through an HTTPS reverse proxy. Keep the upgrade server
-    // local, but tell the HMR client to reconnect through the public WSS entry.
-    hmr: { server, protocol: "wss" as const, clientPort: 443 },
+    hmr: { server },
     allowedHosts: true as const,
   };
 
