@@ -963,3 +963,8 @@
 - [x] Validate the scoped catalog-search navigation, six-second rotation, two-card desktop/mobile preview, unchanged sections, tests, build, visual behavior, checkpoint, and GitHub push.
 - [x] Fix only the mobile top-right account controls so signed-out users see Sign in and Create account and signed-in users see Account dashboard access, while preserving the permanent currency, favorites, and cart controls.
 - [x] Validate mobile and desktop header account access, preserved currency/favorites/cart controls, focused tests, build, visual behavior, checkpoint, and GitHub push.
+- [ ] Assess current Admin, checkout, product-price, and order paths to add only protected coupon and discount controls without altering supplier data or unrelated features.
+- [ ] Add protected coupon, redemption, and product/all-product discount-setting records with server-side usage-limit and pricing safeguards.
+- [ ] Implement Admin-only coupon generation, usage-limit management, and product-specific/all-product discount settings.
+- [ ] Add the Admin OFFERS workspace with coupon creation, current-code list, usage details, and working discount controls.
+- [ ] Validate authorization, coupon limits, discount scope, original-price preservation, tests, build, visual behavior, checkpoint, and GitHub push.

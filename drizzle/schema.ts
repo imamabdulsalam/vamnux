@@ -670,11 +670,12 @@ export const productTrackingSchedules = mysqlTable("product_tracking_schedules",
   statusIndex: index("product_tracking_schedules_status_idx").on(table.status, table.intervalHours),
 }));
 
-/** Future promotion configuration. Rules remain non-operative until an approved checkout application policy is implemented. */
+/** Admin-managed coupon and catalog-discount rules. Customer prices are derived server-side; source product prices remain unchanged. */
 export const promotions = mysqlTable("promotions", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 160 }).notNull(),
   code: varchar("code", { length: 64 }),
+  offerKind: mysqlEnum("offerKind", ["coupon", "catalog_discount"]).default("coupon").notNull(),
   discountType: mysqlEnum("discountType", ["percentage", "fixed_amount"]).notNull(),
   discountAmount: decimal("discountAmount", { precision: 12, scale: 2 }).notNull(),
   minimumOrder: decimal("minimumOrder", { precision: 12, scale: 2 }),
@@ -684,6 +685,7 @@ export const promotions = mysqlTable("promotions", {
   startsAt: timestamp("startsAt"),
   endsAt: timestamp("endsAt"),
   usageLimit: int("usageLimit"),
+  usageCount: int("usageCount").default(0).notNull(),
   perUserLimit: int("perUserLimit"),
   status: mysqlEnum("status", ["draft", "scheduled", "active", "paused", "archived"]).default("draft").notNull(),
   createdByAdminId: int("createdByAdminId").notNull(),
@@ -692,7 +694,24 @@ export const promotions = mysqlTable("promotions", {
 }, (table) => ({
   codeUnique: uniqueIndex("promotions_code_unique").on(table.code),
   statusPeriodIndex: index("promotions_status_period_idx").on(table.status, table.startsAt, table.endsAt),
+  offerStatusIndex: index("promotions_offer_status_idx").on(table.offerKind, table.status, table.startsAt, table.endsAt),
   productIndex: index("promotions_product_idx").on(table.productId),
+}));
+
+/** Immutable coupon application record. It captures the exact discount applied to an order without changing any product price. */
+export const promotionRedemptions = mysqlTable("promotion_redemptions", {
+  id: int("id").autoincrement().primaryKey(),
+  promotionId: int("promotionId").notNull(),
+  userId: int("userId").notNull(),
+  orderId: int("orderId").notNull(),
+  couponCode: varchar("couponCode", { length: 64 }).notNull(),
+  discountAmount: decimal("discountAmount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  promotionOrderUnique: uniqueIndex("promotion_redemptions_promotion_order_unique").on(table.promotionId, table.orderId),
+  promotionUserIndex: index("promotion_redemptions_promotion_user_idx").on(table.promotionId, table.userId, table.createdAt),
+  orderUnique: uniqueIndex("promotion_redemptions_order_unique").on(table.orderId),
 }));
 
 /** Singleton future referral policy. The setting stores no customer reward and does not create wallet credits by itself. */

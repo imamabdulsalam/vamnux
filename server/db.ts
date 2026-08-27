@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, inArray, like, lte, notInArray, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { drizzle } from "drizzle-orm/mysql2";
-import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productTrackingEvents, productTrackingObservations, productTrackingRuns, productTrackingSchedules, products, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, steamTopUpCheckoutSessions, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
+import { adminAuditEvents, apiRequestLogs, authorizedCatalogSources, commerceIntegrations, currencyConfigurations, currencyRateVersions, customerConsents, customerIdentityLinks, customerNotificationPreferences, customerNotifications, customerPrivacyRequests, customerProductActivityEvents, customerProfiles, customerSecurityEvents, exchangeRates, financialOrderEvents, financialOrderSnapshots, InsertUser, loyaltySettings, manualDeliveryTasks, marketplaceCategories, marketplacePricingSettings, notificationTemplates, orderItems, orders, priceChangeHistory, pricingRateSnapshots, pricingRuleAuditEvents, pricingRules, productAdminAttributes, productTrackingEvents, productTrackingObservations, productTrackingRuns, productTrackingSchedules, products, promotionRedemptions, promotions, referralSettings, resellers, savedProducts, siteContentBlocks, siteContentPages, siteSettings, steamTopUpCheckoutSessions, supplierBalanceObservations, supplierFulfillmentSimulationEvents, supplierFulfillmentSimulationOrders, supplierHealthChecks, supplierManagementProfiles, supplierRoutingDecisions, supplierRoutingPolicies, supplierSyncRuns, supplierWebhookEvents, supportTicketMessages, supportTickets, users, walletEntries, walletFundingAttempts, wallets } from "../drizzle/schema";
 import { ADMIN_MANAGED_SUPPLIER_KEY, createAdminManagedCatalogSlug, createRecipientEmailRequirement, type AdminManagedCatalogProductInput, type AuthorizedCatalogSourceInput } from "../shared/adminCatalog";
 import { calculateOrderTotal, createFulfillmentFieldKey, createOrderCode, type SupportedCurrency } from "../shared/marketplace";
 import { calculateCustomerDisplayPrice, describePriceRule } from "../shared/pricing";
@@ -170,14 +170,40 @@ async function ensureMarketplacePricingSettings(db: NonNullable<Awaited<ReturnTy
   return { defaultMarkupPercent: Number(settings?.defaultMarkupPercent ?? 25) };
 }
 
-function customerPriceForProduct(product: { basePrice: unknown; markupPercentOverride: unknown; displayPriceOverride: unknown }, settings: PricingSettings) {
+function customerPriceForProduct(product: { basePrice: unknown; markupPercentOverride: unknown; displayPriceOverride: unknown }, settings: PricingSettings, offerDiscountPercent = 0) {
   const pricingRule = {
     supplierBasePrice: Number(product.basePrice),
     defaultMarkupPercent: settings.defaultMarkupPercent,
     markupPercentOverride: product.markupPercentOverride === null || product.markupPercentOverride === undefined ? null : Number(product.markupPercentOverride),
     displayPriceOverride: product.displayPriceOverride === null || product.displayPriceOverride === undefined ? null : Number(product.displayPriceOverride),
   };
-  return { customerPrice: calculateCustomerDisplayPrice(pricingRule), priceRule: describePriceRule(pricingRule) };
+  const listPrice = calculateCustomerDisplayPrice(pricingRule);
+  const discountPercent = Number.isFinite(offerDiscountPercent) ? Math.min(100, Math.max(0, offerDiscountPercent)) : 0;
+  const customerPrice = Math.max(0, Math.round(listPrice * (1 - discountPercent / 100) * 100) / 100);
+  return {
+    customerPrice,
+    listPrice,
+    offerDiscountPercent: discountPercent,
+    offerDiscountAmount: Math.round((listPrice - customerPrice) * 100) / 100,
+    priceRule: discountPercent > 0 ? `${describePriceRule(pricingRule)}; ${discountPercent}% active VAMNUX offer` : describePriceRule(pricingRule),
+  };
+}
+
+type ActiveCatalogDiscount = { id: number; productId: number | null; discountAmount: unknown; startsAt: Date | null; endsAt: Date | null };
+
+function promotionIsActiveNow(promotion: { startsAt: Date | null; endsAt: Date | null }, now = new Date()) {
+  return (!promotion.startsAt || promotion.startsAt <= now) && (!promotion.endsAt || promotion.endsAt > now);
+}
+
+async function getActiveCatalogDiscounts(db: any) {
+  const candidates = await db.select({ id: promotions.id, productId: promotions.productId, discountAmount: promotions.discountAmount, startsAt: promotions.startsAt, endsAt: promotions.endsAt })
+    .from(promotions).where(and(eq(promotions.offerKind, "catalog_discount"), eq(promotions.status, "active")));
+  return (candidates as ActiveCatalogDiscount[]).filter((promotion) => promotionIsActiveNow(promotion));
+}
+
+function catalogDiscountPercentForProduct(productId: number, discounts: ActiveCatalogDiscount[]) {
+  return discounts.filter((discount) => discount.productId === null || discount.productId === productId)
+    .reduce((highest, discount) => Math.max(highest, Number(discount.discountAmount)), 0);
 }
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -1146,10 +1172,11 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
   const empty = { items: [], page, pageSize, total: undefined, hasMore: false, categoryCounts: {} as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> };
   if (!db) return empty;
   await ensureDefaultMarketplaceCategories(db);
-  const [settings, visibleCategoryRows, hiddenRows] = await Promise.all([
+  const [settings, visibleCategoryRows, hiddenRows, activeCatalogDiscounts] = await Promise.all([
     ensureMarketplacePricingSettings(db),
     db.select({ slug: marketplaceCategories.slug }).from(marketplaceCategories).where(and(eq(marketplaceCategories.status, "active"), eq(marketplaceCategories.visible, true))),
     db.select({ productId: productAdminAttributes.productId }).from(productAdminAttributes).where(eq(productAdminAttributes.storefrontStatus, "hidden")),
+    getActiveCatalogDiscounts(db),
   ]);
   const visibleCategorySlugs = new Set(visibleCategoryRows.map((category) => category.slug));
   const visibleProductCategories = PUBLIC_CATALOG_CATEGORIES.filter((category) => visibleCategorySlugs.has(marketplaceCategorySlugForProductCategory(category)));
@@ -1202,7 +1229,7 @@ export async function listActiveCatalogProducts(input: PublicCatalogPageInput = 
   const categoryCounts = metadata ? Object.fromEntries(metadata[1].map((row) => [row.category, Number(row.count)])) as Partial<Record<NonNullable<PublicCatalogPageInput["category"]>, number>> : {};
   const total = metadata ? Number(metadata[0][0]?.count ?? 0) : undefined;
   return {
-    items: rows.map(({ basePrice, markupPercentOverride, displayPriceOverride, supplierKey, imageUrl, ...product }) => ({ ...product, imageUrl: customerCatalogArtworkUrl(imageUrl, supplierKey), ...customerPriceForProduct({ basePrice, markupPercentOverride, displayPriceOverride }, settings) })),
+    items: rows.map(({ basePrice, markupPercentOverride, displayPriceOverride, supplierKey, imageUrl, ...product }) => ({ ...product, imageUrl: customerCatalogArtworkUrl(imageUrl, supplierKey), ...customerPriceForProduct({ basePrice, markupPercentOverride, displayPriceOverride }, settings, catalogDiscountPercentForProduct(product.id, activeCatalogDiscounts)) })),
     page,
     pageSize,
     total,
@@ -4005,18 +4032,19 @@ export async function createMarketplaceOrder(input: {
   currency: SupportedCurrency;
   items: Array<{ productId: number; quantity: number }>;
   fulfillmentDetails?: Record<string, string>;
+  couponCode?: string | null;
 }) {
   const db = requireDb(await getDb());
   await assertCustomerTermsPrivacyConsent(input.userId);
   const productIds = Array.from(new Set(input.items.map((item) => item.productId)));
   const catalogRows = await db.select().from(products).where(and(inArray(products.id, productIds), eq(products.status, "active")));
-  const settings = await ensureMarketplacePricingSettings(db);
+  const [settings, activeCatalogDiscounts] = await Promise.all([ensureMarketplacePricingSettings(db), getActiveCatalogDiscounts(db)]);
   if (catalogRows.length !== productIds.length) throw new Error("One or more selected products are unavailable");
 
   const orderLines = input.items.map((item) => {
     const product = catalogRows.find((row) => row.id === item.productId);
     if (!product) throw new Error("Selected product is unavailable");
-    return { product, quantity: item.quantity, unitPrice: customerPriceForProduct(product, settings).customerPrice };
+    return { product, quantity: item.quantity, unitPrice: customerPriceForProduct(product, settings, catalogDiscountPercentForProduct(product.id, activeCatalogDiscounts)).customerPrice };
   });
   const orderRateSnapshots = await Promise.all(orderLines.map(async (line) => {
     const supplierCost = line.product.supplierPrice === null ? Number(line.product.basePrice) : Number(line.product.supplierPrice);
@@ -4036,13 +4064,38 @@ export async function createMarketplaceOrder(input: {
       }
     }
   }
-  const total = calculateOrderTotal(orderLines.map((line) => ({ productId: line.product.id, quantity: line.quantity, unitPrice: line.unitPrice })));
+  const subtotal = calculateOrderTotal(orderLines.map((line) => ({ productId: line.product.id, quantity: line.quantity, unitPrice: line.unitPrice })));
+  const normalizedCouponCode = input.couponCode?.trim().toUpperCase() || null;
+  let coupon: { id: number; code: string; discountType: "percentage" | "fixed_amount"; discountAmount: number; maximumDiscount: number | null; usageLimit: number | null } | null = null;
+  let couponDiscount = 0;
+  if (normalizedCouponCode) {
+    const [candidate] = await db.select().from(promotions).where(eq(promotions.code, normalizedCouponCode)).limit(1);
+    if (!candidate || !candidate.code || candidate.offerKind !== "coupon" || candidate.status !== "active" || !promotionIsActiveNow(candidate)) throw new Error("This coupon is not active or has expired");
+    if (candidate.minimumOrder !== null && subtotal < Number(candidate.minimumOrder)) throw new Error(`This coupon requires a minimum order of ${Number(candidate.minimumOrder).toFixed(2)} ${input.currency}`);
+    if (candidate.productId !== null && !orderLines.some((line) => line.product.id === candidate.productId)) throw new Error("This coupon is not valid for the selected products");
+    if (candidate.usageLimit !== null && Number(candidate.usageCount) >= candidate.usageLimit) throw new Error("This coupon has reached its usage limit");
+    if (candidate.perUserLimit !== null) {
+      const [usage] = await db.select({ count: sql<number>`count(*)` }).from(promotionRedemptions).where(and(eq(promotionRedemptions.promotionId, candidate.id), eq(promotionRedemptions.userId, input.userId)));
+      if (Number(usage?.count ?? 0) >= candidate.perUserLimit) throw new Error("You have reached the usage limit for this coupon");
+    }
+    const rawDiscount = candidate.discountType === "percentage" ? subtotal * (Number(candidate.discountAmount) / 100) : Number(candidate.discountAmount);
+    couponDiscount = Math.min(subtotal, candidate.maximumDiscount === null ? rawDiscount : Math.min(rawDiscount, Number(candidate.maximumDiscount)));
+    couponDiscount = Math.round(couponDiscount * 100) / 100;
+    coupon = { id: candidate.id, code: candidate.code, discountType: candidate.discountType, discountAmount: Number(candidate.discountAmount), maximumDiscount: candidate.maximumDiscount === null ? null : Number(candidate.maximumDiscount), usageLimit: candidate.usageLimit };
+  }
+  const total = Math.max(0, Math.round((subtotal - couponDiscount) * 100) / 100);
   const [wallet] = await db.select({ availableBalance: wallets.availableBalance, currency: wallets.currency, status: wallets.status }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
   if (!wallet || wallet.status !== "active") throw new Error("An active VAMNUX wallet is required before a product order can be created");
   if (wallet.currency !== input.currency) throw new Error(`This order is in ${input.currency}; your active wallet uses ${wallet.currency}`);
   if (!walletCanCoverOrder({ walletStatus: wallet.status, walletCurrency: wallet.currency, orderCurrency: input.currency, availableBalance: wallet.availableBalance, total })) throw new Error(`Insufficient settled VAMNUX wallet balance. Your ${wallet.currency} wallet must cover ${total.toFixed(2)} before you can create this product order.`);
   const orderCode = createOrderCode();
-
+  let couponUsageClaimed = false;
+  if (coupon) {
+    const [usageUpdate] = await db.update(promotions).set({ usageCount: sql`${promotions.usageCount} + 1` }).where(and(eq(promotions.id, coupon.id), sql`(${promotions.usageLimit} IS NULL OR ${promotions.usageCount} < ${promotions.usageLimit})`));
+    if (Number((usageUpdate as { affectedRows?: number }).affectedRows ?? 0) !== 1) throw new Error("This coupon has just reached its usage limit; try a different coupon");
+    couponUsageClaimed = true;
+  }
+  try {
   const [created] = await db.insert(orders).values({
     orderCode,
     userId: input.userId,
@@ -4050,7 +4103,7 @@ export async function createMarketplaceOrder(input: {
     paymentStatus: "unpaid",
     supplierStatus: "not_sent",
     currency: input.currency,
-    subtotal: total.toFixed(2),
+    subtotal: subtotal.toFixed(2),
     total: total.toFixed(2),
     fulfillmentDetails: input.fulfillmentDetails,
   }).$returningId();
@@ -4066,6 +4119,7 @@ export async function createMarketplaceOrder(input: {
     deliveryType: line.product.deliveryType,
     fulfillmentDetails: input.fulfillmentDetails,
   }))).$returningId();
+  if (coupon) await db.insert(promotionRedemptions).values({ promotionId: coupon.id, userId: input.userId, orderId: created.id, couponCode: coupon.code, discountAmount: couponDiscount.toFixed(2), currency: input.currency });
   const manualTaskRows = orderLines.flatMap((line, index) => {
     if (line.product.supplierKey !== ADMIN_MANAGED_SUPPLIER_KEY) return [];
     const item = createdItems[index];
@@ -4086,7 +4140,11 @@ export async function createMarketplaceOrder(input: {
   const createdFinancialSnapshots = financialRows.length ? await db.insert(financialOrderSnapshots).values(financialRows.map(({ financial: _financial, ...row }) => row)).$returningId() : [];
   if (createdFinancialSnapshots.length) await db.insert(financialOrderEvents).values(createdFinancialSnapshots.map((snapshot) => ({ financialSnapshotId: snapshot.id, eventType: "snapshot_created" as const, amount: "0.00", currency: input.currency, orderStatus: "PENDING PAYMENT" as const, simulationMode: false, note: "Immutable financial snapshot created at order creation. Payment fee remains unconfigured until a provider is approved." })));
 
-  return { orderCode, status: "draft" as const, total: total.toFixed(2), currency: input.currency };
+  return { orderCode, status: "draft" as const, subtotal: subtotal.toFixed(2), couponCode: coupon?.code ?? null, couponDiscount: couponDiscount.toFixed(2), total: total.toFixed(2), currency: input.currency };
+  } catch (error) {
+    if (couponUsageClaimed && coupon) await db.update(promotions).set({ usageCount: sql`greatest(0, ${promotions.usageCount} - 1)` }).where(eq(promotions.id, coupon.id));
+    throw error;
+  }
 }
 
 const FOXRELOAD_USD_STEAM_TOP_UP_PRODUCT_ID = "product_01kjp6vtmjf8rbbxw88719wz3b";
@@ -4255,21 +4313,33 @@ export async function getSuperAdminTrafficAnalytics(window: "1d" | "3d" | "7d" |
 
 export async function listPromotions() {
   const db = requireDb(await getDb());
-  const rows = await db.select().from(promotions).orderBy(desc(promotions.updatedAt));
-  return rows.map((row) => ({ ...row, discountAmount: numeric(row.discountAmount), minimumOrder: row.minimumOrder === null ? null : numeric(row.minimumOrder), maximumDiscount: row.maximumDiscount === null ? null : numeric(row.maximumDiscount) }));
+  const rows = await db.select({ promotion: promotions, productName: products.name }).from(promotions).leftJoin(products, eq(promotions.productId, products.id)).orderBy(desc(promotions.updatedAt));
+  return rows.map(({ promotion, productName }) => ({ ...promotion, productName: productName ?? null, discountAmount: numeric(promotion.discountAmount), usageCount: Number(promotion.usageCount), minimumOrder: promotion.minimumOrder === null ? null : numeric(promotion.minimumOrder), maximumDiscount: promotion.maximumDiscount === null ? null : numeric(promotion.maximumDiscount) }));
 }
 
-export async function createPromotion(input: { name: string; code?: string | null; discountType: "percentage" | "fixed_amount"; discountAmount: number; minimumOrder?: number | null; maximumDiscount?: number | null; productId?: number | null; categorySlug?: string | null; startsAt?: Date | null; endsAt?: Date | null; usageLimit?: number | null; perUserLimit?: number | null; status: "draft" | "scheduled" | "active" | "paused" | "archived"; adminUserId: number }) {
+export async function createPromotion(input: { name: string; code?: string | null; offerKind: "coupon" | "catalog_discount"; discountType: "percentage" | "fixed_amount"; discountAmount: number; minimumOrder?: number | null; maximumDiscount?: number | null; productId?: number | null; categorySlug?: string | null; startsAt?: Date | null; endsAt?: Date | null; usageLimit?: number | null; perUserLimit?: number | null; status: "draft" | "scheduled" | "active" | "paused" | "archived"; adminUserId: number }) {
   const name = input.name.trim();
-  const code = input.code?.trim().toUpperCase() || null;
+  const code = input.offerKind === "coupon" ? input.code?.trim().toUpperCase() || null : null;
   if (!name || name.length > 160) throw new Error("Promotion name must contain 1–160 characters");
+  if (input.offerKind === "coupon" && !code) throw new Error("A coupon code is required");
   if (code && !/^[A-Z0-9_-]{3,64}$/.test(code)) throw new Error("Promotion code must use 3–64 uppercase letters, numbers, underscores, or hyphens");
   if (!Number.isFinite(input.discountAmount) || input.discountAmount <= 0 || (input.discountType === "percentage" && input.discountAmount > 100)) throw new Error("Enter a valid positive discount; percentage discounts cannot exceed 100%");
+  if (input.offerKind === "catalog_discount" && input.discountType !== "percentage") throw new Error("Product discounts must use a percentage");
+  if (input.usageLimit !== null && input.usageLimit !== undefined && (!Number.isInteger(input.usageLimit) || input.usageLimit < 1)) throw new Error("Coupon usage limit must be a positive whole number");
   if (input.startsAt && input.endsAt && input.endsAt <= input.startsAt) throw new Error("Promotion end time must be after its start time");
   const db = requireDb(await getDb());
-  const [created] = await db.insert(promotions).values({ name, code, discountType: input.discountType, discountAmount: input.discountAmount.toFixed(2), minimumOrder: input.minimumOrder === null || input.minimumOrder === undefined ? null : input.minimumOrder.toFixed(2), maximumDiscount: input.maximumDiscount === null || input.maximumDiscount === undefined ? null : input.maximumDiscount.toFixed(2), productId: input.productId ?? null, categorySlug: input.categorySlug?.trim() || null, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, usageLimit: input.usageLimit ?? null, perUserLimit: input.perUserLimit ?? null, status: input.status, createdByAdminId: input.adminUserId }).$returningId();
-  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "promotion.created", targetType: "promotion", targetId: created.id, summary: `Created ${input.status} promotion ${name}`, metadata: { code, discountType: input.discountType, discountAmount: input.discountAmount, status: input.status, operational: false } });
+  const [created] = await db.insert(promotions).values({ name, code, offerKind: input.offerKind, discountType: input.discountType, discountAmount: input.discountAmount.toFixed(2), minimumOrder: input.minimumOrder === null || input.minimumOrder === undefined ? null : input.minimumOrder.toFixed(2), maximumDiscount: input.maximumDiscount === null || input.maximumDiscount === undefined ? null : input.maximumDiscount.toFixed(2), productId: input.productId ?? null, categorySlug: input.categorySlug?.trim() || null, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, usageLimit: input.offerKind === "coupon" ? input.usageLimit ?? null : null, perUserLimit: input.offerKind === "coupon" ? input.perUserLimit ?? null : null, status: input.status, createdByAdminId: input.adminUserId }).$returningId();
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "promotion.created", targetType: "promotion", targetId: created.id, summary: `Created ${input.status} ${input.offerKind.replaceAll("_", " ")} ${name}`, metadata: { code, offerKind: input.offerKind, discountType: input.discountType, discountAmount: input.discountAmount, productId: input.productId ?? null, usageLimit: input.usageLimit ?? null, status: input.status } });
   return { id: created.id, name, code, status: input.status };
+}
+
+export async function updatePromotionStatus(input: { promotionId: number; status: "active" | "paused" | "archived"; adminUserId: number }) {
+  const db = requireDb(await getDb());
+  const [promotion] = await db.select({ id: promotions.id, name: promotions.name, status: promotions.status, offerKind: promotions.offerKind }).from(promotions).where(eq(promotions.id, input.promotionId)).limit(1);
+  if (!promotion) throw new Error("Offer was not found");
+  await db.update(promotions).set({ status: input.status }).where(eq(promotions.id, promotion.id));
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "promotion.status_updated", targetType: "promotion", targetId: promotion.id, summary: `${promotion.offerKind.replaceAll("_", " ")} ${promotion.name} is now ${input.status}`, metadata: { previousStatus: promotion.status, status: input.status } });
+  return listPromotions();
 }
 
 export async function getReferralSettings() {
