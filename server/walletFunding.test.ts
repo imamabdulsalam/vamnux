@@ -46,10 +46,10 @@ describe("wallet funding conversion readiness", () => {
 });
 
 describe("funding flow readiness copy", () => {
-  it("does not make customers submit visible manual top-up requests and preserves verified provider crediting", () => {
-    expect(dashboardSource).toContain("no funding request or Admin approval is required");
-    expect(dashboardSource).toContain("verified payment webhook confirms the transaction");
-    expect(dashboardSource).toContain("legacyHistory.style.display = \"none\"");
+  it("uses the scoped Paystack TEST wallet-funding path instead of a visible manual top-up request", () => {
+    expect(dashboardSource).toContain("Pay with Paystack (TEST)");
+    expect(dashboardSource).toContain("verifyPaystackFunding.mutate");
+    expect(dashboardSource).not.toContain("Submit top-up request");
     expect(adminSource).toContain("Customer wallets credit automatically only after a configured payment gateway verifies a payment");
   });
 

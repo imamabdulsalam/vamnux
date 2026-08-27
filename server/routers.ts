@@ -45,6 +45,7 @@ import { storagePut } from "./storage";
 import { systemRouter } from "./_core/systemRouter";
 import { completeAdminMfaChallenge, confirmAdminMfaEnrollment, createAdminMfaSessionToken, getAdminMfaStatus, regenerateAdminMfaRecoveryCodes, startAdminMfaEnrollment } from "./adminMfa";
 import { sdk } from "./_core/sdk";
+import { initializePaystackWalletFunding, verifyPaystackWalletFundingForUser } from "./paystack";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
 const customerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
@@ -203,6 +204,10 @@ export const appRouter = router({
       currency: z.enum(["USD", "EUR", "GBP", "NGN"]),
       customerNote: z.string().trim().max(500).optional(),
     })).mutation(({ ctx, input }) => createCustomerWalletFundingRequest({ userId: ctx.user.id, ...input })),
+    initializePaystackWalletFunding: customerProcedure.input(z.object({ walletAmountUsd: z.number().positive().max(1_000_000) }))
+      .mutation(({ ctx, input }) => initializePaystackWalletFunding({ userId: ctx.user.id, ...input })),
+    verifyPaystackWalletFunding: customerProcedure.input(z.object({ reference: z.string().trim().min(20).max(160) }))
+      .mutation(({ ctx, input }) => verifyPaystackWalletFundingForUser({ userId: ctx.user.id, ...input })),
     createOrder: customerProcedure.input(z.object({
       currency: z.enum(["USD", "EUR", "GBP", "NGN"]),
       items: z.array(z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(25) })).min(1).max(25),

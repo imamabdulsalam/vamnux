@@ -989,3 +989,11 @@
 - [x] Validate current-rate display, protected update, wallet-funding quote use, data preservation, focused tests, build, visual behavior, checkpoint, and GitHub push.
 - [x] Fix only the simplified USD-to-NGN current-rate input so whole numbers such as 1650 validate and save without a decimal-step error.
 - [x] Validate whole-number rate entry, focused tests, build, checkpoint, and GitHub push.
+- [x] Inspect and preserve the existing wallet, ledger, funding-attempt, webhook, reconciliation, product, pricing, and order records before Paystack work.
+- [x] Add only the durable, provider-specific Paystack TEST wallet-funding fields and migration required for verified NGN payments; do not alter product, order, supplier, pricing, or historical wallet data.
+- [x] Implement authenticated Paystack TEST wallet-funding initialization using server-only credentials, a unique reference, protected USD-to-NGN quotation, and safe state persistence.
+- [x] Implement shared server-side Paystack verification and idempotent immutable-ledger settlement, with reconciliation records for verified-payment credit failures and terminal failed/refunded/reversed safeguards.
+- [x] Add a signed Paystack webhook receipt handler and authenticated return verification path without storing raw payloads, signatures, card details, or credentials.
+- [x] Replace only the User Dashboard manual wallet-funding request control with Paystack TEST checkout initialization and safe return-status recovery; keep product checkout wallet-only.
+- [x] Add focused Paystack funding tests for authorization, verification mismatches, event/reference/transaction duplication, signature validation, terminal statuses, reconciliation, Admin monitor linkage, and checkout isolation.
+- [ ] Validate TypeScript, focused tests, build, zero-charge browser behavior, preservation checks, checkpoint, and GitHub push; document post-publish Test Mode webhook configuration and live-key rotation.

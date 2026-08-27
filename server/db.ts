@@ -4217,6 +4217,238 @@ export async function recordPaymentWebhookEvent(input: { providerName: string; p
   });
 }
 
+const PAYSTACK_PROVIDER_NAME = "Paystack";
+const PAYSTACK_PROVIDER_ENVIRONMENT = "test" as const;
+const MAX_PAYSTACK_NGN_AMOUNT = 9_999_999_999.99;
+
+type PaystackFundingProviderStatus = "pending" | "successful" | "failed" | "refunded" | "reversed" | "unknown";
+
+export type PaystackFundingIntent = {
+  fundingCode: string;
+  reference: string;
+  userId: number;
+  customerEmail: string;
+  walletAmountUsd: string;
+  expectedNgnAmountSubunit: string;
+  callbackMetadata: Record<string, string>;
+};
+
+export type PaystackVerifiedFundingInput = {
+  eventId: string;
+  reference: string;
+  providerTransactionId: string;
+  amountSubunit: string;
+  currency: string;
+  providerStatus: PaystackFundingProviderStatus;
+  providerEnvironment: "test" | "live" | "unknown";
+  customerEmail: string | null;
+  metadata: unknown;
+  eventType: string;
+  payloadHash?: string | null;
+};
+
+function createPaystackReference() {
+  return `vamnux-test-${crypto.randomUUID().replace(/-/g, "")}`;
+}
+
+function normalizePaystackSubunit(value: string) {
+  const trimmed = value.trim();
+  if (!/^\d{1,20}$/.test(trimmed)) throw new Error("Paystack returned an invalid transaction amount.");
+  return BigInt(trimmed).toString();
+}
+
+function paystackMetadataMatchesAttempt(metadata: unknown, attempt: typeof walletFundingAttempts.$inferSelect) {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
+  const value = metadata as Record<string, unknown>;
+  return value.vamnux_funding_code === attempt.fundingCode
+    && String(value.vamnux_user_id ?? "") === String(attempt.userId)
+    && value.wallet_currency === attempt.currency
+    && String(value.expected_amount_subunit ?? "") === String(attempt.providerAmountSubunit ?? "")
+    && value.paystack_environment === PAYSTACK_PROVIDER_ENVIRONMENT;
+}
+
+function reconciliationDetailForPaystackVerification(input: { attemptFound: boolean; terminal: boolean; matches: boolean; providerStatus: PaystackFundingProviderStatus }) {
+  if (!input.attemptFound) return "Paystack verification did not match a VAMNUX wallet-funding intent.";
+  if (input.terminal) return "The Paystack funding intent is terminal and cannot receive another wallet credit.";
+  if (!input.matches) return "Paystack verification values do not match the expected wallet-funding intent.";
+  if (input.providerStatus === "failed") return "Paystack reported a failed payment; no wallet credit was attempted.";
+  if (input.providerStatus === "pending") return "Paystack payment is still pending; no wallet credit was attempted.";
+  return "Paystack reported a refunded or reversed payment; no wallet credit was attempted.";
+}
+
+/** Creates a Paystack TEST-only funding intent. It stores the expected provider amount before any provider checkout is requested. */
+export async function createPaystackWalletFundingIntent(input: { userId: number; walletAmountUsd: number }) {
+  if (!Number.isFinite(input.walletAmountUsd) || input.walletAmountUsd <= 0 || input.walletAmountUsd > 1_000_000) throw new Error("Enter a valid wallet funding amount.");
+  const db = requireDb(await getDb());
+  const [wallet, user] = await Promise.all([
+    db.select({ id: wallets.id, currency: wallets.currency, status: wallets.status }).from(wallets).where(eq(wallets.userId, input.userId)).limit(1).then((rows) => rows[0]),
+    db.select({ email: users.email }).from(users).where(eq(users.id, input.userId)).limit(1).then((rows) => rows[0]),
+  ]);
+  if (!wallet || wallet.status !== "active" || wallet.currency !== "USD") throw new Error("Paystack TEST wallet funding currently supports an active USD VAMNUX wallet only.");
+  const customerEmail = user?.email?.trim().toLowerCase();
+  if (!customerEmail) throw new Error("A verified account email is required before starting Paystack wallet funding.");
+  const minimumAmount = fundingMinimumForCurrency("USD", await listExchangeRates());
+  if (minimumAmount === null || input.walletAmountUsd < minimumAmount) throw new Error(`The minimum Paystack wallet funding amount is ${(minimumAmount ?? 3).toFixed(2)} USD.`);
+  const rate = await resolveVamnuxExchangeRate(db, "USD", "NGN");
+  const ngnAmount = Math.round((input.walletAmountUsd * rate.rate + Number.EPSILON) * 100) / 100;
+  if (!Number.isFinite(ngnAmount) || ngnAmount <= 0 || ngnAmount > MAX_PAYSTACK_NGN_AMOUNT) throw new Error("The administered USD-to-NGN rate cannot produce a supported Paystack funding amount.");
+  const expectedNgnAmountSubunit = String(Math.round((ngnAmount + Number.EPSILON) * 100));
+  const fundingCode = createWalletFundingCode();
+  const reference = createPaystackReference();
+  const callbackMetadata = {
+    vamnux_funding_code: fundingCode,
+    vamnux_user_id: String(input.userId),
+    wallet_currency: "USD",
+    expected_amount_subunit: expectedNgnAmountSubunit,
+    paystack_environment: PAYSTACK_PROVIDER_ENVIRONMENT,
+  };
+  await db.insert(walletFundingAttempts).values({
+    fundingCode,
+    userId: input.userId,
+    walletId: wallet.id,
+    integrationId: null,
+    providerReference: reference,
+    idempotencyKey: `paystack-test:${reference}`,
+    amount: input.walletAmountUsd.toFixed(2),
+    currency: "USD",
+    providerAmountSubunit: expectedNgnAmountSubunit,
+    providerCurrency: "NGN",
+    providerEnvironment: PAYSTACK_PROVIDER_ENVIRONMENT,
+    status: "initialized",
+    metadata: { requestKind: "paystack_test_wallet_funding", exchangeRate: rate.rate, rateVersionId: rate.rateVersionId, ...callbackMetadata },
+  });
+  return { fundingCode, reference, userId: input.userId, customerEmail, walletAmountUsd: input.walletAmountUsd.toFixed(2), expectedNgnAmountSubunit, callbackMetadata } satisfies PaystackFundingIntent;
+}
+
+/** Stores only the safe authorization URL after Paystack successfully initializes an already-persisted TEST funding intent. */
+export async function markPaystackFundingInitialized(input: { reference: string; checkoutUrl: string }) {
+  const db = requireDb(await getDb());
+  await db.update(walletFundingAttempts).set({ status: "pending", checkoutUrl: input.checkoutUrl }).where(and(eq(walletFundingAttempts.providerReference, input.reference), eq(walletFundingAttempts.providerEnvironment, PAYSTACK_PROVIDER_ENVIRONMENT), eq(walletFundingAttempts.status, "initialized")));
+}
+
+export async function markPaystackFundingInitializationFailed(reference: string) {
+  const db = requireDb(await getDb());
+  await db.update(walletFundingAttempts).set({ status: "failed", metadata: sql`JSON_SET(COALESCE(${walletFundingAttempts.metadata}, JSON_OBJECT()), '$.initializationFailure', true)` }).where(and(eq(walletFundingAttempts.providerReference, reference), eq(walletFundingAttempts.providerEnvironment, PAYSTACK_PROVIDER_ENVIRONMENT), eq(walletFundingAttempts.status, "initialized")));
+}
+
+export async function getPaystackFundingIntentForUser(input: { userId: number; reference: string }) {
+  const db = requireDb(await getDb());
+  const [attempt] = await db.select({ id: walletFundingAttempts.id, fundingCode: walletFundingAttempts.fundingCode, userId: walletFundingAttempts.userId, reference: walletFundingAttempts.providerReference, status: walletFundingAttempts.status, providerEnvironment: walletFundingAttempts.providerEnvironment })
+    .from(walletFundingAttempts)
+    .where(and(eq(walletFundingAttempts.userId, input.userId), eq(walletFundingAttempts.providerReference, input.reference.trim()), eq(walletFundingAttempts.providerEnvironment, PAYSTACK_PROVIDER_ENVIRONMENT)))
+    .limit(1);
+  return attempt ?? null;
+}
+
+async function recordPaystackFundingCreditFailure(input: PaystackVerifiedFundingInput) {
+  const db = requireDb(await getDb());
+  const reference = input.reference.trim().slice(0, 160);
+  const providerTransactionId = input.providerTransactionId.trim().slice(0, 160);
+  const eventId = input.eventId.trim().slice(0, 160);
+  return db.transaction(async (tx) => {
+    const [attempt] = await tx.select().from(walletFundingAttempts).where(and(eq(walletFundingAttempts.providerReference, reference), eq(walletFundingAttempts.providerEnvironment, PAYSTACK_PROVIDER_ENVIRONMENT))).limit(1);
+    if (!attempt) return { status: "unmatched" as const };
+    await tx.update(walletFundingAttempts).set({ status: "reconciliation", providerTransactionId, providerEventId: providerTransactionId, providerVerifiedAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
+    await tx.insert(paymentWebhookEvents).values({ providerName: PAYSTACK_PROVIDER_NAME, providerEventId: eventId, eventType: input.eventType.slice(0, 120), providerTransactionId, providerReference: reference, fundingAttemptId: attempt.id, userId: attempt.userId, amount: (Number(input.amountSubunit) / 100).toFixed(2), currency: "NGN", signatureStatus: input.payloadHash ? "verified" : "unavailable", providerStatus: "successful", processingStatus: "error", errorMessage: "Verified Paystack payment requires wallet-credit reconciliation.", payloadHash: input.payloadHash?.slice(0, 64) || null, processedAt: new Date() }).onDuplicateKeyUpdate({ set: { processingStatus: "error", errorMessage: "Verified Paystack payment requires wallet-credit reconciliation.", processedAt: new Date() } });
+    const [event] = await tx.select({ id: paymentWebhookEvents.id }).from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.providerName, PAYSTACK_PROVIDER_NAME), eq(paymentWebhookEvents.providerEventId, eventId))).limit(1);
+    await createTopUpReconciliationCase(tx, { caseKey: `missing-wallet-credit:${PAYSTACK_PROVIDER_NAME}:${reference}`, webhookEventId: event?.id ?? null, fundingAttemptId: attempt.id, userId: attempt.userId, providerName: PAYSTACK_PROVIDER_NAME, category: "missing_wallet_credit", detail: "Paystack verification succeeded, but the wallet credit requires reconciliation before any retry." });
+    return { status: "reconciliation" as const, fundingCode: attempt.fundingCode };
+  });
+}
+
+/**
+ * Shared transaction settlement for both a signed Paystack webhook and an authenticated return verification.
+ * Every value is checked against the persisted intent before a unique immutable funding entry can increment the wallet.
+ */
+export async function settleVerifiedPaystackWalletFunding(input: PaystackVerifiedFundingInput) {
+  const reference = input.reference.trim().slice(0, 160);
+  const providerTransactionId = input.providerTransactionId.trim().slice(0, 160);
+  const eventId = input.eventId.trim().slice(0, 160);
+  const amountSubunit = normalizePaystackSubunit(input.amountSubunit);
+  if (!reference || !providerTransactionId || !eventId || !/^\d{1,20}$/.test(providerTransactionId)) throw new Error("Paystack returned an invalid transaction identifier.");
+  const amountNgn = Number(amountSubunit) / 100;
+  if (!Number.isSafeInteger(Number(amountSubunit)) || amountNgn > MAX_PAYSTACK_NGN_AMOUNT) throw new Error("Paystack returned an unsupported transaction amount.");
+  const db = requireDb(await getDb());
+  try {
+    return await db.transaction(async (tx) => {
+      const [attempt] = await tx.select().from(walletFundingAttempts).where(and(eq(walletFundingAttempts.providerReference, reference), eq(walletFundingAttempts.providerEnvironment, PAYSTACK_PROVIDER_ENVIRONMENT))).limit(1);
+      const [user] = attempt ? await tx.select({ email: users.email }).from(users).where(eq(users.id, attempt.userId)).limit(1) : [];
+      const expectedAmountSubunit = attempt?.providerAmountSubunit ? String(attempt.providerAmountSubunit) : null;
+      const valuesMatch = !!attempt
+        && attempt.providerCurrency === "NGN"
+        && expectedAmountSubunit === amountSubunit
+        && input.currency.trim().toUpperCase() === "NGN"
+        && input.providerEnvironment === PAYSTACK_PROVIDER_ENVIRONMENT
+        && user?.email?.trim().toLowerCase() === input.customerEmail?.trim().toLowerCase()
+        && paystackMetadataMatchesAttempt(input.metadata, attempt);
+      const terminal = attempt?.status === "settled" || attempt?.status === "failed" || attempt?.status === "reversed" || attempt?.status === "refunded" || attempt?.status === "cancelled";
+      let [event] = await tx.select().from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.providerName, PAYSTACK_PROVIDER_NAME), eq(paymentWebhookEvents.providerEventId, eventId))).limit(1);
+      if (event?.fundingAttemptId && event.fundingAttemptId !== attempt?.id) {
+        await createTopUpReconciliationCase(tx, { caseKey: `duplicate-reference:${PAYSTACK_PROVIDER_NAME}:${providerTransactionId}`, webhookEventId: event.id, fundingAttemptId: attempt?.id ?? null, userId: attempt?.userId ?? null, providerName: PAYSTACK_PROVIDER_NAME, category: "duplicate_reference", detail: "A Paystack provider transaction ID is already linked to a different funding intent." });
+        return { status: "reconciliation" as const, reason: "duplicate_provider_transaction" as const };
+      }
+      const [otherAttempt] = await tx.select({ id: walletFundingAttempts.id }).from(walletFundingAttempts).where(eq(walletFundingAttempts.providerTransactionId, providerTransactionId)).limit(1);
+      if (otherAttempt && otherAttempt.id !== attempt?.id) {
+        await createTopUpReconciliationCase(tx, { caseKey: `duplicate-reference:${PAYSTACK_PROVIDER_NAME}:${providerTransactionId}`, fundingAttemptId: attempt?.id ?? null, userId: attempt?.userId ?? null, providerName: PAYSTACK_PROVIDER_NAME, category: "duplicate_reference", detail: "A Paystack provider transaction ID is already assigned to another wallet-funding attempt." });
+        return { status: "reconciliation" as const, reason: "duplicate_provider_transaction" as const };
+      }
+      if (!event) {
+        const [created] = await tx.insert(paymentWebhookEvents).values({ providerName: PAYSTACK_PROVIDER_NAME, providerEventId: eventId, eventType: input.eventType.trim().slice(0, 120) || "transaction.verify", providerTransactionId, providerReference: reference, fundingAttemptId: attempt?.id ?? null, userId: attempt?.userId ?? null, amount: amountNgn.toFixed(2), currency: "NGN", signatureStatus: input.payloadHash ? "verified" : "unavailable", providerStatus: input.providerStatus, processingStatus: input.providerStatus === "successful" && valuesMatch && !terminal ? "verified" : "rejected", payloadHash: input.payloadHash?.slice(0, 64) || null, errorMessage: null, processedAt: new Date() });
+        event = { id: Number(created.insertId), fundingAttemptId: attempt?.id ?? null, processingStatus: "received" } as typeof paymentWebhookEvents.$inferSelect;
+      }
+      if (!attempt) {
+        await tx.update(paymentWebhookEvents).set({ processingStatus: "rejected", errorMessage: "No matching VAMNUX wallet-funding intent.", processedAt: new Date() }).where(eq(paymentWebhookEvents.id, event.id));
+        await createTopUpReconciliationCase(tx, { caseKey: `amount-currency-mismatch:${PAYSTACK_PROVIDER_NAME}:${reference}`, webhookEventId: event.id, providerName: PAYSTACK_PROVIDER_NAME, category: "amount_currency_mismatch", detail: reconciliationDetailForPaystackVerification({ attemptFound: false, terminal: false, matches: false, providerStatus: input.providerStatus }) });
+        return { status: "reconciliation" as const, reason: "unmatched_reference" as const };
+      }
+      if (!valuesMatch) {
+        await tx.update(walletFundingAttempts).set({ status: "reconciliation", providerTransactionId, providerEventId: providerTransactionId, providerVerifiedAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
+        await tx.update(paymentWebhookEvents).set({ processingStatus: "rejected", errorMessage: "Paystack verification values do not match the expected funding intent.", processedAt: new Date() }).where(eq(paymentWebhookEvents.id, event.id));
+        await createTopUpReconciliationCase(tx, { caseKey: `amount-currency-mismatch:${PAYSTACK_PROVIDER_NAME}:${reference}`, webhookEventId: event.id, fundingAttemptId: attempt.id, userId: attempt.userId, providerName: PAYSTACK_PROVIDER_NAME, category: "amount_currency_mismatch", detail: reconciliationDetailForPaystackVerification({ attemptFound: true, terminal: false, matches: false, providerStatus: input.providerStatus }) });
+        return { status: "reconciliation" as const, reason: "verification_mismatch" as const };
+      }
+      if (input.providerStatus === "refunded" || input.providerStatus === "reversed") {
+        await tx.update(walletFundingAttempts).set({ status: input.providerStatus, providerTransactionId, providerEventId: providerTransactionId, providerVerifiedAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
+        await tx.update(paymentWebhookEvents).set({ processingStatus: "rejected", providerStatus: input.providerStatus, errorMessage: "Refunded or reversed Paystack payments cannot credit a wallet.", processedAt: new Date() }).where(eq(paymentWebhookEvents.id, event.id));
+        await createTopUpReconciliationCase(tx, { caseKey: `refunded-or-reversed:${PAYSTACK_PROVIDER_NAME}:${reference}`, webhookEventId: event.id, fundingAttemptId: attempt.id, userId: attempt.userId, providerName: PAYSTACK_PROVIDER_NAME, category: "refunded_or_reversed", detail: reconciliationDetailForPaystackVerification({ attemptFound: true, terminal: false, matches: true, providerStatus: input.providerStatus }) });
+        return { status: input.providerStatus as "refunded" | "reversed" };
+      }
+      if (terminal) {
+        await tx.update(paymentWebhookEvents).set({ processingStatus: attempt.status === "settled" ? "credited" : "rejected", errorMessage: attempt.status === "settled" ? null : "This wallet-funding intent is terminal.", processedAt: new Date() }).where(eq(paymentWebhookEvents.id, event.id));
+        if (attempt.status !== "settled") await createTopUpReconciliationCase(tx, { caseKey: `refunded-or-reversed:${PAYSTACK_PROVIDER_NAME}:${reference}`, webhookEventId: event.id, fundingAttemptId: attempt.id, userId: attempt.userId, providerName: PAYSTACK_PROVIDER_NAME, category: "refunded_or_reversed", detail: reconciliationDetailForPaystackVerification({ attemptFound: true, terminal: true, matches: true, providerStatus: input.providerStatus }) });
+        return { status: attempt.status === "settled" ? "already_settled" as const : "blocked_terminal" as const };
+      }
+      if (input.providerStatus !== "successful") {
+        const nextStatus = input.providerStatus === "failed" ? "failed" : "pending";
+        const category = input.providerStatus === "failed" ? "provider_failed" : "provider_pending";
+        await tx.update(walletFundingAttempts).set({ status: nextStatus, providerTransactionId, providerEventId: providerTransactionId, providerVerifiedAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
+        await tx.update(paymentWebhookEvents).set({ processingStatus: "rejected", providerStatus: input.providerStatus, errorMessage: input.providerStatus === "failed" ? "Paystack reported a failed payment." : "Paystack payment is pending.", processedAt: new Date() }).where(eq(paymentWebhookEvents.id, event.id));
+        await createTopUpReconciliationCase(tx, { caseKey: `${category}:${PAYSTACK_PROVIDER_NAME}:${reference}`, webhookEventId: event.id, fundingAttemptId: attempt.id, userId: attempt.userId, providerName: PAYSTACK_PROVIDER_NAME, category, detail: reconciliationDetailForPaystackVerification({ attemptFound: true, terminal: false, matches: true, providerStatus: input.providerStatus }) });
+        return { status: nextStatus as "pending" | "failed" };
+      }
+      const ledgerReference = `wallet-funding:${attempt.fundingCode}`;
+      const [existingEntry] = await tx.select({ id: walletEntries.id }).from(walletEntries).where(eq(walletEntries.reference, ledgerReference)).limit(1);
+      if (existingEntry) {
+        await tx.update(walletFundingAttempts).set({ status: "settled", providerTransactionId, providerEventId: providerTransactionId, providerVerifiedAt: new Date(), settledAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
+        await tx.update(paymentWebhookEvents).set({ processingStatus: "credited", providerStatus: "successful", errorMessage: null, processedAt: new Date() }).where(eq(paymentWebhookEvents.id, event.id));
+        return { status: "already_settled" as const, fundingCode: attempt.fundingCode };
+      }
+      const [wallet] = await tx.select({ id: wallets.id, currency: wallets.currency, status: wallets.status, availableBalance: wallets.availableBalance }).from(wallets).where(eq(wallets.id, attempt.walletId)).limit(1);
+      if (!wallet || wallet.status !== "active" || wallet.currency !== attempt.currency) throw new Error("The matching wallet is unavailable for Paystack settlement.");
+      const previousBalance = Number(wallet.availableBalance);
+      const resultingBalance = previousBalance + Number(attempt.amount);
+      const [entryResult] = await tx.insert(walletEntries).values({ walletId: wallet.id, direction: "credit", entryType: "funding", amount: attempt.amount, currency: attempt.currency, reference: ledgerReference, status: "completed", metadata: { fundingCode: attempt.fundingCode, provider: PAYSTACK_PROVIDER_NAME, providerReference: reference, providerTransactionId, providerEnvironment: PAYSTACK_PROVIDER_ENVIRONMENT } });
+      await tx.update(wallets).set({ availableBalance: sql`${wallets.availableBalance} + ${attempt.amount}` }).where(eq(wallets.id, wallet.id));
+      await tx.insert(walletEntryBalanceSnapshots).values({ walletEntryId: Number(entryResult.insertId), walletId: wallet.id, previousBalance: previousBalance.toFixed(2), resultingBalance: resultingBalance.toFixed(2) });
+      await tx.update(walletFundingAttempts).set({ status: "settled", providerTransactionId, providerEventId: providerTransactionId, providerVerifiedAt: new Date(), settledAt: new Date() }).where(eq(walletFundingAttempts.id, attempt.id));
+      await tx.update(paymentWebhookEvents).set({ processingStatus: "credited", providerStatus: "successful", errorMessage: null, processedAt: new Date() }).where(eq(paymentWebhookEvents.id, event.id));
+      return { status: "settled" as const, fundingCode: attempt.fundingCode, walletAmount: attempt.amount, walletCurrency: attempt.currency };
+    });
+  } catch {
+    return recordPaystackFundingCreditFailure({ ...input, reference, providerTransactionId, amountSubunit });
+  }
+}
+
 export function walletCanCoverOrder(input: { walletStatus?: "active" | "locked" | "closed"; walletCurrency?: string; orderCurrency: string; availableBalance?: string | number; total: number }) {
   return input.walletStatus === "active" && input.walletCurrency === input.orderCurrency && Number(input.availableBalance ?? 0) >= input.total;
 }

@@ -302,6 +302,13 @@
       "when": 1787845989611,
       "tag": "0042_serious_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "5",
+      "when": 1787854263744,
+      "tag": "0043_equal_shooting_star",
+      "breakpoints": true
     }
   ]
 }

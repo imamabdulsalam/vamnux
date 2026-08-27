@@ -1034,10 +1034,17 @@ export const walletFundingAttempts = mysqlTable("wallet_funding_attempts", {
   integrationId: int("integrationId"),
   providerReference: varchar("providerReference", { length: 160 }),
   providerEventId: varchar("providerEventId", { length: 160 }),
+  /** Provider transaction IDs are stored as strings so unsigned 64-bit IDs are never coerced through JavaScript numbers. */
+  providerTransactionId: varchar("providerTransactionId", { length: 160 }),
   idempotencyKey: varchar("idempotencyKey", { length: 120 }).notNull(),
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   currency: varchar("currency", { length: 3 }).notNull(),
-  status: mysqlEnum("status", ["initialized", "pending", "settled", "failed", "expired", "cancelled", "reversed"]).default("initialized").notNull(),
+  /** Exact expected Paystack amount in kobo, kept as decimal text to avoid numeric precision loss. */
+  providerAmountSubunit: decimal("providerAmountSubunit", { precision: 20, scale: 0 }),
+  providerCurrency: varchar("providerCurrency", { length: 3 }),
+  providerEnvironment: mysqlEnum("providerEnvironment", ["test", "live"]),
+  providerVerifiedAt: timestamp("providerVerifiedAt"),
+  status: mysqlEnum("status", ["initialized", "pending", "settled", "failed", "expired", "cancelled", "reversed", "refunded", "reconciliation"]).default("initialized").notNull(),
   checkoutUrl: text("checkoutUrl"),
   metadata: json("metadata"),
   settledAt: timestamp("settledAt"),
@@ -1049,6 +1056,8 @@ export const walletFundingAttempts = mysqlTable("wallet_funding_attempts", {
   providerEventUnique: uniqueIndex("wallet_funding_attempts_event_unique").on(table.providerEventId),
   userCreatedIndex: index("wallet_funding_attempts_user_created_idx").on(table.userId, table.createdAt),
   providerReferenceUnique: uniqueIndex("wallet_funding_attempts_provider_reference_unique").on(table.providerReference),
+  providerTransactionUnique: uniqueIndex("wallet_funding_attempts_provider_transaction_unique").on(table.providerTransactionId),
+  providerStatusIndex: index("wallet_funding_attempts_provider_status_idx").on(table.providerEnvironment, table.status, table.updatedAt),
 }));
 
 /**
