@@ -19,6 +19,7 @@ import { adminNotificationReads, newsletterInterestSubscribers } from "../drizzl
 import { customerProductRequests } from "../drizzle/schema";
 import { masterProducts, supplierOfferMappingReviews, supplierOffers } from "../drizzle/schema";
 import { paymentWebhookEvents, topUpReconciliationCases, walletEntryBalanceSnapshots, walletEntryReversals } from "../drizzle/schema";
+import { orderControlEvents, orderRefundRecords, orderRetryPolicies, supplierOrderAttempts } from "../drizzle/schema";
 import { isSupplierMappingCategory, mappingAttributesMatch, mappingIdentityValue, normalizeMappingAttributes, type MappingAttributes, type MappingStatus, type SupplierMappingCategory } from "../shared/supplierProductMapping";
 
 export const FLASHTOPUP_SUPPLIER_KEY = "flashtopup" as const;
@@ -2651,6 +2652,141 @@ export async function cancelSuperAdminDraftOrder(input: { orderId: number; admin
     await tx.insert(adminAuditEvents).values({ adminUserId: input.adminUserId, action: "order.cancelled_before_processing", targetType: "order", targetId: String(order.id), summary: `Cancelled unfunded unsent order ${order.orderCode}`, metadata: { reason } });
   });
   return { id: order.id, status: "cancelled" as const };
+}
+
+const ADMIN_ORDER_STATUSES = ["PENDING PAYMENT", "PAYMENT CONFIRMED", "PROCESSING", "SENT TO SUPPLIER", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED", "MANUAL REVIEW"] as const;
+export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
+
+function canonicalAdminOrderStatus(order: { status: string; paymentStatus: string; supplierStatus: string }): AdminOrderStatus {
+  if (order.status === "refunded" || order.paymentStatus === "refunded") return "REFUNDED";
+  if (order.status === "cancelled") return "CANCELLED";
+  if (order.status === "failed" || order.supplierStatus === "failed") return "FAILED";
+  if (order.status === "delivered" || order.supplierStatus === "fulfilled") return "COMPLETED";
+  if (order.supplierStatus === "processing") return "SUPPLIER PROCESSING";
+  if (order.supplierStatus === "queued") return "SENT TO SUPPLIER";
+  if (order.status === "processing") return "PROCESSING";
+  if (order.status === "paid" || order.paymentStatus === "paid") return "PAYMENT CONFIRMED";
+  return "PENDING PAYMENT";
+}
+
+type AdminOrderControlFilters = {
+  search?: string; status?: AdminOrderStatus; paymentStatus?: "unpaid" | "pending" | "paid" | "failed" | "refunded";
+  supplier?: string; category?: string; currency?: string; start?: Date; end?: Date; offset?: number; limit?: number;
+};
+
+/** Paginated Super Admin rows; no credentials, raw request bodies, or supplier secrets are returned. */
+export async function listAdminOrderControls(input: AdminOrderControlFilters = {}) {
+  const db = requireDb(await getDb());
+  const term = input.search?.trim();
+  const conditions = [
+    input.paymentStatus ? eq(orders.paymentStatus, input.paymentStatus) : undefined,
+    input.currency ? eq(orders.currency, input.currency.trim().toUpperCase()) : undefined,
+    input.category ? eq(products.category, input.category.trim() as never) : undefined,
+    input.start ? gte(orders.createdAt, input.start) : undefined,
+    input.end ? lte(orders.createdAt, input.end) : undefined,
+    input.supplier ? like(sql`coalesce(${commerceIntegrations.providerName}, '')`, `%${input.supplier.trim()}%`) : undefined,
+    term ? or(like(orders.orderCode, `%${term}%`), like(sql`coalesce(${users.email}, '')`, `%${term}%`), like(sql`coalesce(${users.name}, '')`, `%${term}%`), like(sql`coalesce(${orders.supplierOrderId}, '')`, `%${term}%`), like(sql`coalesce(${orderItems.supplierSku}, '')`, `%${term}%`), like(orderItems.productName, `%${term}%`)) : undefined,
+  ].filter(Boolean);
+  const rows = await db.select({
+    id: orders.id, orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, currency: orders.currency, subtotal: orders.subtotal, total: orders.total, createdAt: orders.createdAt, updatedAt: orders.updatedAt,
+    supplierOrderId: orders.supplierOrderId, supplierTotal: orders.supplierTotal, supplierCurrency: orders.supplierCurrency, supplierErrorCode: orders.supplierErrorCode,
+    customerId: users.id, customerName: users.name, customerEmail: users.email, customerUsername: customerProfiles.username,
+    productId: orderItems.productId, productName: orderItems.productName, quantity: orderItems.quantity, supplierSku: orderItems.supplierSku, regionLabel: orderItems.regionLabel, category: products.category, supplier: commerceIntegrations.providerName,
+    supplierCost: financialOrderSnapshots.supplierCostInCustomerCurrency, paymentFee: financialOrderSnapshots.paymentProcessingFee, netProfit: financialOrderSnapshots.netProfit,
+  }).from(orders).leftJoin(users, eq(users.id, orders.userId)).leftJoin(customerProfiles, eq(customerProfiles.userId, orders.userId)).leftJoin(orderItems, eq(orderItems.orderId, orders.id)).leftJoin(products, eq(products.id, orderItems.productId)).leftJoin(commerceIntegrations, eq(commerceIntegrations.id, orders.supplierIntegrationId)).leftJoin(financialOrderSnapshots, and(eq(financialOrderSnapshots.orderId, orders.id), eq(financialOrderSnapshots.productId, orderItems.productId))).where(conditions.length ? and(...conditions) : undefined).orderBy(desc(orders.createdAt)).limit(Math.min(Math.max(input.limit ?? 50, 1), 100)).offset(Math.max(input.offset ?? 0, 0));
+  const normalized = rows.map((row) => ({ ...row, canonicalStatus: canonicalAdminOrderStatus(row), subtotal: numeric(row.subtotal), total: numeric(row.total), supplierTotal: numeric(row.supplierTotal), supplierCost: row.supplierCost === null ? null : numeric(row.supplierCost), paymentFee: row.paymentFee === null ? null : numeric(row.paymentFee), netProfit: row.netProfit === null ? null : numeric(row.netProfit) }));
+  return input.status ? normalized.filter((row) => row.canonicalStatus === input.status) : normalized;
+}
+
+/** Full Super Admin record with customer inputs, immutable finance, timeline, and sanitized supplier attempt history. */
+export async function getAdminOrderControlDetail(orderId: number) {
+  const db = requireDb(await getDb());
+  const [order] = await db.select({ id: orders.id, orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, currency: orders.currency, subtotal: orders.subtotal, total: orders.total, supplierOrderId: orders.supplierOrderId, supplierTotal: orders.supplierTotal, supplierCurrency: orders.supplierCurrency, supplierErrorCode: orders.supplierErrorCode, fulfillmentDetails: orders.fulfillmentDetails, createdAt: orders.createdAt, updatedAt: orders.updatedAt, customerId: users.id, customerName: users.name, customerEmail: users.email, customerUsername: customerProfiles.username, supplier: commerceIntegrations.providerName }).from(orders).leftJoin(users, eq(users.id, orders.userId)).leftJoin(customerProfiles, eq(customerProfiles.userId, orders.userId)).leftJoin(commerceIntegrations, eq(commerceIntegrations.id, orders.supplierIntegrationId)).where(eq(orders.id, orderId)).limit(1);
+  if (!order) throw new Error("Order was not found");
+  const [items, events, attempts, refunds, financialSnapshots] = await Promise.all([
+    db.select({ id: orderItems.id, productId: orderItems.productId, productName: orderItems.productName, supplierSku: orderItems.supplierSku, quantity: orderItems.quantity, unitPrice: orderItems.unitPrice, regionLabel: orderItems.regionLabel, deliveryType: orderItems.deliveryType, fulfillmentDetails: orderItems.fulfillmentDetails }).from(orderItems).where(eq(orderItems.orderId, orderId)),
+    db.select().from(orderControlEvents).where(eq(orderControlEvents.orderId, orderId)).orderBy(orderControlEvents.createdAt),
+    db.select().from(supplierOrderAttempts).where(eq(supplierOrderAttempts.orderId, orderId)).orderBy(supplierOrderAttempts.attemptNumber),
+    db.select().from(orderRefundRecords).where(eq(orderRefundRecords.orderId, orderId)).orderBy(orderRefundRecords.createdAt),
+    db.select().from(financialOrderSnapshots).where(eq(financialOrderSnapshots.orderId, orderId)).orderBy(financialOrderSnapshots.createdAt),
+  ]);
+  return { order: { ...order, canonicalStatus: canonicalAdminOrderStatus(order), subtotal: numeric(order.subtotal), total: numeric(order.total), supplierTotal: numeric(order.supplierTotal) }, items: items.map((item) => ({ ...item, unitPrice: numeric(item.unitPrice) })), events, attempts: attempts.map((attempt) => ({ ...attempt })), refunds: refunds.map((refund) => ({ ...refund, amount: numeric(refund.amount) })), financialSnapshots: financialSnapshots.map((snapshot) => ({ ...snapshot, customerSellingPrice: numeric(snapshot.customerSellingPrice), supplierCost: snapshot.supplierCost === null ? null : numeric(snapshot.supplierCost), supplierCostInCustomerCurrency: snapshot.supplierCostInCustomerCurrency === null ? null : numeric(snapshot.supplierCostInCustomerCurrency), paymentProcessingFee: numeric(snapshot.paymentProcessingFee), otherApplicableFees: numeric(snapshot.otherApplicableFees), grossRevenue: numeric(snapshot.grossRevenue), grossProfit: numeric(snapshot.grossProfit), netRevenue: numeric(snapshot.netRevenue), netProfit: numeric(snapshot.netProfit), profitMarginPercent: numeric(snapshot.profitMarginPercent) })) };
+}
+
+export async function getAdminOrderControlAnalytics(input?: { start?: Date; end?: Date }) {
+  const db = requireDb(await getDb());
+  const dateFilter = input?.start && input.end ? and(gte(orders.createdAt, input.start), lte(orders.createdAt, input.end)) : input?.start ? gte(orders.createdAt, input.start) : input?.end ? lte(orders.createdAt, input.end) : undefined;
+  const [summaryRows, supplierRows, duration] = await Promise.all([
+    db.select({ totalOrders: sql<number>`count(*)`, successful: sql<number>`coalesce(sum(case when ${orders.status} = 'delivered' then 1 else 0 end), 0)`, failed: sql<number>`coalesce(sum(case when ${orders.status} = 'failed' then 1 else 0 end), 0)`, pending: sql<number>`coalesce(sum(case when ${orders.status} in ('draft','pending_payment','paid','processing') then 1 else 0 end), 0)`, cancelled: sql<number>`coalesce(sum(case when ${orders.status} = 'cancelled' then 1 else 0 end), 0)`, refunded: sql<number>`coalesce(sum(case when ${orders.status} = 'refunded' or ${orders.paymentStatus} = 'refunded' then 1 else 0 end), 0)`, revenue: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then ${orders.total} else 0 end), 0)`, supplierCost: sql<string>`coalesce(sum(case when ${orders.paymentStatus} = 'paid' then coalesce(${orders.supplierTotal}, 0) else 0 end), 0)` }).from(orders).where(dateFilter),
+    db.select({ supplier: commerceIntegrations.providerName, orders: sql<number>`count(*)`, revenue: sql<string>`coalesce(sum(${orders.total}), 0)` }).from(orders).leftJoin(commerceIntegrations, eq(commerceIntegrations.id, orders.supplierIntegrationId)).where(dateFilter).groupBy(commerceIntegrations.providerName).orderBy(desc(sql`count(*)`)),
+    db.select({ averageFulfillmentMilliseconds: sql<number | null>`avg(${supplierOrderAttempts.processingMilliseconds})` }).from(supplierOrderAttempts).where(eq(supplierOrderAttempts.status, "completed")),
+  ]);
+  const summary = summaryRows[0];
+  const totalOrders = numeric(summary?.totalOrders); const successful = numeric(summary?.successful); const revenue = numeric(summary?.revenue); const supplierCost = numeric(summary?.supplierCost);
+  return { totalOrders, successful, failed: numeric(summary?.failed), pending: numeric(summary?.pending), cancelled: numeric(summary?.cancelled), refunded: numeric(summary?.refunded), revenue, supplierCost, fees: 0, profit: revenue - supplierCost, successRate: totalOrders ? (successful / totalOrders) * 100 : 0, averageFulfillmentMilliseconds: duration[0]?.averageFulfillmentMilliseconds ? Number(duration[0].averageFulfillmentMilliseconds) : null, bySupplier: supplierRows.map((row) => ({ supplier: row.supplier || "Not assigned", orders: numeric(row.orders), revenue: numeric(row.revenue) })) };
+}
+
+export async function recordAdminOrderReview(input: { orderId: number; adminUserId: number; action: "review" | "resolve"; note: string; operationKey: string }) {
+  const db = requireDb(await getDb());
+  const [order] = await db.select({ id: orders.id, orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  if (!order) throw new Error("Order was not found");
+  const current = canonicalAdminOrderStatus(order); const next = input.action === "review" ? "MANUAL REVIEW" : current;
+  await db.transaction(async (tx) => {
+    const [existing] = await tx.select({ id: orderControlEvents.id }).from(orderControlEvents).where(eq(orderControlEvents.eventKey, input.operationKey)).limit(1);
+    if (existing) return;
+    await tx.insert(orderControlEvents).values({ orderId: input.orderId, eventKey: input.operationKey, eventType: input.action === "review" ? "manual_review" : "resolution_recorded", previousOrderStatus: current, nextOrderStatus: next, paymentStatus: order.paymentStatus, supplierStatus: order.supplierStatus, note: input.note.trim().slice(0, 1000), performedByAdminId: input.adminUserId });
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: `order.${input.action}`, targetType: "order", targetId: input.orderId, summary: `${input.action === "review" ? "Marked" : "Resolved"} order ${order.orderCode}`, metadata: { operationKey: input.operationKey } });
+  });
+  return { orderId: input.orderId, status: next };
+}
+
+/** Records a refund decision only; it never moves customer funds or overwrites the original order snapshot. */
+export async function recordAdminOrderRefund(input: { orderId: number; adminUserId: number; amount: number; currency: string; reason: string; paymentReference?: string | null; operationKey: string; action: "initiated" | "recorded" | "rejected" }) {
+  const db = requireDb(await getDb());
+  const [order] = await db.select({ id: orders.id, orderCode: orders.orderCode, total: orders.total, currency: orders.currency, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, status: orders.status }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  if (!order) throw new Error("Order was not found");
+  if (input.amount <= 0 || input.amount > numeric(order.total)) throw new Error("Refund amount must be greater than zero and cannot exceed the original order total.");
+  if (input.currency.trim().toUpperCase() !== order.currency) throw new Error("Refund currency must match the original order currency.");
+  const current = canonicalAdminOrderStatus(order); const next = input.action === "recorded" ? "REFUNDED" : input.action === "initiated" ? "REFUND PENDING" : current;
+  await db.transaction(async (tx) => {
+    const [existing] = await tx.select({ id: orderRefundRecords.id }).from(orderRefundRecords).where(eq(orderRefundRecords.operationKey, input.operationKey)).limit(1);
+    if (existing) return;
+    await tx.insert(orderRefundRecords).values({ orderId: input.orderId, operationKey: input.operationKey, action: input.action, amount: input.amount.toFixed(2), currency: order.currency, paymentReference: input.paymentReference?.trim().slice(0, 180) || null, reason: input.reason.trim().slice(0, 1000), recordedByAdminId: input.adminUserId });
+    await tx.insert(orderControlEvents).values({ orderId: input.orderId, eventKey: `${input.operationKey}:event`, eventType: input.action === "recorded" ? "refund_recorded" : "refund_requested", previousOrderStatus: current, nextOrderStatus: next, paymentStatus: order.paymentStatus, supplierStatus: order.supplierStatus, note: input.reason.trim().slice(0, 1000), safeReference: input.paymentReference?.trim().slice(0, 500) || null, performedByAdminId: input.adminUserId });
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: `order.refund_${input.action}`, targetType: "order", targetId: input.orderId, summary: `Recorded ${input.action} refund outcome for ${order.orderCode}`, metadata: { amount: input.amount, currency: order.currency, operationKey: input.operationKey } });
+  });
+  return { orderId: input.orderId, status: next };
+}
+
+/** Adds a reviewable retry entry only; existing supplier routing safeguards continue to control actual dispatch. */
+export async function queueAdminOrderRetry(input: { orderId: number; adminUserId: number; reason: string; operationKey: string; fallbackSupplierKey?: string | null }) {
+  const db = requireDb(await getDb());
+  const [order] = await db.select({ id: orders.id, orderCode: orders.orderCode, status: orders.status, paymentStatus: orders.paymentStatus, supplierStatus: orders.supplierStatus, supplierIntegrationId: orders.supplierIntegrationId, supplierOrderId: orders.supplierOrderId }).from(orders).where(eq(orders.id, input.orderId)).limit(1);
+  if (!order) throw new Error("Order was not found");
+  if (order.paymentStatus !== "paid") throw new Error("Only payment-confirmed orders can enter the supplier retry queue.");
+  if (!(order.status === "failed" || order.supplierStatus === "failed")) throw new Error("Only supplier-failed orders can be queued for retry.");
+  await db.transaction(async (tx) => {
+    const [existing] = await tx.select({ id: orderControlEvents.id }).from(orderControlEvents).where(eq(orderControlEvents.eventKey, input.operationKey)).limit(1);
+    if (existing) return;
+    const [latest] = await tx.select({ attemptNumber: supplierOrderAttempts.attemptNumber }).from(supplierOrderAttempts).where(eq(supplierOrderAttempts.orderId, input.orderId)).orderBy(desc(supplierOrderAttempts.attemptNumber)).limit(1);
+    const now = new Date(); const retryAfter = new Date(now.getTime() + 15 * 60 * 1000);
+    await tx.insert(supplierOrderAttempts).values({ orderId: input.orderId, attemptNumber: (latest?.attemptNumber || 0) + 1, supplierIntegrationId: order.supplierIntegrationId, supplierKey: input.fallbackSupplierKey?.trim().slice(0, 80) || null, supplierOrderId: order.supplierOrderId, requestId: input.operationKey, status: "queued", errorMessage: input.reason.trim().slice(0, 1000), retryCount: latest?.attemptNumber || 0, retryAfter });
+    await tx.insert(orderControlEvents).values({ orderId: input.orderId, eventKey: input.operationKey, eventType: input.fallbackSupplierKey ? "fallback_selected" : "retry_queued", previousOrderStatus: canonicalAdminOrderStatus(order), nextOrderStatus: "PROCESSING", paymentStatus: order.paymentStatus, supplierStatus: order.supplierStatus, note: input.reason.trim().slice(0, 1000), safeReference: input.fallbackSupplierKey?.trim().slice(0, 500) || null, performedByAdminId: input.adminUserId });
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: input.fallbackSupplierKey ? "order.fallback_queued" : "order.retry_queued", targetType: "order", targetId: input.orderId, summary: `Queued ${input.fallbackSupplierKey ? "fallback" : "retry"} review for ${order.orderCode}`, metadata: { operationKey: input.operationKey, fallbackSupplierKey: input.fallbackSupplierKey || null } });
+  });
+  return { orderId: input.orderId, queued: true };
+}
+
+export async function updateAdminOrderRetryPolicy(input: { supplierKey?: string | null; maxAttempts: number; retryDelayMinutes: number; enabled: boolean; adminUserId: number }) {
+  const db = requireDb(await getDb()); const supplierKey = input.supplierKey?.trim().slice(0, 80) || null;
+  await db.insert(orderRetryPolicies).values({ supplierKey, maxAttempts: input.maxAttempts, retryDelayMinutes: input.retryDelayMinutes, enabled: input.enabled, updatedByAdminId: input.adminUserId }).onDuplicateKeyUpdate({ set: { maxAttempts: input.maxAttempts, retryDelayMinutes: input.retryDelayMinutes, enabled: input.enabled, updatedByAdminId: input.adminUserId } });
+  await appendAdminAuditEvent(db, { adminUserId: input.adminUserId, action: "order.retry_policy_updated", targetType: "order_retry_policy", targetId: supplierKey || "default", summary: `Updated retry policy for ${supplierKey || "all suppliers"}`, metadata: { maxAttempts: input.maxAttempts, retryDelayMinutes: input.retryDelayMinutes, enabled: input.enabled } });
+  return { supplierKey, maxAttempts: input.maxAttempts, retryDelayMinutes: input.retryDelayMinutes, enabled: input.enabled };
+}
+
+export async function listAdminOrderRetryPolicies() {
+  const db = requireDb(await getDb());
+  return db.select().from(orderRetryPolicies).orderBy(orderRetryPolicies.supplierKey);
 }
 
 export async function listSuperAdminSupportTickets(limit = 100) {

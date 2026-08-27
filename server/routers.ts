@@ -18,6 +18,7 @@ import { replyToSuperAdminNotification } from "./db";
 import { getSuperAdminTrafficAnalytics } from "./db";
 import { getUsdSteamTopUpQuote, prepareUsdSteamTopUpWalletOrder } from "./db";
 import { createManualWalletAdjustment, getTopUpControlDashboard, listTopUpControlAudit, listTopUpReconciliationCases, listTopUpTransactions, listTopUpWebhookMonitor, listUserWalletTimeline, resolveTopUpReconciliationCase, reverseWalletLedgerEntry } from "./db";
+import { getAdminOrderControlAnalytics, getAdminOrderControlDetail, listAdminOrderControls, listAdminOrderRetryPolicies, queueAdminOrderRetry, recordAdminOrderRefund, recordAdminOrderReview, updateAdminOrderRetryPolicy } from "./db";
 import { getSafeSupplierApiAccessStatus } from "./apiAccessControl";
 import { getMasterCatalogFoundationSummary } from "./db";
 import { addSupplierOfferToMasterForReview, approveSupplierOfferMapping, createSupplierProductMappingMaster, getSupplierProductMappingMaster, getSupplierProductMappingSummary, listSupplierProductMappingMasters, rejectSupplierOfferMapping, removeSupplierOfferMapping, searchSupplierProductsForMapping } from "./db";
@@ -307,6 +308,20 @@ export const appRouter = router({
     reinstateCustomer: adminProcedure.input(z.object({ userId: z.number().int().positive(), decisionNote: z.string().trim().max(500).optional() }))
       .mutation(({ ctx, input }) => reinstateCustomerAccount({ ...input, adminUserId: ctx.user.id })),
     listOrders: adminProcedure.query(() => listSuperAdminOrders()),
+    listOrderControls: adminProcedure.input(z.object({
+      search: z.string().trim().max(160).optional(),
+      status: z.enum(["PENDING PAYMENT", "PAYMENT CONFIRMED", "PROCESSING", "SENT TO SUPPLIER", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED", "MANUAL REVIEW"]).optional(),
+      paymentStatus: z.enum(["unpaid", "pending", "paid", "failed", "refunded"]).optional(),
+      supplier: z.string().trim().max(80).optional(), category: z.string().trim().max(80).optional(), currency: z.string().trim().length(3).optional(),
+      start: z.coerce.date().optional(), end: z.coerce.date().optional(), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(100).default(50),
+    }).refine((input) => !input.start || !input.end || input.start <= input.end, { message: "The start date must be before the end date" }).optional()).query(({ input }) => listAdminOrderControls(input)),
+    getOrderControlDetail: adminProcedure.input(z.object({ orderId: z.number().int().positive() })).query(({ input }) => getAdminOrderControlDetail(input.orderId)),
+    getOrderControlAnalytics: adminProcedure.input(z.object({ start: z.coerce.date().optional(), end: z.coerce.date().optional() }).refine((input) => !input.start || !input.end || input.start <= input.end, { message: "The start date must be before the end date" }).optional()).query(({ input }) => getAdminOrderControlAnalytics(input)),
+    listOrderRetryPolicies: adminProcedure.query(() => listAdminOrderRetryPolicies()),
+    updateOrderRetryPolicy: adminProcedure.input(z.object({ supplierKey: z.string().trim().max(80).nullable().optional(), maxAttempts: z.number().int().min(1).max(10), retryDelayMinutes: z.number().int().min(1).max(1440), enabled: z.boolean() })).mutation(({ ctx, input }) => updateAdminOrderRetryPolicy({ ...input, adminUserId: ctx.user.id })),
+    recordOrderReview: adminProcedure.input(z.object({ orderId: z.number().int().positive(), action: z.enum(["review", "resolve"]), note: z.string().trim().min(3).max(1000), operationKey: z.string().trim().min(8).max(180) })).mutation(({ ctx, input }) => recordAdminOrderReview({ ...input, adminUserId: ctx.user.id })),
+    recordOrderRefund: adminProcedure.input(z.object({ orderId: z.number().int().positive(), action: z.enum(["initiated", "recorded", "rejected"]), amount: z.number().positive().max(1_000_000), currency: z.string().trim().length(3), paymentReference: z.string().trim().max(180).nullable().optional(), reason: z.string().trim().min(3).max(1000), operationKey: z.string().trim().min(8).max(180) })).mutation(({ ctx, input }) => recordAdminOrderRefund({ ...input, adminUserId: ctx.user.id })),
+    queueOrderRetry: adminProcedure.input(z.object({ orderId: z.number().int().positive(), reason: z.string().trim().min(3).max(1000), operationKey: z.string().trim().min(8).max(180), fallbackSupplierKey: z.string().trim().max(80).nullable().optional() })).mutation(({ ctx, input }) => queueAdminOrderRetry({ ...input, adminUserId: ctx.user.id })),
     listProductActivityEvents: adminProcedure.input(z.object({ limit: z.number().int().min(1).max(250).optional() }).optional())
       .query(({ input }) => listSuperAdminProductActivityEvents(input)),
     listManualDeliveryTasks: adminProcedure.query(() => listSuperAdminManualDeliveryTasks()),

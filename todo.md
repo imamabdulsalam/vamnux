@@ -977,3 +977,7 @@
 - [x] Validate checkout eligibility, image visibility, product-detail loading, focused tests, build, visual behavior, checkpoint, and GitHub push.
 - [x] Fix only the large product-detail artwork area shown after View Details so each selected product image loads promptly and clearly with a visible fallback when no valid image is available.
 - [x] Validate product-detail artwork loading on desktop and mobile, focused tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Assess existing order, routing, supplier-attempt, fulfillment, financial-snapshot, and authorization records before upgrading only the Admin Orders section.
+- [x] Add additive immutable supplier-attempt, retry, routing-history, resolution, refund-control, and Admin order-audit records without changing historical orders, products, prices, wallets, or payments.
+- [x] Implement protected Admin order search, filters, dedicated operational views, details, financial snapshots, customer-input display, timelines, controls, analytics, retry queue, and supplier fallback history.
+- [x] Validate server-side authorization, idempotency, immutable historical data, secret privacy, retry safeguards, UI views, data preservation, tests, build, visual behavior, checkpoint, and GitHub push.

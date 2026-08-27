@@ -1369,6 +1369,95 @@ export const manualDeliveryTasks = mysqlTable("manual_delivery_tasks", {
   customerStatusIndex: index("manual_delivery_tasks_customer_status_idx").on(table.userId, table.status),
 }));
 
+/**
+ * Append-only Admin order timeline. These records describe operational decisions
+ * without overwriting an order's immutable commercial snapshots or raw supplier
+ * payloads. The optional event key makes a state-changing command idempotent.
+ */
+export const orderControlEvents = mysqlTable("order_control_events", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  eventKey: varchar("eventKey", { length: 180 }),
+  eventType: mysqlEnum("eventType", ["order_created", "payment_confirmed", "processing_started", "supplier_queued", "supplier_attempted", "supplier_response", "supplier_failed", "retry_queued", "retry_started", "fallback_eligible", "fallback_selected", "completed", "failed", "cancelled", "manual_review", "resolution_recorded", "refund_requested", "refund_recorded"]).notNull(),
+  previousOrderStatus: mysqlEnum("previousOrderStatus", ["PENDING PAYMENT", "PAYMENT CONFIRMED", "PROCESSING", "SENT TO SUPPLIER", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED", "MANUAL REVIEW"]),
+  nextOrderStatus: mysqlEnum("nextOrderStatus", ["PENDING PAYMENT", "PAYMENT CONFIRMED", "PROCESSING", "SENT TO SUPPLIER", "SUPPLIER PROCESSING", "COMPLETED", "FAILED", "CANCELLED", "REFUND PENDING", "REFUNDED", "MANUAL REVIEW"]).notNull(),
+  paymentStatus: varchar("paymentStatus", { length: 32 }).notNull(),
+  supplierStatus: varchar("supplierStatus", { length: 32 }).notNull(),
+  note: varchar("note", { length: 1000 }),
+  safeReference: varchar("safeReference", { length: 500 }),
+  performedByAdminId: int("performedByAdminId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  eventKeyUnique: uniqueIndex("order_control_events_event_key_unique").on(table.eventKey),
+  orderCreatedIndex: index("order_control_events_order_created_idx").on(table.orderId, table.createdAt),
+  statusCreatedIndex: index("order_control_events_status_created_idx").on(table.nextOrderStatus, table.createdAt),
+}));
+
+/**
+ * Sanitised history of every supplier attempt. Request/response bodies and all
+ * credentials stay out of this record; only safe references and error metadata
+ * are available to Super Admin.
+ */
+export const supplierOrderAttempts = mysqlTable("supplier_order_attempts", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  attemptNumber: int("attemptNumber").notNull(),
+  supplierIntegrationId: int("supplierIntegrationId"),
+  supplierKey: varchar("supplierKey", { length: 80 }),
+  supplierOrderId: varchar("supplierOrderId", { length: 160 }),
+  supplierProductSku: varchar("supplierProductSku", { length: 180 }),
+  requestId: varchar("requestId", { length: 180 }),
+  requestReference: varchar("requestReference", { length: 500 }),
+  responseReference: varchar("responseReference", { length: 500 }),
+  status: mysqlEnum("status", ["queued", "sent", "processing", "completed", "temporary_failed", "permanent_failed", "cancelled", "not_dispatched"]).default("queued").notNull(),
+  errorCode: varchar("errorCode", { length: 120 }),
+  errorMessage: varchar("errorMessage", { length: 1000 }),
+  retryCount: int("retryCount").default(0).notNull(),
+  processingMilliseconds: int("processingMilliseconds"),
+  fallbackFromAttemptId: int("fallbackFromAttemptId"),
+  retryAfter: timestamp("retryAfter"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  orderAttemptUnique: uniqueIndex("supplier_order_attempts_order_number_unique").on(table.orderId, table.attemptNumber),
+  requestIdUnique: uniqueIndex("supplier_order_attempts_request_id_unique").on(table.requestId),
+  orderCreatedIndex: index("supplier_order_attempts_order_created_idx").on(table.orderId, table.createdAt),
+  retryQueueIndex: index("supplier_order_attempts_retry_queue_idx").on(table.status, table.retryAfter),
+  supplierCreatedIndex: index("supplier_order_attempts_supplier_created_idx").on(table.supplierKey, table.createdAt),
+}));
+
+/** Configurable but safe retry limits. Supplier dispatch remains subject to existing routing controls. */
+export const orderRetryPolicies = mysqlTable("order_retry_policies", {
+  id: int("id").autoincrement().primaryKey(),
+  supplierKey: varchar("supplierKey", { length: 80 }),
+  maxAttempts: int("maxAttempts").default(3).notNull(),
+  retryDelayMinutes: int("retryDelayMinutes").default(15).notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  updatedByAdminId: int("updatedByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  supplierUnique: uniqueIndex("order_retry_policies_supplier_unique").on(table.supplierKey),
+}));
+
+/** Immutable refund and reversal entries; correcting a refund creates a new event rather than rewriting history. */
+export const orderRefundRecords = mysqlTable("order_refund_records", {
+  id: int("id").autoincrement().primaryKey(),
+  orderId: int("orderId").notNull(),
+  operationKey: varchar("operationKey", { length: 180 }).notNull(),
+  action: mysqlEnum("action", ["initiated", "recorded", "rejected"]).notNull(),
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 3 }).notNull(),
+  paymentReference: varchar("paymentReference", { length: 180 }),
+  reason: varchar("reason", { length: 1000 }).notNull(),
+  recordedByAdminId: int("recordedByAdminId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  operationUnique: uniqueIndex("order_refund_records_operation_unique").on(table.operationKey),
+  orderCreatedIndex: index("order_refund_records_order_created_idx").on(table.orderId, table.createdAt),
+}));
+
 export type Product = typeof products.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;
