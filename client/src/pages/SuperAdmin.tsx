@@ -413,18 +413,25 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     const list = panel?.querySelector<HTMLElement>(".admin-product-list-scroll");
     const heading = panel?.querySelector<HTMLElement>(".admin-product-list-head");
     const products = productOperations.data ?? [];
-    if (!panel || !list || !heading || !products.length) return;
-    panel.querySelector("[data-product-list-tools]")?.remove();
+    if (!panel || !list || !heading) return;
     panel.querySelectorAll("[data-product-row-checkbox], [data-product-row-edit]").forEach((element) => element.remove());
     const selected = new Set<number>();
-    const tools = document.createElement("div");
-    tools.dataset.productListTools = "true";
-    tools.className = "admin-product-list-tools";
-    const searchInput = document.createElement("input");
-    searchInput.type = "search";
-    searchInput.value = productListSearch;
-    searchInput.placeholder = "Search every product or supplier";
-    searchInput.setAttribute("aria-label", "Search every product listing or supplier");
+    const tools = panel.querySelector<HTMLElement>("[data-product-list-tools]") || document.createElement("div");
+    if (!tools.dataset.productListTools) {
+      tools.dataset.productListTools = "true";
+      tools.className = "admin-product-list-tools";
+      heading.after(tools);
+    }
+    const searchInput = tools.querySelector<HTMLInputElement>("[data-admin-product-search-input]") || document.createElement("input");
+    if (!searchInput.dataset.adminProductSearchInput) {
+      searchInput.dataset.adminProductSearchInput = "true";
+      searchInput.type = "search";
+      searchInput.value = productListSearch;
+      searchInput.placeholder = "Search every product or supplier";
+      searchInput.setAttribute("aria-label", "Search every product listing or supplier");
+      tools.prepend(searchInput);
+    }
+    tools.querySelectorAll(".admin-product-search-suggestions, .admin-product-dom-bulk, .admin-product-dom-actions").forEach((element) => element.remove());
     const suggestions = document.createElement("div");
     suggestions.className = "admin-product-search-suggestions";
     const searchTerm = productListSearch.trim();
@@ -451,11 +458,11 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     const markup = document.createElement("input"); markup.type = "number"; markup.value = "25"; markup.min = "-100"; markup.max = "500"; markup.step = "0.01"; markup.setAttribute("aria-label", "Selected supplier product markup percentage");
     const applyMarkup = document.createElement("button"); applyMarkup.type = "button"; applyMarkup.textContent = "Apply markup"; applyMarkup.className = "admin-secondary-action";
     const archive = document.createElement("button"); archive.type = "button"; archive.textContent = "Archive Admin items"; archive.className = "admin-danger-action";
-    actions.append(show, hide, markup, applyMarkup, archive); tools.append(searchInput, suggestions, selectionBar, actions); heading.after(tools);
+    actions.append(show, hide, markup, applyMarkup, archive); tools.append(suggestions, selectionBar, actions);
     const rows = Array.from(list.querySelectorAll<HTMLElement>(":scope > article"));
     const refresh = () => { const visibleRows = rows.filter((row) => row.style.display !== "none"); selectedCount.textContent = `${selected.size} selected`; selectVisible.textContent = visibleRows.length && visibleRows.every((row) => selected.has(Number(row.dataset.productId))) ? "Clear visible" : "Select visible"; };
     rows.forEach((row, index) => { const product = products[index]; if (!product) return; row.dataset.productId = String(product.id); const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.dataset.productRowCheckbox = "true"; checkbox.setAttribute("aria-label", `Select ${product.name}`); checkbox.addEventListener("change", () => { checkbox.checked ? selected.add(product.id) : selected.delete(product.id); refresh(); }); row.prepend(checkbox); const edit = document.createElement("button"); edit.type = "button"; edit.dataset.productRowEdit = "true"; edit.className = "admin-secondary-action"; edit.textContent = "Edit"; edit.addEventListener("click", () => setProductOperationsId(String(product.id))); row.append(edit); });
-    searchInput.addEventListener("input", () => { setProductListSearch(searchInput.value); });
+    searchInput.oninput = () => { setProductListSearch(searchInput.value); };
     selectVisible.addEventListener("click", () => { const visibleRows = rows.filter((row) => row.style.display !== "none"); const allSelected = visibleRows.length > 0 && visibleRows.every((row) => selected.has(Number(row.dataset.productId))); visibleRows.forEach((row) => { const id = Number(row.dataset.productId); const checkbox = row.querySelector<HTMLInputElement>("[data-product-row-checkbox]"); if (allSelected) selected.delete(id); else selected.add(id); if (checkbox) checkbox.checked = !allSelected; }); refresh(); });
     const currentSelection = () => products.filter((product) => selected.has(product.id));
     show.addEventListener("click", () => { const selectedProducts = currentSelection(); if (selectedProducts.length && window.confirm(`Show ${selectedProducts.length} selected listings?`)) bulkUpdateProductVisibility.mutate({ productIds: selectedProducts.map((product) => product.id), storefrontStatus: "visible" }); });
@@ -463,7 +470,7 @@ function SuperAdminWorkspace({ adminName, onSignOut, onReturn }: { adminName: st
     applyMarkup.addEventListener("click", () => { const selectedProducts = currentSelection().filter((product) => product.supplierKey && product.supplierKey !== "admin_managed"); const markupPercent = Number(markup.value); if (!selectedProducts.length) { toast.error("Select supplier-synchronized products to apply a bulk markup."); return; } if (!Number.isFinite(markupPercent) || markupPercent < -100 || markupPercent > 500) { toast.error("Enter a markup between -100% and 500%."); return; } if (window.confirm(`Apply ${markupPercent}% customer markup to ${selectedProducts.length} synchronized listings?`)) bulkUpdateSyncedMarkup.mutate({ productIds: selectedProducts.map((product) => product.id), markupPercent }); });
     archive.addEventListener("click", () => { const selectedProducts = currentSelection(); if (!selectedProducts.length || selectedProducts.some((product) => product.supplierKey !== "admin_managed")) { toast.error("Archive is available only when every selected listing is Admin-managed."); return; } if (window.confirm(`Archive ${selectedProducts.length} Admin-managed listings?`)) bulkArchiveAdminProducts.mutate({ productIds: selectedProducts.map((product) => product.id) }); });
     refresh();
-    return () => { tools.remove(); panel.querySelectorAll("[data-product-row-checkbox], [data-product-row-edit]").forEach((element) => element.remove()); rows.forEach((row) => { row.style.display = ""; delete row.dataset.productId; }); };
+    return () => { searchInput.oninput = null; panel.querySelectorAll("[data-product-row-checkbox], [data-product-row-edit]").forEach((element) => element.remove()); rows.forEach((row) => { row.style.display = ""; delete row.dataset.productId; }); };
   }, [activeTab, productOperations.data, productOperationsPage.isFetching, productListSearch, bulkArchiveAdminProducts, bulkUpdateProductVisibility, bulkUpdateSyncedMarkup]);
   useEffect(() => {
     if (activeTab !== "categories") return;

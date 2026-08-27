@@ -946,3 +946,5 @@
 - [x] Inspect the Admin Products paged-query search behavior and existing client search state to identify why searching only uses the initial visible page.
 - [x] Make the Admin Products search query the complete protected catalog server-side and return fast relevant product and supplier suggestions while preserving 100-row incremental browsing when no search is entered.
 - [x] Validate full-catalog Admin search, deferred instant suggestions, selected-product details, owner-only supplier cost, focused tests, build, protected-route check, checkpoint, and GitHub push.
+- [x] Inspect and fix only the Admin Products search input blinking and typed-text visibility while retaining its protected full-catalog search and related suggestions.
+- [x] Validate stable typed input, full-catalog search results, suggestions, focused tests, build, visual check, checkpoint, and GitHub push.

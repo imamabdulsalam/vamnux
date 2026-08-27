@@ -5,6 +5,7 @@ const dbSource = readFileSync("/home/ubuntu/naijaplay-store/server/db.ts", "utf8
 const routerSource = readFileSync("/home/ubuntu/naijaplay-store/server/routers.ts", "utf8");
 const homeSource = readFileSync("/home/ubuntu/naijaplay-store/client/src/pages/Home.tsx", "utf8");
 const adminSource = readFileSync("/home/ubuntu/naijaplay-store/client/src/pages/SuperAdmin.tsx", "utf8");
+const adminProductStyles = readFileSync("/home/ubuntu/naijaplay-store/client/src/components/adminProductPresentationLayout.css", "utf8");
 const catalogPageSource = readFileSync("/home/ubuntu/naijaplay-store/client/src/pages/CatalogPage.tsx", "utf8");
 
 describe("catalog and admin loading performance", () => {
@@ -67,5 +68,11 @@ describe("catalog and admin loading performance", () => {
     expect(dbSource).toContain("const searchCondition = normalizedSearch");
     expect(adminSource).toContain("useDeferredValue(productListSearch.trim())");
     expect(adminSource).toContain("Related catalog matches");
+    expect(adminSource).toContain("data-admin-product-search-input");
+    expect(adminSource).toContain("searchInput.oninput");
+    expect(adminSource).not.toContain('panel.querySelector("[data-product-list-tools]")?.remove()');
+    expect(adminSource).not.toContain("!panel || !list || !heading || !products.length");
+    expect(adminProductStyles).toContain("color:#f8fbff!important");
+    expect(adminProductStyles).toContain("caret-color:#b8ff43");
   });
 });
