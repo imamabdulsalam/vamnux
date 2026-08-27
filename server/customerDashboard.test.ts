@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+
+const userDashboardSource = readFileSync(resolve(process.cwd(), "client/src/pages/UserDashboard.tsx"), "utf8");
 
 describe("customer dashboard preference boundary", () => {
   it("accepts only VAMNUX display currencies that are available to customers", () => {
@@ -32,5 +36,13 @@ describe("customer dashboard preference boundary", () => {
     await expect(caller.marketplace.createPrivacyRequest({ requestType: "data_access" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.getSupportTicket({ ticketCode: "VS123" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(caller.marketplace.orderDetail({ orderCode: "VO123" })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("keeps consent server-enforced while directing a blocked Account top-up locally to the existing acceptance setting", () => {
+    expect(userDashboardSource).toContain("const handleTermsPrivacyConsentRequired");
+    expect(userDashboardSource).toContain('setLocation("/account?tab=settings")');
+    expect(userDashboardSource).toContain("if (!data.consents.termsPrivacyAccepted) return handleTermsPrivacyConsentRequired();");
+    expect(userDashboardSource).toContain('error.message.includes("Accept the current VAMNUX Terms and Privacy")');
+    expect(userDashboardSource).toContain("Accept current Terms & Privacy");
   });
 });
