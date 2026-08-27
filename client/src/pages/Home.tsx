@@ -278,6 +278,11 @@ export default function Home() {
     },
     onError: (error) => toast.error(error.message || "We could not save your email interest."),
   });
+  const redirectToTermsPrivacyAcceptance = () => {
+    setCartOpen(false);
+    toast.message("Accept the current Terms & Privacy to continue.", { description: "VAMNUX will open Account settings so you can review and accept the current documents." });
+    setLocation("/account?tab=settings");
+  };
   const createDraftOrder = trpc.marketplace.createOrder.useMutation({
     onSuccess: (result) => {
       toast.success(`Draft order ${result.orderCode} created`, { description: "Wallet balance eligibility was confirmed. No wallet debit or supplier order has been sent." });
@@ -286,7 +291,7 @@ export default function Home() {
       setCartOpen(false);
       setLocation("/account");
     },
-    onError: (orderError) => toast.error(orderError.message || "We could not create your draft order."),
+    onError: (orderError) => orderError.message.includes("Accept the current VAMNUX Terms and Privacy") ? redirectToTermsPrivacyAcceptance() : toast.error(orderError.message || "We could not create your draft order."),
   });
   const toggleSavedProduct = trpc.marketplace.toggleSavedProduct.useMutation({
     onSuccess: async (result) => {
@@ -484,6 +489,7 @@ export default function Home() {
       startLogin();
       return;
     }
+    if (customerDashboard.data && !customerDashboard.data.consents.termsPrivacyAccepted) return redirectToTermsPrivacyAcceptance();
     createDraftOrder.mutate({
       currency: "USD",
       items: cart.reduce<Array<{ productId: number; quantity: number }>>((items, item) => {
