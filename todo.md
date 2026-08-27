@@ -953,3 +953,5 @@
 - [x] Implement server-side Super Admin-only dashboard, searchable/paginated monitors, reconciliation views, payment-review actions, and reasoned credit/debit/reversal actions without exposing provider secrets.
 - [x] Add the Admin-only Webhook / Top-Up Control workspace with dashboard metrics, filters, wallet timeline, audit log, and confirmation-gated action controls.
 - [x] Validate authorization, idempotency, duplicate/refund blocking, balance preservation, tests, build, Admin visual behavior, checkpoint, and GitHub push.
+- [x] Replace only the Super Admin Manual Wallet Adjustment User ID target with secure email-based user resolution while preserving ledger, confirmation, audit, and balance safeguards.
+- [x] Validate email-based adjustment targeting, focused tests, build, checkpoint, and GitHub push.

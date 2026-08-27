@@ -3883,16 +3883,21 @@ export async function resolveTopUpReconciliationCase(input: { adminUserId: numbe
   });
 }
 
-export async function createManualWalletAdjustment(input: { adminUserId: number; userId: number; direction: "credit" | "debit"; amount: number; currency: string; reference: string; reason: string }) {
+export async function createManualWalletAdjustment(input: { adminUserId: number; email: string; direction: "credit" | "debit"; amount: number; currency: string; reference: string; reason: string }) {
   const db = requireDb(await getDb());
   const amount = Number(input.amount);
+  const email = input.email.trim().toLowerCase().slice(0, 320);
   const currency = input.currency.trim().toUpperCase().slice(0, 3);
   const reference = input.reference.trim().slice(0, 120);
   const reason = input.reason.trim().slice(0, 1000);
   if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) throw new Error("Enter a valid adjustment amount");
-  if (currency.length !== 3 || !reference || reason.length < 3) throw new Error("Currency, unique reference, and a reason are required for every wallet adjustment");
+  if (!email || currency.length !== 3 || !reference || reason.length < 3) throw new Error("Customer email, currency, unique reference, and a reason are required for every wallet adjustment");
   return db.transaction(async (tx) => {
-    const [wallet] = await tx.select().from(wallets).where(eq(wallets.userId, input.userId)).limit(1);
+    const matchedUsers = await tx.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = ${email}`).limit(2);
+    if (!matchedUsers.length) throw new Error("No customer account was found for this email address");
+    if (matchedUsers.length > 1) throw new Error("More than one customer account matches this email address; resolve the duplicate account record before adjusting a wallet");
+    const userId = matchedUsers[0].id;
+    const [wallet] = await tx.select().from(wallets).where(eq(wallets.userId, userId)).limit(1);
     if (!wallet || wallet.status !== "active") throw new Error("The selected customer wallet is unavailable");
     if (wallet.currency !== currency) throw new Error(`This wallet uses ${wallet.currency}; adjustments must use the wallet currency`);
     const [existing] = await tx.select({ id: walletEntries.id }).from(walletEntries).where(eq(walletEntries.reference, reference)).limit(1);
@@ -3905,8 +3910,8 @@ export async function createManualWalletAdjustment(input: { adminUserId: number;
     const [balanceUpdate] = await tx.update(wallets).set({ availableBalance: balanceChange }).where(input.direction === "debit" ? and(eq(wallets.id, wallet.id), gte(wallets.availableBalance, amount.toFixed(2))) : eq(wallets.id, wallet.id));
     if (input.direction === "debit" && Number((balanceUpdate as { affectedRows?: number }).affectedRows ?? 0) !== 1) throw new Error("The wallet balance changed before this debit could be recorded; review the current balance and retry");
     await tx.insert(walletEntryBalanceSnapshots).values({ walletEntryId: Number(entryResult.insertId), walletId: wallet.id, previousBalance: previousBalance.toFixed(2), resultingBalance: resultingBalance.toFixed(2) });
-    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: `wallet.adjustment_${input.direction}`, targetType: "wallet_entry", targetId: reference, summary: `Recorded manual wallet ${input.direction} for customer ${input.userId}`, metadata: { userId: input.userId, walletId: wallet.id, amount, currency, previousBalance, newBalance: resultingBalance, reason, reference } });
-    return { entryId: Number(entryResult.insertId), userId: input.userId, direction: input.direction, amount, currency, previousBalance, resultingBalance };
+    await appendAdminAuditEvent(tx, { adminUserId: input.adminUserId, action: `wallet.adjustment_${input.direction}`, targetType: "wallet_entry", targetId: reference, summary: `Recorded manual wallet ${input.direction} for customer ${userId}`, metadata: { userId, walletId: wallet.id, amount, currency, previousBalance, newBalance: resultingBalance, reason, reference } });
+    return { entryId: Number(entryResult.insertId), userId, direction: input.direction, amount, currency, previousBalance, resultingBalance };
   });
 }
 
