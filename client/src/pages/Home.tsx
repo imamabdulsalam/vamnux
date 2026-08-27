@@ -207,6 +207,7 @@ export default function Home() {
   // nonce cookie and must run only at the moment of navigation.
   const { user, loading, isAuthenticated } = useAuth();
   const [location, setLocation] = useLocation();
+  const utils = trpc.useUtils();
   const publicCategories = trpc.marketplace.categories.useQuery(undefined, { refetchInterval: 15_000, refetchOnWindowFocus: true });
   const publishedContentBlocks = trpc.marketplace.siteContentBlocks.useQuery();
   const customerDashboard = trpc.marketplace.customerDashboard.useQuery(undefined, { enabled: isAuthenticated });
@@ -478,6 +479,13 @@ export default function Home() {
   };
 
   const openCompactProduct = (product: Product) => {
+    if (product.category === "Top-up") {
+      void import("./GameFamilyDetail");
+      void utils.marketplace.catalog.prefetch({ page: 1, pageSize: 96, familyName: product.name, scope: "all" });
+    } else {
+      void import("./DigitalProductDetail");
+      void utils.marketplace.catalog.prefetch({ page: 1, pageSize: 12, slug: product.slug, scope: "all" });
+    }
     setLocation(product.category === "Top-up" ? gameFamilyPath(product.name) : digitalProductPath(product.slug));
   };
 
