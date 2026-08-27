@@ -961,3 +961,5 @@
 - [x] Validate the scoped rotating preview, current VAMNUX product image/name source, retained search, unaffected category controls, tests, build, visual behavior, checkpoint, and GitHub push.
 - [x] Change only the Home product-preview search to open the separate catalog page with the entered keyword; change product rotation to six seconds, remove the visible frequency text, and show both rotating products as responsive image-backed preview cards.
 - [x] Validate the scoped catalog-search navigation, six-second rotation, two-card desktop/mobile preview, unchanged sections, tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Fix only the mobile top-right account controls so signed-out users see Sign in and Create account and signed-in users see Account dashboard access, while preserving the permanent currency, favorites, and cart controls.
+- [x] Validate mobile and desktop header account access, preserved currency/favorites/cart controls, focused tests, build, visual behavior, checkpoint, and GitHub push.

@@ -19,7 +19,11 @@ describe("shared USD and cart header utilities", () => {
     expect(utilitySource).toContain('aria-label="Open cart"');
     expect(cssSource).toContain(".vamnux-utility-shell{min-height:100vh;padding-top:58px}");
     expect(cssSource).toContain(".vamnux-utility-bar{position:absolute");
-    expect(cssSource).toContain(".header-actions>.header-icon,.header-actions>.header-auth-actions{display:none}");
+    expect(homeSource).toContain('className="header-signin"');
+    expect(homeSource).toContain('className="header-create-account"');
+    expect(homeSource).toContain('aria-label="Open account"');
+    expect(cssSource).toContain(".global-marketplace .header-actions>.header-icon,.global-marketplace .header-actions>.header-auth-actions{display:inline-flex!important}");
+    expect(cssSource).toContain(".global-marketplace .favourite-button{display:inline-flex!important;width:37px;padding:0}");
     expect(cssSource).toContain(".header-cart{display:inline-flex!important;width:39px;padding:0}");
     expect(cssSource).toContain(".header-cart span{display:none}");
   });
