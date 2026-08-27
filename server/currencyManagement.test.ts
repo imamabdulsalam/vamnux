@@ -36,6 +36,7 @@ describe("Currency and Exchange Rate Management", () => {
     expect(rateSaveBlock).not.toContain("fetch(");
     expect(uiSource).toContain("Simple and protected");
     expect(uiSource).toContain("Save current rate");
+    expect(uiSource).toContain('min="1" step="1" inputMode="numeric"');
     expect(rateSaveBlock).toContain('if (input.baseCurrency === "USD" && input.quoteCurrency === "NGN")');
   });
 

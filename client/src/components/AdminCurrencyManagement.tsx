@@ -32,7 +32,7 @@ export function AdminCurrencyManagement() {
     {currencyQuery.isLoading ? <div className="currency-loading"><Loader2 className="spin" size={18} /> Loading current rate…</div> : <div className="simple-exchange-grid">
       <form className="currency-rate-form simple-exchange-form" onSubmit={submit}>
         <div className="currency-section-heading"><div><span>CHANGE RATE</span><h3>USD to NGN</h3><p>Enter how many Nigerian Naira a customer pays for one US Dollar.</p></div><Save size={19} /></div>
-        <label>Current USD to NGN rate<input required type="number" min="0.000001" step="0.01" inputMode="decimal" value={draftRate} onChange={(event) => setDraftRate(event.target.value)} placeholder={currentRate ? String(currentRate.effectiveRate) : "e.g. 1550"} /></label>
+        <label>Current USD to NGN rate<input required type="number" min="1" step="1" inputMode="numeric" value={draftRate} onChange={(event) => setDraftRate(event.target.value)} placeholder={currentRate ? String(Math.round(currentRate.effectiveRate)) : "e.g. 1550"} /></label>
         <button type="submit" className="admin-primary-action" disabled={saveRate.isPending}><Save size={15} /> {saveRate.isPending ? "Saving rate…" : "Save current rate"}</button>
       </form>
       <aside className="simple-exchange-current"><span>CURRENT RATE</span><strong>{currentRate ? `USD 1 = NGN ${currentRate.effectiveRate.toLocaleString()}` : "No current USD to NGN rate"}</strong><p>{currentRate ? `Active since ${new Date(currentRate.effectiveAt).toLocaleString()}.` : "Save the first rate to enable NGN wallet-funding quotations."}</p><small>Changing this setting updates new quotations immediately. It never changes an existing order or payment.</small></aside>

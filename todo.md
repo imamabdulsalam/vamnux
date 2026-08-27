@@ -987,3 +987,5 @@
 - [x] Simplify only the Admin Exchange Rate feature into one protected USD-to-NGN current-rate field, visible current-rate panel, and save action for wallet funding and future payment quotations.
 - [x] Ensure a saved USD-to-NGN rate refreshes wallet-funding and future payment quotation data promptly without changing products, supplier data, wallet balances, orders, or unrelated settings.
 - [x] Validate current-rate display, protected update, wallet-funding quote use, data preservation, focused tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Fix only the simplified USD-to-NGN current-rate input so whole numbers such as 1650 validate and save without a decimal-step error.
+- [x] Validate whole-number rate entry, focused tests, build, checkpoint, and GitHub push.
