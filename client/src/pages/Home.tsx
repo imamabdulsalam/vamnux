@@ -2,7 +2,7 @@
  * VAMNUX Global Exchange: a clean marketplace header, USD-first price display,
  * technology-led colour rotation, and compact transactional product information.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
@@ -466,6 +466,12 @@ export default function Home() {
     setLocation(`/catalog?category=${encodeURIComponent(category)}&q=${encodeURIComponent(label)}`);
   };
 
+  const submitCatalogSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const keyword = query.trim();
+    setLocation(keyword ? `/catalog?q=${encodeURIComponent(keyword)}` : "/catalog");
+  };
+
   const openCompactProduct = (product: Product) => {
     setLocation(product.category === "Top-up" ? gameFamilyPath(product.name) : digitalProductPath(product.slug));
   };
@@ -672,11 +678,11 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="catalog-keyword-search" aria-label="Search live game listings">
+        <form className="catalog-keyword-search" aria-label="Search live game listings" onSubmit={submitCatalogSearch}>
           <div><Search size={21} /><label htmlFor="compact-catalog-search">Find your game or service</label></div>
-          <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
-          <p>{query.trim() ? "Showing matching VAMNUX products." : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
-        </div>
+          <div className="catalog-keyword-input"><input ref={catalogSearchRef} id="compact-catalog-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try PUBG, Free Fire, diamonds, UC, Valorant…" /><button type="button" onClick={() => setQuery("")} disabled={!query} aria-label="Clear catalog search"><X size={17} /></button></div>
+          <p>{query.trim() ? "Press Enter to search matching VAMNUX products in the full catalogue." : "Search by game, gift card, subscription, software, region, or Player ID requirement."}</p>
+        </form>
 
         <div className="product-family-list compact-catalog-results">
           {compactProducts.length > 0 && <SelectedProductBrowser products={compactProducts} formatPrice={formatPrice} onOpenProduct={openCompactProduct} onAddToCart={addToCart} favoriteProductIds={customerDashboard.data?.savedProducts.map((product) => product.id) ?? []} onToggleFavorite={toggleFavorite} />}

@@ -16,8 +16,8 @@ describe("customer product detail presentation", () => {
   });
 
   it("keeps the catalog preview linked to the detail page and product cart actions", () => {
-    expect(browser).toContain('onOpenProduct(selectedProduct)');
-    expect(browser).toContain('onAddToCart(selectedProduct)');
+    expect(browser).toContain('onOpenProduct(product)');
+    expect(browser).toContain('onAddToCart(product)');
     expect(styles).toContain('.selected-preview-actions button { min-height:42px; font-size:11px; }');
   });
 
