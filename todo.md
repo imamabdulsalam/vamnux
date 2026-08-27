@@ -975,3 +975,5 @@
 - [x] Remove only the Terms and Privacy acceptance requirement from customer wallet-eligibility checks while retaining wallet-balance, authentication, and order safeguards.
 - [x] Fix directly related product image/icon loading and View Details navigation/loading errors without changing catalog products, prices, supplier data, or other site features.
 - [x] Validate checkout eligibility, image visibility, product-detail loading, focused tests, build, visual behavior, checkpoint, and GitHub push.
+- [x] Fix only the large product-detail artwork area shown after View Details so each selected product image loads promptly and clearly with a visible fallback when no valid image is available.
+- [x] Validate product-detail artwork loading on desktop and mobile, focused tests, build, visual behavior, checkpoint, and GitHub push.

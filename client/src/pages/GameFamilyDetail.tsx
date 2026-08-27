@@ -124,7 +124,7 @@ export default function GameFamilyDetail() {
       <section className="family-detail-hero">
         <button className="family-back" onClick={() => setLocation("/")}><ArrowLeft size={17} /> All game listings</button>
         <div className="family-detail-hero-grid">
-          <div className="family-detail-art"><div className="live-game-family-fallback"><Gamepad2 size={40} /></div>{family.image && <img src={family.image} alt={`${family.name} product artwork`} onError={(event) => { event.currentTarget.style.display = "none"; }} />}<span>{family.category}</span></div>
+          <div className="family-detail-art"><div className="live-game-family-fallback"><Gamepad2 size={40} /></div>{family.image && <img src={family.image} alt={`${family.name} product artwork`} loading="eager" decoding="async" fetchPriority="high" onError={(event) => { event.currentTarget.style.display = "none"; }} />}<span>{family.category}</span></div>
           <div className="family-detail-summary"><p className="detail-eyebrow">Game family</p><h1>{family.name}</h1><p>{family.items.length} active services are available. Choose one denomination below, review its exact account requirement, then add the selected option to your saved cart.</p><div><ShieldCheck size={17} /> Product availability <CircleDollarSign size={17} /> VAMNUX display price</div></div>
         </div>
       </section>

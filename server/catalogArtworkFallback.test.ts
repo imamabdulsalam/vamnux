@@ -7,6 +7,8 @@ const dbSource = fs.readFileSync(path.join(root, "server/db.ts"), "utf8");
 const catalogSource = fs.readFileSync(path.join(root, "client/src/pages/CatalogPage.tsx"), "utf8");
 const compactCatalogSource = fs.readFileSync(path.join(root, "client/src/components/CompactCatalog.tsx"), "utf8");
 const selectedBrowserSource = fs.readFileSync(path.join(root, "client/src/components/SelectedProductBrowser.tsx"), "utf8");
+const digitalDetailSource = fs.readFileSync(path.join(root, "client/src/pages/DigitalProductDetail.tsx"), "utf8");
+const gameDetailSource = fs.readFileSync(path.join(root, "client/src/pages/GameFamilyDetail.tsx"), "utf8");
 
 describe("customer catalog artwork fallbacks", () => {
   it("retains only exact stored supplier artwork on the server and never repeats a generic supplier logo", () => {
@@ -30,5 +32,13 @@ describe("customer catalog artwork fallbacks", () => {
     expect(compactCatalogSource).toContain('loading="eager" decoding="async" fetchPriority="high"');
     expect(selectedBrowserSource).toContain("function PreviewArtwork");
     expect(selectedBrowserSource).toContain('loading="eager" decoding="async" fetchPriority="high"');
+  });
+
+  it("loads artwork immediately in every View Details preview and keeps an icon fallback", () => {
+    expect(digitalDetailSource).toContain("function DetailArtwork");
+    expect(digitalDetailSource).toContain('loading="eager" decoding="async" fetchPriority="high"');
+    expect(digitalDetailSource).toContain("live-game-family-fallback");
+    expect(gameDetailSource).toContain('loading="eager" decoding="async" fetchPriority="high"');
+    expect(gameDetailSource).toContain("live-game-family-fallback");
   });
 });
