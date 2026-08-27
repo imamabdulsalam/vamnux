@@ -996,4 +996,4 @@
 - [x] Add a signed Paystack webhook receipt handler and authenticated return verification path without storing raw payloads, signatures, card details, or credentials.
 - [x] Replace only the User Dashboard manual wallet-funding request control with Paystack TEST checkout initialization and safe return-status recovery; keep product checkout wallet-only.
 - [x] Add focused Paystack funding tests for authorization, verification mismatches, event/reference/transaction duplication, signature validation, terminal statuses, reconciliation, Admin monitor linkage, and checkout isolation.
-- [ ] Validate TypeScript, focused tests, build, zero-charge browser behavior, preservation checks, checkpoint, and GitHub push; document post-publish Test Mode webhook configuration and live-key rotation.
+- [x] Validate TypeScript, focused tests, build, zero-charge browser behavior, preservation checks, checkpoint, and GitHub push; document post-publish Test Mode webhook configuration and live-key rotation.
