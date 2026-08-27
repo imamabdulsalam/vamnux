@@ -29,7 +29,7 @@ describe("Webhook / Top-Up Control", () => {
   it("keeps all wallet-control reads and balance-changing mutations behind the Super Admin procedure", async () => {
     const unprivileged = appRouter.createCaller(createContext("user"));
     await expect(unprivileged.admin.getTopUpControlDashboard()).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(unprivileged.admin.createManualWalletAdjustment({ email: "customer@example.test", direction: "credit", amount: 1, currency: "USD", reference: "TEST-BLOCKED", reason: "must be blocked", confirmation: "CONFIRM WALLET ADJUSTMENT" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(unprivileged.admin.createManualWalletAdjustment({ email: "customer@example.test", direction: "credit", amount: 1, currency: "USD", reason: "must be blocked", confirmed: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(unprivileged.admin.reverseWalletLedgerEntry({ walletEntryId: 1, reference: "TEST-REVERSAL-BLOCKED", reason: "must be blocked", confirmation: "CONFIRM WALLET REVERSAL" })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -51,12 +51,13 @@ describe("Webhook / Top-Up Control", () => {
     expect(audit.audits).toEqual(expect.any(Array));
   });
 
-  it("requires explicit typed confirmation for manual adjustments and reversals", () => {
-    expect(routerSource).toContain('confirmation: z.literal("CONFIRM WALLET ADJUSTMENT")');
+  it("requires a final confirmation signal for manual adjustments and keeps reversal confirmation explicit", () => {
+    expect(routerSource).toContain("confirmed: z.literal(true)");
     expect(routerSource).toContain('confirmation: z.literal("CONFIRM WALLET REVERSAL")');
     expect(routerSource).toContain("createManualWalletAdjustment: adminProcedure");
     expect(routerSource).toContain('email: z.string().trim().email().max(320)');
     expect(dbSource).toContain("No customer account was found for this email address");
+    expect(dbSource).toContain("createManualWalletAdjustmentReference");
     expect(routerSource).toContain("reverseWalletLedgerEntry: adminProcedure");
   });
 

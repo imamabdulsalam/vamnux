@@ -955,3 +955,5 @@
 - [x] Validate authorization, idempotency, duplicate/refund blocking, balance preservation, tests, build, Admin visual behavior, checkpoint, and GitHub push.
 - [x] Replace only the Super Admin Manual Wallet Adjustment User ID target with secure email-based user resolution while preserving ledger, confirmation, audit, and balance safeguards.
 - [x] Validate email-based adjustment targeting, focused tests, build, checkpoint, and GitHub push.
+- [x] Explain the Manual Wallet Adjustment unique-reference and typed-confirmation fields, then apply only the user-confirmed simplification while preserving minimum duplicate and accidental-change safeguards.
+- [x] Remove only the Manual Wallet Adjustment form’s visible reference and typed-confirmation fields; generate the reference server-side and require one final clear confirmation dialog before the protected ledger action.

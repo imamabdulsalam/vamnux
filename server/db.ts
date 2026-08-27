@@ -3883,15 +3883,19 @@ export async function resolveTopUpReconciliationCase(input: { adminUserId: numbe
   });
 }
 
-export async function createManualWalletAdjustment(input: { adminUserId: number; email: string; direction: "credit" | "debit"; amount: number; currency: string; reference: string; reason: string }) {
+function createManualWalletAdjustmentReference() {
+  return `WAD-${Date.now()}-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`;
+}
+
+export async function createManualWalletAdjustment(input: { adminUserId: number; email: string; direction: "credit" | "debit"; amount: number; currency: string; reason: string }) {
   const db = requireDb(await getDb());
   const amount = Number(input.amount);
   const email = input.email.trim().toLowerCase().slice(0, 320);
   const currency = input.currency.trim().toUpperCase().slice(0, 3);
-  const reference = input.reference.trim().slice(0, 120);
+  const reference = createManualWalletAdjustmentReference();
   const reason = input.reason.trim().slice(0, 1000);
   if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) throw new Error("Enter a valid adjustment amount");
-  if (!email || currency.length !== 3 || !reference || reason.length < 3) throw new Error("Customer email, currency, unique reference, and a reason are required for every wallet adjustment");
+  if (!email || currency.length !== 3 || reason.length < 3) throw new Error("Customer email, currency, and a reason are required for every wallet adjustment");
   return db.transaction(async (tx) => {
     const matchedUsers = await tx.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = ${email}`).limit(2);
     if (!matchedUsers.length) throw new Error("No customer account was found for this email address");
