@@ -9,6 +9,7 @@ const stylesheet = fs.readFileSync(path.resolve(process.cwd(), "client/src/index
 describe("VAMNUX shared-hosting production build", () => {
   it("keeps the Vite build within a bounded Node heap while retaining the production start command", () => {
     expect(packageJson).toContain('"build": "NODE_OPTIONS=--max-old-space-size=512 vite build');
+    expect(packageJson).toContain("--splitting --outdir=dist");
     expect(packageJson).toContain('"start": "NODE_ENV=production node dist/index.js"');
   });
 
