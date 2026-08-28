@@ -57,7 +57,21 @@ async function startServer() {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
+  const configuredPort = Number.parseInt(process.env.PORT || "", 10);
+  const hasConfiguredPort = Number.isInteger(configuredPort) && configuredPort > 0 && configuredPort <= 65_535;
+
+  if (process.env.NODE_ENV === "production" && process.env.PORT) {
+    if (!hasConfiguredPort) {
+      throw new Error("A valid PORT is required for the production server");
+    }
+
+    server.listen(configuredPort, () => {
+      console.log(`Server running on http://localhost:${configuredPort}/`);
+    });
+    return;
+  }
+
+  const preferredPort = hasConfiguredPort ? configuredPort : 3000;
   const port = await findAvailablePort(preferredPort);
 
   if (port !== preferredPort) {
