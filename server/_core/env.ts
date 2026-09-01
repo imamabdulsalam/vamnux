@@ -7,6 +7,8 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  resendApiKey: process.env.RESEND_API_KEY ?? "",
+  resendFromEmail: process.env.RESEND_FROM_EMAIL ?? "VAMNUX <no-reply@send.vamnux.com>",
   paystackTestSecretKey: process.env.PAYSTACK_TEST_SECRET_KEY ?? "",
   paystackTestCallbackUrl: process.env.PAYSTACK_TEST_CALLBACK_URL ?? "",
 };
