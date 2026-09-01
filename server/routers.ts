@@ -46,6 +46,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { completeAdminMfaChallenge, confirmAdminMfaEnrollment, createAdminMfaSessionToken, getAdminMfaStatus, regenerateAdminMfaRecoveryCodes, startAdminMfaEnrollment } from "./adminMfa";
 import { sdk } from "./_core/sdk";
 import { initializePaystackWalletFunding, verifyPaystackWalletFundingForUser } from "./paystack";
+import { assertNativeMutationOrigin, beginNativeRegistration, clearNativeSessionCookie, completeNativeEnrollment, NativeAuthError, requestNativePasswordReset, resetNativePassword, setNativeSessionCookie, signInNativeAccount, signOutNativeSession } from "./nativeAuth";
+import { ENV } from "./_core/env";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
 const customerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
@@ -102,13 +104,73 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
+    nativeStatus: publicProcedure.query(() => ({ enabled: ENV.nativeAuthEnabled })),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       ctx.res.clearCookie(ADMIN_MFA_VERIFIED_COOKIE, { ...cookieOptions, maxAge: -1 });
+      void signOutNativeSession(ctx.req);
+      clearNativeSessionCookie(ctx.req, ctx.res);
       return {
         success: true,
       } as const;
+    }),
+    nativeRegister: publicProcedure.input(z.object({
+      email: z.string().trim().email().max(320),
+      firstName: z.string().trim().min(1).max(80).optional(),
+      lastName: z.string().trim().min(1).max(80).optional(),
+      phone: z.string().trim().max(32).optional(),
+      countryCode: z.string().trim().length(2).optional(),
+      referralSource: z.string().trim().max(48).optional(),
+    })).mutation(async ({ ctx, input }) => {
+      assertNativeMutationOrigin(ctx.req);
+      try {
+        return await beginNativeRegistration(input);
+      } catch (error) {
+        if (error instanceof NativeAuthError) throw new Error("Unable to start account verification. Please try again later.");
+        throw error;
+      }
+    }),
+    nativeCompleteEnrollment: publicProcedure.input(z.object({ token: z.string().trim().min(20).max(256), password: z.string().min(12).max(256) })).mutation(async ({ ctx, input }) => {
+      assertNativeMutationOrigin(ctx.req);
+      try {
+        const result = await completeNativeEnrollment(input);
+        setNativeSessionCookie(ctx.req, ctx.res, result.rawSession);
+        return { success: true } as const;
+      } catch (error) {
+        if (error instanceof NativeAuthError) throw new Error("This account setup link is invalid, expired, or cannot be used here.");
+        throw error;
+      }
+    }),
+    nativeSignIn: publicProcedure.input(z.object({ email: z.string().trim().email().max(320), password: z.string().min(1).max(256) })).mutation(async ({ ctx, input }) => {
+      assertNativeMutationOrigin(ctx.req);
+      try {
+        const result = await signInNativeAccount(input);
+        setNativeSessionCookie(ctx.req, ctx.res, result.rawSession);
+        return { success: true } as const;
+      } catch (error) {
+        if (error instanceof NativeAuthError) throw new Error("The email address or password is not valid, or this account still needs verification.");
+        throw error;
+      }
+    }),
+    nativeRequestPasswordReset: publicProcedure.input(z.object({ email: z.string().trim().email().max(320) })).mutation(async ({ ctx, input }) => {
+      assertNativeMutationOrigin(ctx.req);
+      try {
+        return await requestNativePasswordReset(input);
+      } catch {
+        return { accepted: true } as const;
+      }
+    }),
+    nativeResetPassword: publicProcedure.input(z.object({ token: z.string().trim().min(20).max(256), password: z.string().min(12).max(256) })).mutation(async ({ ctx, input }) => {
+      assertNativeMutationOrigin(ctx.req);
+      try {
+        const result = await resetNativePassword(input);
+        setNativeSessionCookie(ctx.req, ctx.res, result.rawSession);
+        return { success: true } as const;
+      } catch (error) {
+        if (error instanceof NativeAuthError) throw new Error("This password-reset link is invalid, expired, or cannot be used here.");
+        throw error;
+      }
     }),
     completeAdminMfa: publicProcedure.input(z.object({ code: z.string().trim().min(6).max(32), method: z.enum(["totp", "recovery"]) })).mutation(async ({ ctx, input }) => {
       const challenge = parseCookieHeader(ctx.req.headers.cookie ?? "")[ADMIN_MFA_CHALLENGE_COOKIE];

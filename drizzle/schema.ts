@@ -51,11 +51,11 @@ export const customerProfiles = mysqlTable("customer_profiles", {
   suspendedUntilIndex: index("customer_profiles_suspended_until_idx").on(table.suspendedUntil),
 }));
 
-/** Parallel external identity links. Existing Manus OAuth ownership remains the source of truth until a tested Supabase cutover is approved. */
+/** Parallel identity links. Existing Manus OAuth ownership remains the source of truth until a tested native-email cutover is approved. */
 export const customerIdentityLinks = mysqlTable("customer_identity_links", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  provider: mysqlEnum("provider", ["manus_oauth", "supabase"]).notNull(),
+  provider: mysqlEnum("provider", ["manus_oauth", "supabase", "native_email"]).notNull(),
   providerSubject: varchar("providerSubject", { length: 255 }).notNull(),
   providerEmail: varchar("providerEmail", { length: 320 }),
   emailVerifiedAt: timestamp("emailVerifiedAt"),
@@ -65,6 +65,87 @@ export const customerIdentityLinks = mysqlTable("customer_identity_links", {
   providerSubjectUnique: uniqueIndex("customer_identity_links_provider_subject_unique").on(table.provider, table.providerSubject),
   userProviderUnique: uniqueIndex("customer_identity_links_user_provider_unique").on(table.userId, table.provider),
   userIndex: index("customer_identity_links_user_idx").on(table.userId),
+}));
+
+/**
+ * Namecheap-hosted native account credentials. Password material is an
+ * application-generated scrypt hash only; plaintext passwords never enter this
+ * table, logs, audit records, client responses, or email messages.
+ */
+export const nativeAuthCredentials = mysqlTable("native_auth_credentials", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  email: varchar("email", { length: 320 }).notNull(),
+  passwordHash: text("passwordHash"),
+  emailVerifiedAt: timestamp("emailVerifiedAt"),
+  enrollmentRequired: boolean("enrollmentRequired").default(true).notNull(),
+  passwordChangedAt: timestamp("passwordChangedAt"),
+  failedLoginCount: int("failedLoginCount").default(0).notNull(),
+  lockedUntil: timestamp("lockedUntil"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userUnique: uniqueIndex("native_auth_credentials_user_unique").on(table.userId),
+  emailUnique: uniqueIndex("native_auth_credentials_email_unique").on(table.email),
+  lockoutIndex: index("native_auth_credentials_lockout_idx").on(table.lockedUntil),
+}));
+
+/**
+ * Short-lived, single-use verification and password-reset tokens. An
+ * unverified native credential uses the email-verification token as its
+ * enrollment token; this keeps the token vocabulary narrow and auditable.
+ */
+export const nativeAuthTokens = mysqlTable("native_auth_tokens", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  tokenHash: varchar("tokenHash", { length: 128 }).notNull(),
+  tokenType: mysqlEnum("tokenType", ["email_verification", "password_reset"]).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  tokenUnique: uniqueIndex("native_auth_tokens_token_unique").on(table.tokenHash),
+  expiryIndex: index("native_auth_tokens_expiry_idx").on(table.expiresAt),
+  userTypeCreatedIndex: index("native_auth_tokens_user_type_created_idx").on(table.userId, table.tokenType, table.createdAt),
+}));
+
+/**
+ * An unverified, email-address-only registration request. It deliberately has
+ * no userId: a new VAMNUX user, wallet, and customer profile are created only
+ * after the holder of the email completes the single-use verification link.
+ */
+export const nativeAuthPendingRegistrations = mysqlTable("native_auth_pending_registrations", {
+  id: int("id").autoincrement().primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  firstName: varchar("firstName", { length: 80 }),
+  lastName: varchar("lastName", { length: 80 }),
+  phone: varchar("phone", { length: 32 }),
+  countryCode: varchar("countryCode", { length: 2 }),
+  referralSource: varchar("referralSource", { length: 48 }),
+  tokenHash: varchar("tokenHash", { length: 128 }).notNull(),
+  dispatchId: varchar("dispatchId", { length: 64 }).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  emailUnique: uniqueIndex("native_auth_pending_email_unique").on(table.email),
+  tokenUnique: uniqueIndex("native_auth_pending_token_unique").on(table.tokenHash),
+  expiryIndex: index("native_auth_pending_expiry_idx").on(table.expiresAt),
+}));
+
+/** Opaque, server-revocable native account sessions; browser cookies contain only raw opaque tokens. */
+export const nativeAuthSessions = mysqlTable("native_auth_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  sessionHash: varchar("sessionHash", { length: 128 }).notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  revokedAt: timestamp("revokedAt"),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  sessionUnique: uniqueIndex("native_auth_sessions_session_unique").on(table.sessionHash),
+  userExpiryIndex: index("native_auth_sessions_user_expiry_idx").on(table.userId, table.expiresAt),
 }));
 
 /** Independently recorded customer legal and marketing consent decisions. */

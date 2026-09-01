@@ -9,6 +9,8 @@ export const ENV = {
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   resendFromEmail: process.env.RESEND_FROM_EMAIL ?? "VAMNUX <no-reply@send.vamnux.com>",
+  nativeAuthPublicUrl: process.env.VAMNUX_PUBLIC_APP_URL ?? "https://vamnux.com",
+  nativeAuthEnabled: process.env.VAMNUX_NATIVE_AUTH_ENABLED === "true",
   paystackTestSecretKey: process.env.PAYSTACK_TEST_SECRET_KEY ?? "",
   paystackTestCallbackUrl: process.env.PAYSTACK_TEST_CALLBACK_URL ?? "",
 };

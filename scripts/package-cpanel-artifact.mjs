@@ -75,9 +75,20 @@ Upload the entire artifact directory, including \`dist/\`, \`package.json\`, and
 - \`FLASHTOPUP_API_ID\`, \`FLASHTOPUP_API_SECRET\`, \`FOXRELOAD_API_KEY\`, and \`GAMESDROP_API_TOKEN\` when the respective supplier integration is enabled
 - \`PAYSTACK_TEST_SECRET_KEY\` and \`PAYSTACK_TEST_CALLBACK_URL\` for Paystack TEST wallet funding
 
+## Native customer-account staging
+
+Native Namecheap MySQL accounts are disabled by default. Leave \`VAMNUX_NATIVE_AUTH_ENABLED=false\` until the copied Namecheap database has been prepared with the reviewed \`docs/namecheap-native-auth-schema.sql\` script and private cPanel tests are ready. The private staging setup also requires these server-only variables:
+
+- \`RESEND_API_KEY\`
+- \`RESEND_FROM_EMAIL=VAMNUX <no-reply@send.vamnux.com>\`
+- \`VAMNUX_PUBLIC_APP_URL\` set to the exact HTTPS cPanel staging URL
+- \`VAMNUX_NATIVE_AUTH_ENABLED=true\` only for an owner-approved private test
+
+Do not put any secret in the upload, Git, a browser bundle, or a public \`.env\` file. Do not run generated migrations \`0044_slim_freak.sql\` or \`0045_mixed_dragon_man.sql\` directly; use the reviewed canonical schema script after final database synchronization.
+
 ## External-service cutover
 
-Update OAuth allowed redirect URLs and Paystack TEST callback/webhook URLs to the new HTTPS domain before accepting live customer traffic. The webhook route remains \`/api/webhooks/paystack\`.
+Do not change public DNS, OAuth redirects, Paystack callbacks/webhooks, supplier credentials, or Paystack LIVE configuration until the private cPanel checks pass and the owner gives explicit cutover approval. The Paystack webhook route remains \`/api/webhooks/paystack\`.
 `;
 
 await rm(artifactRoot, { recursive: true, force: true });
