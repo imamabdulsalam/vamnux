@@ -31,15 +31,15 @@ describe("native MySQL account security", () => {
     });
   });
 
-  it("keeps Resend and native-auth secrets server-only while retaining OAuth fallback", () => {
+  it("keeps Resend and native-auth secrets server-only without a managed OAuth runtime fallback", () => {
     const envSource = readFileSync(resolve(process.cwd(), "server/_core/env.ts"), "utf8");
     const contextSource = readFileSync(resolve(process.cwd(), "server/_core/context.ts"), "utf8");
     const routerSource = readFileSync(resolve(process.cwd(), "server/routers.ts"), "utf8");
 
     expect(envSource).toContain("resendApiKey: process.env.RESEND_API_KEY");
     expect(envSource).not.toContain("VITE_RESEND_API_KEY");
-    expect(contextSource).toContain("sdk.authenticateRequest");
     expect(contextSource).toContain("getNativeSessionUserFromRequest");
+    expect(contextSource).not.toContain("sdk.authenticateRequest");
     expect(routerSource).toContain("nativeRequestPasswordReset");
     expect(routerSource).not.toMatch(/nativeRegister:[\s\S]{0,700}password:/);
     expect(routerSource).not.toContain("RESEND_API_KEY");

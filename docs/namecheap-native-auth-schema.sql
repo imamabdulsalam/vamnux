@@ -1,9 +1,9 @@
--- VAMNUX Namecheap MySQL native-auth schema, reviewed 2026-09-01.
+-- VAMNUX Namecheap MySQL native-auth schema, reviewed 2026-09-02.
 --
 -- IMPORTANT: This is for the copied Namecheap database only, after its final
 -- source-data refresh. Do not run it against the live Manus database. Keep
 -- VAMNUX_NATIVE_AUTH_ENABLED=false until this script has completed and the
--- cPanel private staging checks have passed.
+-- independent cPanel launch checks have passed.
 --
 -- This replaces the drift-prone generated 0044/0045 sequence. It is additive:
 -- it does not touch products, supplier records, orders, wallets, payments, or

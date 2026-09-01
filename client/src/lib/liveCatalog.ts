@@ -55,8 +55,8 @@ const productTones = ["ember", "ice", "lime", "coral", "cobalt"];
  * identity rather than rendering a letter placeholder on the public card.
  */
 const verifiedFamilyArtworkFallbacks = [
-  { keyword: "mobile legends", image: "/manus-storage/mobile-legends_da301a0e.webp" },
-  { keyword: "pubg", image: "/manus-storage/pubg-mobile_66e3513a.webp" },
+  { keyword: "mobile legends", image: "/media/mobile-legends_da301a0e.webp" },
+  { keyword: "pubg", image: "/media/pubg-mobile_66e3513a.webp" },
 ] as const;
 
 function customerSafeImage(item: Pick<CatalogSourceRow, "name" | "imageUrl">) {

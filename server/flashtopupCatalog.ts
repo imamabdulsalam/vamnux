@@ -38,15 +38,15 @@ function stableSlug(serviceCode: string) {
   return `ft-${serviceCode.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 170)}`;
 }
 
-/** Official public FlashTopUp category artwork uploaded to VAMNUX managed storage for resilient storefront display. */
+/** Official supplier artwork retained locally for resilient independent storefront display. */
 const recognizedFlashTopUpArtwork: Array<{ sourceFragment: string; managedUrl: string }> = [
-  { sourceFragment: "21a940a7-c33e-400e-adbb-150322c30b15", managedUrl: "/manus-storage/free-fire-latam_73a62a50.webp" },
-  { sourceFragment: "23f79771-285a-4bbc-be28-f897a76d91c0", managedUrl: "/manus-storage/mobile-legends_da301a0e.webp" },
-  { sourceFragment: "8575d7fd-7df1-4835-a9e1-c286f564c4a0", managedUrl: "/manus-storage/mobile-legends_da301a0e.webp" },
-  { sourceFragment: "c0ad7ab4-5959-45d1-af8b-5d53f2b1b67b", managedUrl: "/manus-storage/pubg-mobile_66e3513a.webp" },
-  { sourceFragment: "ce5fbf20-952f-48c2-b74d-0ae65487dcd4", managedUrl: "/manus-storage/free-fire-global_6fd7b283.webp" },
-  { sourceFragment: "fd05fdc2-a41d-4585-b2fa-c54deb992e81", managedUrl: "/manus-storage/blood-strike_92f09d09.webp" },
-  { sourceFragment: "8b86a829-6109-4686-b912-9fb3f0d1bb05", managedUrl: "/manus-storage/8-ball-pool_0a4fb2eb.webp" },
+  { sourceFragment: "21a940a7-c33e-400e-adbb-150322c30b15", managedUrl: "/media/free-fire-latam_73a62a50.webp" },
+  { sourceFragment: "23f79771-285a-4bbc-be28-f897a76d91c0", managedUrl: "/media/mobile-legends_da301a0e.webp" },
+  { sourceFragment: "8575d7fd-7df1-4835-a9e1-c286f564c4a0", managedUrl: "/media/mobile-legends_da301a0e.webp" },
+  { sourceFragment: "c0ad7ab4-5959-45d1-af8b-5d53f2b1b67b", managedUrl: "/media/pubg-mobile_66e3513a.webp" },
+  { sourceFragment: "ce5fbf20-952f-48c2-b74d-0ae65487dcd4", managedUrl: "/media/free-fire-global_6fd7b283.webp" },
+  { sourceFragment: "fd05fdc2-a41d-4585-b2fa-c54deb992e81", managedUrl: "/media/blood-strike_92f09d09.webp" },
+  { sourceFragment: "8b86a829-6109-4686-b912-9fb3f0d1bb05", managedUrl: "/media/8-ball-pool_0a4fb2eb.webp" },
 ];
 
 export function resolveFlashTopUpProductImageUrl(imageUrl: string | undefined) {

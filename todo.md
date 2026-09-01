@@ -1021,3 +1021,7 @@
 - [x] Regenerate and clean-validate the Vite-free cPanel runtime artifact after native-auth changes, confirming a runtime-only npm install with Vite absent, a successful Node server start, and homepage response.
 - [ ] Guide secure cPanel configuration of `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `VAMNUX_PUBLIC_APP_URL`, and `VAMNUX_NATIVE_AUTH_ENABLED` only when the owner approves private staging; do not expose a secret in chat.
 - [ ] Obtain explicit approval before any real owner test email, cPanel restart, Namecheap database schema application, Paystack TEST endpoint change, public DNS modification, or production cutover.
+- [x] Replace all remaining Manus-dependent runtime paths—managed OAuth/session handling, storage URLs, scheduled Product Tracking authentication, and platform-service calls—before launching VAMNUX solely on Namecheap cPanel and MySQL.
+- [x] Perform a complete independent-launch dependency audit and retire or replace every blocking Manus service without changing products, prices, wallets, orders, payments, supplier records, or customer IDs.
+- [ ] After independent runtime validation and final Namecheap database reconciliation, guide the owner through the approved cPanel restart and direct public DNS cutover with the prior Manus DNS values retained for rollback.
+- [x] Replace the managed Product Tracking scheduler with one signed Namecheap cPanel callback scheduled every five minutes, while VAMNUX runs only due supplier checks and preserves the existing no-order/no-wallet/no-payment safeguards.

@@ -42,7 +42,7 @@ export default function SteamTopUp() {
       <div><p>USD ONLY</p><h1>STEAM<br /><em>TOP-UP.</em></h1><span><ShieldCheck size={16} /> Direct wallet credit request for an eligible Steam account</span></div>
       <aside><LockKeyhole size={22} /><strong>Protected wallet route</strong><small>Supplier payment and Steam delivery remain blocked until the wallet-funded fulfillment safeguards are approved.</small></aside>
     </section>
-    {!isAuthenticated ? <section className="steam-top-up-auth"><WalletCards size={26} /><h2>Sign in to use your VAMNUX wallet</h2><p>USD Steam Top-Up uses a settled USD VAMNUX wallet balance. Supplier costs and credentials remain private.</p><button type="button" onClick={startLogin}>Sign in securely</button></section> : <section className="steam-top-up-grid">
+    {!isAuthenticated ? <section className="steam-top-up-auth"><WalletCards size={26} /><h2>Sign in to use your VAMNUX wallet</h2><p>USD Steam Top-Up uses a settled USD VAMNUX wallet balance. Supplier costs and credentials remain private.</p><button type="button" onClick={() => startLogin()}>Sign in securely</button></section> : <section className="steam-top-up-grid">
       <article className="steam-top-up-form">
         <div className="steam-section-label">STEAM TOP-UP</div>
         <h2>Direct credit to Steam wallet</h2>

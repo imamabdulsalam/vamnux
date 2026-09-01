@@ -4,6 +4,7 @@ import {
   completeProductTrackingRun,
   failProductTrackingRun,
   getProductTrackingScheduleByTaskUid,
+  listActiveProductTrackingSchedules,
   getSupplierSyncStatus,
   markProductTrackingScheduledRun,
   productTrackingSupplierName,
@@ -119,4 +120,15 @@ export async function runProductTrackingScheduledSync(taskUid: string) {
     await updateProductTrackingScheduleState({ id: schedule.id, status: "active", lastError: message, nextRunAt: nextScheduledRun(now, intervalHours) });
     throw error;
   }
+}
+
+/** Invoked by one signed five-minute cPanel cron callback. Each active supplier remains governed by its own persisted due time. */
+export async function runDueProductTrackingScheduledSyncs() {
+  const schedules = await listActiveProductTrackingSchedules();
+  const results = [];
+  for (const schedule of schedules) {
+    if (!schedule.scheduleCronTaskUid) continue;
+    results.push(await runProductTrackingScheduledSync(schedule.scheduleCronTaskUid));
+  }
+  return { ok: results.every((result) => result.ok), schedulesChecked: schedules.length, results };
 }

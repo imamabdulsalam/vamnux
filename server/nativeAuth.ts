@@ -158,7 +158,7 @@ function readNativeSessionToken(req: Request) {
   return parseCookieHeader(req.headers.cookie ?? "")[NATIVE_AUTH_COOKIE_NAME] ?? null;
 }
 
-async function createNativeSession(userId: number) {
+export async function createNativeSession(userId: number) {
   const db = await nativeDb();
   const rawSession = randomBytes(32).toString("base64url");
   const now = new Date();
@@ -379,8 +379,6 @@ export async function beginNativeRegistration(input: {
   const email = normaliseEmail(input.email);
   const db = await nativeDb();
   const existingUser = await findExistingUserByEmail(email);
-  if (existingUser?.role === "admin") return { accepted: true } as const;
-
   if (existingUser) {
     const [credential] = await db.select().from(nativeAuthCredentials).where(eq(nativeAuthCredentials.userId, existingUser.id)).limit(1);
     if (credential?.emailVerifiedAt && !credential.enrollmentRequired) return { accepted: true } as const;
@@ -446,7 +444,7 @@ export async function completeNativeEnrollment(input: { token: string; password:
   const token = await consumeToken(input.token, "email_verification");
   const db = await nativeDb();
   const [user] = await db.select().from(users).where(eq(users.id, token.userId)).limit(1);
-  if (!user || user.role === "admin") throw new NativeAuthError(user?.role === "admin" ? "admin_transition" : "invalid");
+  if (!user) throw new NativeAuthError("invalid");
   const [credential] = await db.select().from(nativeAuthCredentials).where(eq(nativeAuthCredentials.userId, user.id)).limit(1);
   if (!credential) throw new NativeAuthError("invalid");
   const now = new Date();
@@ -458,7 +456,9 @@ export async function completeNativeEnrollment(input: { token: string; password:
     failedLoginCount: 0,
     lockedUntil: null,
   }).where(eq(nativeAuthCredentials.id, credential.id));
-  await db.update(customerProfiles).set({ accountStatus: "active" }).where(eq(customerProfiles.userId, user.id));
+  if (user.role === "user") {
+    await db.update(customerProfiles).set({ accountStatus: "active" }).where(eq(customerProfiles.userId, user.id));
+  }
   await db.insert(customerIdentityLinks).values({
     userId: user.id,
     provider: "native_email",
@@ -476,13 +476,10 @@ export async function signInNativeAccount(input: { email: string; password: stri
   assertNativeAuthEnabled();
   const email = normaliseEmail(input.email);
   const result = await getUserAndCredentialByEmail(email);
-  if (!result?.credential || !result.user || result.user.role === "admin") {
-    if (result?.user?.role === "admin") throw new NativeAuthError("admin_transition");
-    throw new NativeAuthError("invalid");
-  }
+  if (!result?.credential || !result.user) throw new NativeAuthError("invalid");
   const now = new Date();
   if (result.credential.lockedUntil && result.credential.lockedUntil > now) throw new NativeAuthError("invalid");
-  if (!result.credential.passwordHash || result.credential.enrollmentRequired || !result.credential.emailVerifiedAt || result.accountStatus !== "active") {
+  if (!result.credential.passwordHash || result.credential.enrollmentRequired || !result.credential.emailVerifiedAt || (result.user.role === "user" && result.accountStatus !== "active")) {
     throw new NativeAuthError("invalid");
   }
   if (!(await verifyNativePassword(input.password, result.credential.passwordHash))) {
@@ -505,7 +502,7 @@ export async function requestNativePasswordReset(input: { email: string }) {
   assertNativeAuthEnabled();
   const email = normaliseEmail(input.email);
   const result = await getUserAndCredentialByEmail(email);
-  if (!result?.credential || !result.user || result.user.role === "admin" || result.credential.enrollmentRequired || !result.credential.emailVerifiedAt) {
+  if (!result?.credential || !result.user || result.credential.enrollmentRequired || !result.credential.emailVerifiedAt) {
     return { accepted: true } as const;
   }
   await sendNativeActionEmail({ userId: result.user.id, email: result.credential.email, kind: "reset" });
@@ -519,7 +516,7 @@ export async function resetNativePassword(input: { token: string; password: stri
   const token = await consumeToken(input.token, "password_reset");
   const db = await nativeDb();
   const [user] = await db.select().from(users).where(eq(users.id, token.userId)).limit(1);
-  if (!user || user.role === "admin") throw new NativeAuthError(user?.role === "admin" ? "admin_transition" : "invalid");
+  if (!user) throw new NativeAuthError("invalid");
   const now = new Date();
   await db.update(nativeAuthCredentials).set({ passwordHash: await hashNativePassword(input.password), passwordChangedAt: now, failedLoginCount: 0, lockedUntil: null })
     .where(eq(nativeAuthCredentials.userId, user.id));

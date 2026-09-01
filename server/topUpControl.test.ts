@@ -1,5 +1,16 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { ADMIN_MFA_VERIFIED_COOKIE } from "@shared/const";
+
+vi.mock("./adminMfa", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./adminMfa")>();
+  return {
+    ...actual,
+    isAdminMfaEnrolled: vi.fn(async (userId: number) => userId === 1),
+    verifyAdminMfaSessionToken: vi.fn(async (token: string | undefined, userId: number) => token === "topup-control-test-mfa" && userId === 1),
+  };
+});
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -20,7 +31,7 @@ function createContext(role: "admin" | "user"): TrpcContext {
       updatedAt: new Date(),
       lastSignedIn: new Date(),
     },
-    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    req: { protocol: "https", headers: role === "admin" ? { cookie: `${ADMIN_MFA_VERIFIED_COOKIE}=topup-control-test-mfa` } : {} } as TrpcContext["req"],
     res: {} as TrpcContext["res"],
   };
 }

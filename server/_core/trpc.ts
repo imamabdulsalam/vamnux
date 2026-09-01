@@ -29,26 +29,32 @@ const requireUser = t.middleware(async opts => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
+/** Allows only authenticator enrollment/status until a Super Admin has enrolled MFA. */
+export const adminMfaSetupProcedure = t.procedure.use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+    const user = ctx.user;
+    if (!user || user.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
+    }
+    return next({ ctx: { ...ctx, user } });
+  }),
+);
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
-
-    if (!ctx.user || ctx.user.role !== 'admin') {
+    const user = ctx.user;
+    if (!user || user.role !== "admin") {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
-
-    if (await isAdminMfaEnrolled(ctx.user.id)) {
-      const mfaToken = parseCookieHeader(ctx.req.headers.cookie ?? "")[ADMIN_MFA_VERIFIED_COOKIE];
-      if (!(await verifyAdminMfaSessionToken(mfaToken, ctx.user.id))) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Authenticator verification is required for Super Admin access (10003)" });
-      }
+    if (!(await isAdminMfaEnrolled(user.id))) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Authenticator setup is required for Super Admin access (10003)" });
     }
-
-    return next({
-      ctx: {
-        ...ctx,
-        user: ctx.user,
-      },
-    });
+    const mfaToken = parseCookieHeader(ctx.req.headers.cookie ?? "")[ADMIN_MFA_VERIFIED_COOKIE];
+    if (!(await verifyAdminMfaSessionToken(mfaToken, user.id))) {
+      throw new TRPCError({ code: "UNAUTHORIZED", message: "Authenticator verification is required for Super Admin access (10003)" });
+    }
+    return next({ ctx: { ...ctx, user } });
   }),
 );

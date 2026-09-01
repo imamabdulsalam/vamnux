@@ -2226,6 +2226,13 @@ export async function getProductTrackingScheduleByTaskUid(taskUid: string) {
   return schedule ?? null;
 }
 
+export async function listActiveProductTrackingSchedules() {
+  const db = requireDb(await getDb());
+  return db.select().from(productTrackingSchedules)
+    .where(eq(productTrackingSchedules.status, "active"))
+    .orderBy(productTrackingSchedules.supplierKey);
+}
+
 export async function activateProductTrackingSchedule(input: { id: number; taskUid: string; nextRunAt?: string | null }) {
   const db = requireDb(await getDb());
   await db.update(productTrackingSchedules).set({ status: "active", scheduleCronTaskUid: input.taskUid, nextRunAt: input.nextRunAt ? new Date(input.nextRunAt) : null, lastError: null }).where(eq(productTrackingSchedules.id, input.id));

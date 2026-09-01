@@ -1,4 +1,4 @@
-import { ADMIN_MFA_CHALLENGE_COOKIE, ADMIN_MFA_VERIFIED_COOKIE, COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
+import { ADMIN_MFA_CHALLENGE_COOKIE, ADMIN_MFA_VERIFIED_COOKIE } from "@shared/const";
 import { getSuperAdminOverview } from "./db";
 import { getCategoryNavigationVisibility } from "./db";
 import { listActiveCatalogSearchSuggestions } from "./db";
@@ -39,16 +39,14 @@ import { syncFlashTopUpCatalog } from "./flashtopupCatalog";
 import { syncFoxReloadCatalog } from "./foxreloadCatalog";
 import { syncGamesDropCatalog } from "./gamesdropCatalog";
 import { runProductTrackingSupplierSync } from "./productTracking";
-import { createHeartbeatJob, updateHeartbeatJob } from "./_core/heartbeat";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { storagePut } from "./storage";
 import { systemRouter } from "./_core/systemRouter";
-import { completeAdminMfaChallenge, confirmAdminMfaEnrollment, createAdminMfaSessionToken, getAdminMfaStatus, regenerateAdminMfaRecoveryCodes, startAdminMfaEnrollment } from "./adminMfa";
-import { sdk } from "./_core/sdk";
+import { completeAdminMfaChallenge, confirmAdminMfaEnrollment, createAdminMfaChallenge, createAdminMfaSessionToken, getAdminMfaStatus, isAdminMfaEnrolled, regenerateAdminMfaRecoveryCodes, startAdminMfaEnrollment } from "./adminMfa";
 import { initializePaystackWalletFunding, verifyPaystackWalletFundingForUser } from "./paystack";
 import { assertNativeMutationOrigin, beginNativeRegistration, clearNativeSessionCookie, completeNativeEnrollment, NativeAuthError, requestNativePasswordReset, resetNativePassword, setNativeSessionCookie, signInNativeAccount, signOutNativeSession } from "./nativeAuth";
 import { ENV } from "./_core/env";
-import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminMfaSetupProcedure, adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
 const customerProcedure = protectedProcedure.use(async ({ ctx, next }) => {
   await assertCustomerAccountActive(ctx.user.id);
@@ -93,10 +91,22 @@ const supplierAdapterCanonicalInputSchema = z.object({
 const productTrackingSupplierSchema = z.enum(["flashtopup", "foxreload", "gamesdrop"]);
 const productTrackingIntervalSchema = z.union([z.literal(2), z.literal(10), z.literal(24)]);
 
-function productTrackingCron(intervalHours: 2 | 10 | 24) {
-  // A two-hour callback is used for both 2h and 10h schedules. The callback
-  // checks its persisted due time, preserving the selected supplier cadence.
-  return intervalHours === 24 ? "0 0 0 * * *" : "0 0 */2 * * *";
+function cpanelProductTrackingTaskKey(supplierKey: string) {
+  return `cpanel-product-tracking:${supplierKey}`;
+}
+
+async function completeNativeSignIn(ctx: { req: Parameters<typeof setNativeSessionCookie>[0]; res: Parameters<typeof setNativeSessionCookie>[1] }, result: { rawSession: string; user: { id: number; role: "admin" | "user" } }) {
+  setNativeSessionCookie(ctx.req, ctx.res, result.rawSession);
+  if (result.user.role !== "admin") return { success: true, nextPath: "/account" } as const;
+
+  const cookieOptions = getSessionCookieOptions(ctx.req);
+  ctx.res.clearCookie(ADMIN_MFA_VERIFIED_COOKIE, { ...cookieOptions, maxAge: -1 });
+  if (await isAdminMfaEnrolled(result.user.id)) {
+    const challenge = await createAdminMfaChallenge(result.user.id);
+    ctx.res.cookie(ADMIN_MFA_CHALLENGE_COOKIE, challenge, { ...cookieOptions, maxAge: 10 * 60 * 1000 });
+    return { success: true, nextPath: "/admin/login?mfa=required" } as const;
+  }
+  return { success: true, nextPath: "/admin/login?mfa=setup" } as const;
 }
 
 export const appRouter = router({
@@ -107,7 +117,6 @@ export const appRouter = router({
     nativeStatus: publicProcedure.query(() => ({ enabled: ENV.nativeAuthEnabled })),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       ctx.res.clearCookie(ADMIN_MFA_VERIFIED_COOKIE, { ...cookieOptions, maxAge: -1 });
       void signOutNativeSession(ctx.req);
       clearNativeSessionCookie(ctx.req, ctx.res);
@@ -135,8 +144,7 @@ export const appRouter = router({
       assertNativeMutationOrigin(ctx.req);
       try {
         const result = await completeNativeEnrollment(input);
-        setNativeSessionCookie(ctx.req, ctx.res, result.rawSession);
-        return { success: true } as const;
+        return await completeNativeSignIn(ctx, result);
       } catch (error) {
         if (error instanceof NativeAuthError) throw new Error("This account setup link is invalid, expired, or cannot be used here.");
         throw error;
@@ -146,8 +154,7 @@ export const appRouter = router({
       assertNativeMutationOrigin(ctx.req);
       try {
         const result = await signInNativeAccount(input);
-        setNativeSessionCookie(ctx.req, ctx.res, result.rawSession);
-        return { success: true } as const;
+        return await completeNativeSignIn(ctx, result);
       } catch (error) {
         if (error instanceof NativeAuthError) throw new Error("The email address or password is not valid, or this account still needs verification.");
         throw error;
@@ -165,8 +172,7 @@ export const appRouter = router({
       assertNativeMutationOrigin(ctx.req);
       try {
         const result = await resetNativePassword(input);
-        setNativeSessionCookie(ctx.req, ctx.res, result.rawSession);
-        return { success: true } as const;
+        return await completeNativeSignIn(ctx, result);
       } catch (error) {
         if (error instanceof NativeAuthError) throw new Error("This password-reset link is invalid, expired, or cannot be used here.");
         throw error;
@@ -178,10 +184,8 @@ export const appRouter = router({
       const user = await getUserById(result.userId);
       if (!user || user.role !== "admin") throw new Error("Admin MFA challenge is no longer valid");
       const cookieOptions = getSessionCookieOptions(ctx.req);
-      const sessionToken = await sdk.createSessionToken(user.openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
       const mfaToken = await createAdminMfaSessionToken(user.id);
       ctx.res.clearCookie(ADMIN_MFA_CHALLENGE_COOKIE, { ...cookieOptions, maxAge: -1 });
-      ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
       ctx.res.cookie(ADMIN_MFA_VERIFIED_COOKIE, mfaToken, { ...cookieOptions, maxAge: 12 * 60 * 60 * 1000 });
       return { success: true } as const;
     }),
@@ -288,15 +292,15 @@ export const appRouter = router({
     })).mutation(({ ctx, input }) => prepareUsdSteamTopUpWalletOrder({ userId: ctx.user.id, ...input })),
   }),
   admin: router({
-    mfaStatus: adminProcedure.query(({ ctx }) => getAdminMfaStatus(ctx.user.id)),
-    startMfaEnrollment: adminProcedure.mutation(({ ctx }) => startAdminMfaEnrollment({ userId: ctx.user.id, label: "Super Admin" })),
-    confirmMfaEnrollment: adminProcedure.input(z.object({ code: z.string().trim().length(6) })).mutation(async ({ ctx, input }) => {
+    mfaStatus: adminMfaSetupProcedure.query(({ ctx }) => getAdminMfaStatus(ctx.user.id)),
+    startMfaEnrollment: adminMfaSetupProcedure.mutation(({ ctx }) => startAdminMfaEnrollment({ userId: ctx.user.id, label: "Super Admin" })),
+    confirmMfaEnrollment: adminMfaSetupProcedure.input(z.object({ code: z.string().trim().length(6) })).mutation(async ({ ctx, input }) => {
       const result = await confirmAdminMfaEnrollment({ userId: ctx.user.id, label: "Super Admin", code: input.code });
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.cookie(ADMIN_MFA_VERIFIED_COOKIE, await createAdminMfaSessionToken(ctx.user.id), { ...cookieOptions, maxAge: 12 * 60 * 60 * 1000 });
       return result;
     }),
-    regenerateMfaRecoveryCodes: adminProcedure.input(z.object({ code: z.string().trim().length(6) })).mutation(({ ctx, input }) => regenerateAdminMfaRecoveryCodes({ userId: ctx.user.id, label: "Super Admin", code: input.code })),
+    regenerateMfaRecoveryCodes: adminMfaSetupProcedure.input(z.object({ code: z.string().trim().length(6) })).mutation(({ ctx, input }) => regenerateAdminMfaRecoveryCodes({ userId: ctx.user.id, label: "Super Admin", code: input.code })),
     getOverview: adminProcedure.query(() => getSuperAdminOverview()),
     getMasterCatalogFoundation: adminProcedure.query(() => getMasterCatalogFoundationSummary()),
     getSupplierProductMappingSummary: adminProcedure.query(() => getSupplierProductMappingSummary()),
@@ -480,26 +484,16 @@ export const appRouter = router({
     activateProductTrackingSchedule: adminProcedure.input(z.object({ scheduleId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
       const schedule = await getProductTrackingScheduleById(input.scheduleId);
       if (!schedule || !isProductTrackingSupplierKey(schedule.supplierKey)) throw new Error("Product Tracking schedule was not found.");
-      const intervalHours = Number(schedule.intervalHours) as 2 | 10 | 24;
-      const sessionToken = parseCookieHeader(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
-      const cron = productTrackingCron(intervalHours);
-      const description = `VAMNUX Product Tracking ${schedule.supplierKey} supplier availability sync every ${intervalHours} hours`;
-      if (schedule.scheduleCronTaskUid) {
-        const updated = await updateHeartbeatJob(schedule.scheduleCronTaskUid, { cron, path: "/api/scheduled/product-tracking", payload: {}, description, enable: true }, sessionToken);
-        await updateProductTrackingScheduleState({ id: schedule.id, status: "active", nextRunAt: updated.nextExecutionAt });
-        return { status: "active" as const, nextRunAt: updated.nextExecutionAt ?? null };
-      }
-      const job = await createHeartbeatJob({ name: `product-tracking-${schedule.supplierKey}`, cron, path: "/api/scheduled/product-tracking", payload: {}, description }, sessionToken);
-      await activateProductTrackingSchedule({ id: schedule.id, taskUid: job.taskUid, nextRunAt: job.nextExecutionAt });
-      return { status: "active" as const, nextRunAt: job.nextExecutionAt ?? null };
+      const nextRunAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      await activateProductTrackingSchedule({ id: schedule.id, taskUid: cpanelProductTrackingTaskKey(schedule.supplierKey), nextRunAt });
+      return { status: "active" as const, nextRunAt };
     }),
     setProductTrackingScheduleEnabled: adminProcedure.input(z.object({ scheduleId: z.number().int().positive(), enabled: z.boolean() })).mutation(async ({ ctx, input }) => {
       const schedule = await getProductTrackingScheduleById(input.scheduleId);
-      if (!schedule?.scheduleCronTaskUid) throw new Error("Activate the saved Product Tracking schedule after publishing this version first.");
-      const sessionToken = parseCookieHeader(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
-      const updated = await updateHeartbeatJob(schedule.scheduleCronTaskUid, { enable: input.enabled }, sessionToken);
-      await updateProductTrackingScheduleState({ id: schedule.id, status: input.enabled ? "active" : "paused", nextRunAt: updated.nextExecutionAt });
-      return { status: input.enabled ? "active" as const : "paused" as const, nextRunAt: updated.nextExecutionAt ?? null };
+      if (!schedule?.scheduleCronTaskUid) throw new Error("Activate the saved Product Tracking schedule after configuring the cPanel five-minute callback.");
+      const nextRunAt = input.enabled ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null;
+      await updateProductTrackingScheduleState({ id: schedule.id, status: input.enabled ? "active" : "paused", nextRunAt });
+      return { status: input.enabled ? "active" as const : "paused" as const, nextRunAt };
     }),
     listPromotions: adminProcedure.query(() => listPromotions()),
     createPromotion: adminProcedure.input(z.object({
